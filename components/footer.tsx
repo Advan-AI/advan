@@ -2,18 +2,19 @@
 
 import Link from "next/link"
 import Image from "next/image"
+import { usePathname, useRouter } from "next/navigation"
 import { Linkedin, Instagram, Youtube } from "lucide-react"
 
 const footerLinks = {
   Platform: [
-    { label: "How it Works", href: "#lifecycle" },
-    { label: "Solutions", href: "#platform" },
-    { label: "Results", href: "#results" },
-    { label: "FAQs", href: "#faq" },
+    { label: "How it Works", href: "/#lifecycle" },
+    { label: "Solutions", href: "/#platform" },
+    { label: "Results", href: "/#results" },
+    { label: "FAQs", href: "/#faq" },
   ],
   Company: [
     { label: "About", href: "/about" },
-    { label: "Contact", href: "#contact" },
+    { label: "Contact", href: "/#contact" },
     { label: "Book a Demo", href: "https://cal.com/day-nguyen", external: true },
   ],
   Legal: [
@@ -28,7 +29,30 @@ const socialLinks = [
   { icon: Youtube, href: "https://www.youtube.com/@AdvanAI1", label: "YouTube" },
 ]
 
+function scrollToHash(hash: string) {
+  const el = document.getElementById(hash)
+  if (el) {
+    const offset = 80
+    const top = el.getBoundingClientRect().top + window.scrollY - offset
+    window.scrollTo({ top, behavior: "smooth" })
+  }
+}
+
 export function Footer() {
+  const pathname = usePathname()
+  const router = useRouter()
+
+  function handleAnchorClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
+    const hash = href.replace("/#", "")
+    
+    if (pathname === "/") {
+      e.preventDefault()
+      scrollToHash(hash)
+      window.history.pushState(null, "", `#${hash}`)
+    }
+    // If on another page, the link will navigate to /#hash naturally
+  }
+
   return (
     <footer className="bg-[#f8f8f8] border-t border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
@@ -83,14 +107,10 @@ export function Footer() {
                       >
                         {link.label}
                       </a>
-                    ) : link.href.startsWith("#") ? (
+                    ) : link.href.startsWith("/#") ? (
                       <a
                         href={link.href}
-                        onClick={(e) => {
-                          e.preventDefault()
-                          const el = document.getElementById(link.href.replace("#", ""))
-                          if (el) el.scrollIntoView({ behavior: "smooth" })
-                        }}
+                        onClick={(e) => handleAnchorClick(e, link.href)}
                         className="text-sm text-[#1a1a1a] hover:text-[#E85D04] transition-colors cursor-pointer"
                       >
                         {link.label}
