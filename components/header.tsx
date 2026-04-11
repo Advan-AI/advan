@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -56,9 +57,13 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-xl bg-[#E85D04] flex items-center justify-center">
-              <span className="text-white font-bold text-lg">A</span>
-            </div>
+            <Image
+              src="/images/advan-logo.png"
+              alt="Advan AI Logo"
+              width={40}
+              height={40}
+              className="rounded-lg"
+            />
             <span className="font-semibold text-xl text-[#1a1a1a]">Advan AI</span>
           </Link>
 

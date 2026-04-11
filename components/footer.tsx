@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { Linkedin, Twitter, Mail } from "lucide-react"
 
 const footerLinks = {
@@ -37,9 +38,13 @@ export function Footer() {
           {/* Brand column */}
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="inline-flex items-center gap-2 mb-6">
-              <div className="h-10 w-10 rounded-xl bg-[#E85D04] flex items-center justify-center">
-                <span className="text-white font-bold text-lg">A</span>
-              </div>
+              <Image
+                src="/images/advan-logo.png"
+                alt="Advan AI Logo"
+                width={40}
+                height={40}
+                className="rounded-lg"
+              />
               <span className="font-semibold text-xl text-white">Advan AI</span>
             </Link>
             <p className="text-sm text-white/50 leading-relaxed mb-6">
