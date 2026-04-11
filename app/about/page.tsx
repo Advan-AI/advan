@@ -105,7 +105,7 @@ export default function AboutPage() {
                 className="relative"
               >
                 <img
-                  src="/images/diverse-team.jpg"
+                  src="/images/diverse-team.png"
                   alt="Diverse team collaborating at Advan AI"
                   className="rounded-3xl w-full object-cover aspect-[4/3]"
                 />
