@@ -1,14 +1,15 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Inter, Playfair_Display, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const _inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const _playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" });
+const _geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: 'The Collective | Where Innovation Meets Human Connection',
-  description: 'We are a collective of passionate professionals driving business transformation through technology and collaboration.',
+  title: 'Advan AI | AI-Powered Growth Systems for Predictable Revenue',
+  description: 'Build, optimize, and scale AI agents that generate new demand, reactivate existing leads, and convert inbound traffic.',
   generator: 'v0.app',
   icons: {
     icon: [
