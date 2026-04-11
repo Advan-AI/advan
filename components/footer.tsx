@@ -35,7 +35,7 @@ const socialLinks = [
   { icon: Linkedin, href: "https://www.linkedin.com/company/advanai/", label: "LinkedIn" },
   { icon: Instagram, href: "https://www.instagram.com/advanintech/?hl=en", label: "Instagram" },
   { icon: XIcon, href: "https://twitter.com/advanai", label: "X" },
-  { icon: Youtube, href: "https://youtube.com/@advanai", label: "YouTube" },
+  { icon: Youtube, href: "https://www.youtube.com/@AdvanAI1", label: "YouTube" },
 ]
 
 export function Footer() {
