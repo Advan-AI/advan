@@ -32,7 +32,7 @@ function XIcon({ className }: { className?: string }) {
 }
 
 const socialLinks = [
-  { icon: Linkedin, href: "https://linkedin.com/company/advan-ai", label: "LinkedIn" },
+  { icon: Linkedin, href: "https://www.linkedin.com/company/advanai/", label: "LinkedIn" },
   { icon: Instagram, href: "https://instagram.com/advanai", label: "Instagram" },
   { icon: XIcon, href: "https://twitter.com/advanai", label: "X" },
   { icon: Youtube, href: "https://youtube.com/@advanai", label: "YouTube" },
