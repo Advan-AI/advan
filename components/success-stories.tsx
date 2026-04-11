@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion"
 import { ArrowRight } from "lucide-react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 
 const BOOKING_URL = "https://cal.com/day-nguyen"
@@ -88,18 +89,16 @@ export function SuccessStories() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.15 }}
-              className="relative rounded-3xl overflow-hidden w-full bg-gradient-to-br from-[#E85D04] to-[#D45A04]"
+              className="relative rounded-3xl overflow-hidden w-full"
               style={{ aspectRatio: "4/3" }}
             >
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center text-white p-8">
-                  <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4">
-                    <span className="text-4xl font-bold">A</span>
-                  </div>
-                  <p className="text-2xl font-light font-serif mb-2">Case Study</p>
-                  <p className="text-white/80">See how we helped SaaS companies 10x their pipeline</p>
-                </div>
-              </div>
+              <Image
+                src="/images/success-story.jpg"
+                alt="Team celebrating success with analytics dashboard"
+                fill
+                className="object-cover"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+              />
               <div className="absolute top-5 left-5">
                 <div className="px-3 py-1.5 bg-white/95 backdrop-blur-sm rounded-lg">
                   <span className="text-xs font-semibold text-[#1a1a1a] uppercase tracking-wide">Case Study</span>
