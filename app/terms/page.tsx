@@ -3,89 +3,94 @@ import { Footer } from "@/components/footer"
 
 export default function TermsPage() {
   return (
-    <main className="min-h-screen bg-white">
+    <>
       <Header />
-      
-      <section className="pt-32 pb-16 lg:pt-40 lg:pb-24">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl md:text-5xl font-light text-[#1a1a1a] mb-8 font-serif">
-            Terms of Service
-          </h1>
-          
-          <div className="prose prose-lg max-w-none">
-            <p className="text-[#666] mb-6">
-              Last updated: January 2024
-            </p>
+      <main className="pt-20">
+        <section className="py-24 bg-white">
+          <div className="max-w-3xl mx-auto px-6">
+            <h1 className="text-4xl font-light text-[#1a1a1a] mb-4 font-serif">Terms of Service</h1>
+            <p className="text-[#666] mb-10">Last updated: January 2026</p>
 
-            <div className="space-y-8 text-[#444]">
+            <div className="prose prose-lg max-w-none space-y-10">
               <section>
-                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Agreement to Terms</h2>
-                <p>
-                  By accessing or using Advan AI&apos;s services, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our services.
+                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Acceptance of Terms</h2>
+                <p className="text-[#555] leading-relaxed">
+                  By accessing or using Advan AI&apos;s services, you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any of these terms, you are prohibited from using our services.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Description of Services</h2>
-                <p>
-                  Advan AI provides an AI-powered revenue growth platform that includes prospect research, personalized outreach, campaign management, and meeting scheduling services. Our AI Growth Engine is designed to generate qualified sales appointments for B2B companies.
+                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Services</h2>
+                <p className="text-[#555] leading-relaxed">
+                  Advan AI provides AI-powered B2B revenue growth services, including but not limited to AI outbound prospecting, CRM reactivation, and inbound conversion optimization. The specific services provided are outlined in your service agreement.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Client Responsibilities</h2>
-                <p className="mb-4">As a client, you agree to:</p>
-                <ul className="list-disc pl-6 space-y-2">
-                  <li>Provide accurate information about your business and ideal customer profile</li>
-                  <li>Attend scheduled strategy calls and provide timely feedback</li>
-                  <li>Comply with all applicable laws and regulations regarding email communications</li>
-                  <li>Not use our services for any unlawful or prohibited purpose</li>
+                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Acceptable Use</h2>
+                <p className="text-[#555] leading-relaxed mb-4">You agree not to use our services to:</p>
+                <ul className="list-disc pl-6 space-y-2 text-[#555]">
+                  <li>Violate any applicable laws or regulations</li>
+                  <li>Send unsolicited commercial communications in violation of applicable law</li>
+                  <li>Transmit any harmful, offensive, or disruptive content</li>
+                  <li>Infringe upon intellectual property rights of others</li>
+                  <li>Attempt to gain unauthorized access to our systems</li>
                 </ul>
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Payment Terms</h2>
-                <p>
-                  Payment terms are outlined in your service agreement. Advan AI operates on a performance-based model where applicable, with specific terms defined in your contract.
-                </p>
-              </section>
-
-              <section>
                 <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Intellectual Property</h2>
-                <p>
-                  All content, technology, and intellectual property related to Advan AI&apos;s platform and services remain the property of Advan AI. Campaign content created for clients is provided under license for the client&apos;s use in connection with our services.
+                <p className="text-[#555] leading-relaxed">
+                  The service and its original content, features, and functionality are and will remain the exclusive property of Advan AI. Our trademarks may not be used in connection with any product or service without prior written consent.
                 </p>
               </section>
 
               <section>
                 <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Limitation of Liability</h2>
-                <p>
-                  Advan AI shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of our services. Our total liability shall not exceed the amounts paid by you for our services in the twelve months preceding the claim.
+                <p className="text-[#555] leading-relaxed">
+                  To the maximum extent permitted by law, Advan AI shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses.
                 </p>
               </section>
 
               <section>
                 <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Termination</h2>
-                <p>
-                  Either party may terminate the service agreement according to the terms specified in your contract. Upon termination, Advan AI will provide you with any data and reports generated during the engagement.
+                <p className="text-[#555] leading-relaxed">
+                  Either party may terminate the service agreement with 30 days&apos; written notice. We reserve the right to suspend or terminate your access immediately if you breach these terms. Upon termination, your right to use our services will cease immediately.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Contact</h2>
-                <p>
-                  For questions about these Terms of Service, please contact us at{" "}
-                  <a href="mailto:legal@advan.ai" className="text-[#E85D04] hover:underline">
-                    legal@advan.ai
-                  </a>
+                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Confidentiality</h2>
+                <p className="text-[#555] leading-relaxed">
+                  Both parties agree to maintain the confidentiality of any proprietary information shared during the course of our business relationship. This obligation survives termination of services.
+                </p>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Governing Law</h2>
+                <p className="text-[#555] leading-relaxed">
+                  These terms shall be governed by and construed in accordance with applicable laws, without regard to conflict of law principles. Any disputes arising from these terms shall be resolved through binding arbitration.
+                </p>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Changes to Terms</h2>
+                <p className="text-[#555] leading-relaxed">
+                  We reserve the right to modify these terms at any time. We will notify users of any material changes via email or through our services. Continued use of our services after changes constitutes acceptance of the modified terms.
+                </p>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-4">Contact Information</h2>
+                <p className="text-[#555] leading-relaxed">
+                  For questions about these Terms of Service, please contact us at <a href="mailto:day@advanai.net" className="text-[#E85D04] hover:underline">day@advanai.net</a>.
                 </p>
               </section>
             </div>
           </div>
-        </div>
-      </section>
-
+        </section>
+      </main>
       <Footer />
-    </main>
+    </>
   )
 }

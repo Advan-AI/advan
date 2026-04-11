@@ -1,27 +1,29 @@
 import { Header } from "@/components/header"
+import { Footer } from "@/components/footer"
 import { HeroSection } from "@/components/hero-section"
-import { PlatformSection } from "@/components/platform-section"
+import { NewStandardSection } from "@/components/new-standard-section"
 import { LifecycleSection } from "@/components/lifecycle-section"
 import { SuccessStories } from "@/components/success-stories"
 import { ComplianceSection } from "@/components/compliance-section"
+import { FinalCTA } from "@/components/final-cta"
 import { FAQSection } from "@/components/faq-section"
 import { ContactSection } from "@/components/contact-section"
-import { FinalCTA } from "@/components/final-cta"
-import { Footer } from "@/components/footer"
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <main className="min-h-screen">
+    <>
       <Header />
-      <HeroSection />
-      <PlatformSection />
-      <LifecycleSection />
-      <SuccessStories />
-      <ComplianceSection />
-      <FAQSection />
-      <ContactSection />
-      <FinalCTA />
+      <main>
+        <HeroSection />
+        <NewStandardSection />
+        <LifecycleSection />
+        <SuccessStories />
+        <ComplianceSection />
+        <FinalCTA />
+        <FAQSection />
+        <ContactSection />
+      </main>
       <Footer />
-    </main>
+    </>
   )
 }
