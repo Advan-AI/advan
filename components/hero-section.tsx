@@ -13,7 +13,7 @@ const CARDS = [
   { id: 2, image: "/images/card-email.jpg", label: "Email Sent" },
   { id: 3, image: "/images/card-profile.jpg", label: "Profile Match" },
   { id: 4, image: "/images/card-lead.jpg", label: "Lead Signal" },
-  { id: 5, image: "/images/card-reply.jpg", label: "Reply Rate" },
+  { id: 5, image: "/images/card-reply.jpg", label: "Reply Received" },
   { id: 6, image: "/images/card-sequence.jpg", label: "AI Sequence" },
 ]
 
@@ -61,6 +61,10 @@ function StackedCards() {
               className="object-cover"
               sizes="320px"
             />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            <div className="absolute bottom-4 left-4 right-4">
+              <p className="text-white font-semibold text-sm drop-shadow-lg">{card.label}</p>
+            </div>
           </motion.div>
         )
       })}
