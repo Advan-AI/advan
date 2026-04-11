@@ -3,17 +3,18 @@
 import { useEffect, useState } from "react"
 import { motion, useMotionValue, useTransform, useSpring } from "framer-motion"
 import { ArrowRight } from "lucide-react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 
 const BOOKING_URL = "https://cal.com/day-nguyen"
 
 const CARDS = [
-  { id: 1, label: "Adam Jones", sublabel: "VP of Sales - Fintech", color: "#E85D04" },
-  { id: 2, label: "Demo Booked", sublabel: "Today, 2:00 PM", color: "#7c3aed" },
-  { id: 3, label: "Qualified Lead", sublabel: "High intent signal", color: "#059669" },
-  { id: 4, label: "AI Sequence Active", sublabel: "Step 3 of 5 - 12 prospects", color: "#6366f1" },
-  { id: 5, label: "Reply Received", sublabel: "38% reply rate this week", color: "#f59e0b" },
-  { id: 6, label: "james@healthsaas.com", sublabel: "Opened - 2 min ago", color: "#ec4899" },
+  { id: 1, image: "/images/card-demo.jpg", label: "Demo Booked" },
+  { id: 2, image: "/images/card-email.jpg", label: "Email Sent" },
+  { id: 3, image: "/images/card-profile.jpg", label: "Profile Match" },
+  { id: 4, image: "/images/card-lead.jpg", label: "Lead Signal" },
+  { id: 5, image: "/images/card-reply.jpg", label: "Reply Rate" },
+  { id: 6, image: "/images/card-sequence.jpg", label: "AI Sequence" },
 ]
 
 function StackedCards() {
@@ -32,14 +33,14 @@ function StackedCards() {
   }, [])
 
   return (
-    <div className="relative w-[290px] h-[370px] select-none" aria-hidden="true">
+    <div className="relative w-[320px] h-[320px] select-none" aria-hidden="true">
       {order.map((cardIdx, stackPos) => {
         const card = CARDS[cardIdx]
         const total = order.length
         const isTop = stackPos === total - 1
 
-        const xOffset = (total - 1 - stackPos) * 12
-        const yOffset = (total - 1 - stackPos) * 5
+        const xOffset = (total - 1 - stackPos) * 14
+        const yOffset = (total - 1 - stackPos) * 6
         const scale = 1 - (total - 1 - stackPos) * 0.04
         const zIndex = stackPos
 
@@ -50,24 +51,16 @@ function StackedCards() {
             animate={{ x: xOffset, y: yOffset, scale, zIndex }}
             whileHover={isTop ? { scale: scale * 1.02, y: yOffset - 4 } : {}}
             transition={{ type: "spring", stiffness: 280, damping: 28 }}
-            className="absolute inset-0 rounded-2xl overflow-hidden shadow-2xl cursor-pointer bg-[#111]"
+            className="absolute inset-0 rounded-2xl overflow-hidden shadow-2xl cursor-pointer"
             style={{ boxShadow: isTop ? "0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)" : undefined }}
           >
-            <div className="relative w-full h-full bg-gradient-to-br from-[#1a1a1a] to-[#111]">
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-              <div className="absolute inset-0 flex flex-col justify-between p-6">
-                <div 
-                  className="w-12 h-12 rounded-xl flex items-center justify-center"
-                  style={{ backgroundColor: card.color }}
-                >
-                  <span className="text-white font-bold text-lg">{card.label.charAt(0)}</span>
-                </div>
-                <div>
-                  <p className="text-white font-semibold text-sm leading-tight">{card.label}</p>
-                  <p className="text-white/55 text-xs mt-0.5">{card.sublabel}</p>
-                </div>
-              </div>
-            </div>
+            <Image
+              src={card.image}
+              alt={card.label}
+              fill
+              className="object-cover"
+              sizes="320px"
+            />
           </motion.div>
         )
       })}
