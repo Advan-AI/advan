@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
-import { Linkedin, Instagram, Youtube } from "lucide-react"
+import { Linkedin, Youtube } from "lucide-react"
 
 const footerLinks = {
   Platform: [
@@ -25,7 +25,6 @@ const footerLinks = {
 
 const socialLinks = [
   { icon: Linkedin, href: "https://www.linkedin.com/company/advanai/", label: "LinkedIn" },
-  { icon: Instagram, href: "https://www.instagram.com/advanintech/?hl=en", label: "Instagram" },
   { icon: Youtube, href: "https://www.youtube.com/@AdvanAI1", label: "YouTube" },
 ]
 
