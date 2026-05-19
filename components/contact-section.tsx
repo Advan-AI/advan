@@ -2,69 +2,85 @@
 
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
+import { ArrowRight, Calendar, Sparkles } from "lucide-react"
 
 const BOOKING_URL = "https://cal.com/day-nguyen"
 
+const BULLETS = [
+  "Walkthrough of your real ticket data",
+  "Live confidence + reasoning trace demo",
+  "Compliance review with your CISO",
+  "Rollout plan and 30-day pilot scope",
+]
+
 export function ContactSection() {
   return (
-    <section className="py-8 bg-[#F8F7F4]" id="contact">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-12 items-start">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
-              <p className="text-sm font-semibold text-[#E85D04] uppercase tracking-wider mb-4">
-                Get in Touch
-              </p>
-              <h2
-                className="text-3xl md:text-4xl font-light text-[#1a1a1a] mb-6 font-serif"
-              >
-                Ready to build your{" "}
-                <span className="italic">growth engine</span>?
-              </h2>
-              <p className="text-lg text-[#666] mb-8">
-                Book a demo to see how our AI Growth Engine can deliver qualified sales appointments to your calendar every month.
-              </p>
-            </motion.div>
+    <section id="contact" className="relative py-24 lg:py-32">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid md:grid-cols-2 gap-10 lg:gap-16 items-start">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-200/90 mb-5">
+              <Sparkles className="w-3 h-3" />
+              Talk to us
+            </div>
+            <h2 className="text-3xl lg:text-5xl font-semibold tracking-tight leading-[1.1] text-gradient">
+              Ready for AI support your{" "}
+              <span className="text-gradient-brand">whole team trusts?</span>
+            </h2>
+            <p className="mt-5 text-base lg:text-lg text-white/65 leading-relaxed max-w-md">
+              Book 25 minutes with our team. We&apos;ll show Advan resolving real tickets, with every
+              source and decision visible.
+            </p>
 
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="bg-white rounded-3xl p-8 shadow-xl"
-            >
-              <h3 className="text-xl font-semibold text-[#1a1a1a] mb-2">See it in action</h3>
-              <p className="text-[#666] mb-8">
-                In 30 minutes, we&apos;ll show you exactly how our AI Growth Engine can build a predictable pipeline for your business.
-              </p>
+            <ul className="mt-8 space-y-2.5">
+              {BULLETS.map((item) => (
+                <li key={item} className="flex items-center gap-3 text-sm text-white/75">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </motion.div>
 
-              <div className="space-y-4 mb-8">
-                {[
-                  "Custom ICP analysis for your market",
-                  "Live demo of the AI Growth Engine",
-                  "Pipeline projection and ROI estimate",
-                  "Clear next steps and timeline"
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-[#E85D04] flex-shrink-0" />
-                    <span className="text-sm text-[#1a1a1a]">{item}</span>
-                  </div>
-                ))}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.6 }}
+            className="relative rounded-3xl glass-strong p-8 lg:p-10"
+          >
+            <div className="absolute -inset-px rounded-3xl bg-gradient-to-b from-cyan-400/30 via-transparent to-transparent -z-10 blur-sm" aria-hidden />
+
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-9 h-9 rounded-xl glass flex items-center justify-center">
+                <Calendar className="w-4 h-4 text-cyan-200" />
               </div>
+              <h3 className="text-base font-semibold text-white">Book a 25-min demo</h3>
+            </div>
+            <p className="text-sm text-white/55 leading-relaxed mb-7">
+              Free consultation. No commitment. SOC 2 + GDPR ready from day one.
+            </p>
 
-              <Button asChild className="w-full bg-[#E85D04] hover:bg-[#D45A04] text-white rounded-full h-12">
-                <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
-                  Book your demo
-                </a>
-              </Button>
-              <p className="text-xs text-[#999] text-center mt-4">
-                Free consultation. No commitment required.
-              </p>
-            </motion.div>
-          </div>
+            <Button
+              asChild
+              size="lg"
+              className="group w-full rounded-full bg-white text-slate-900 hover:bg-white/90 h-12 text-base font-medium shadow-[0_8px_32px_-8px_rgba(34,211,238,0.6)]"
+            >
+              <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
+                Pick a time
+                <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </a>
+            </Button>
+
+            <p className="mt-4 text-xs text-white/40 text-center">
+              Prefer email? Reach out at <span className="text-white/70">hello@advan.ai</span>
+            </p>
+          </motion.div>
         </div>
       </div>
     </section>

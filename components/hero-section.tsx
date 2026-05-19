@@ -1,177 +1,164 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { motion, useMotionValue, useTransform, useSpring } from "framer-motion"
-import { ArrowRight } from "lucide-react"
-import Image from "next/image"
+import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { ArrowRight, ChevronDown, Sparkles, ShieldCheck, BookOpen, Activity, MessageSquare, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { TapBoxSimulator } from "@/components/tap-box-simulator"
 
 const BOOKING_URL = "https://cal.com/day-nguyen"
 
-const CARDS = [
-  { id: 1, image: "/images/card-demo.jpg", label: "Demo Booked" },
-  { id: 2, image: "/images/card-email.jpg", label: "Email Sent" },
-  { id: 3, image: "/images/card-profile.jpg", label: "Profile Match" },
-  { id: 4, image: "/images/card-lead.jpg", label: "Lead Signal" },
-  { id: 5, image: "/images/card-reply.jpg", label: "Reply Received" },
-  { id: 6, image: "/images/card-sequence.jpg", label: "AI Sequence" },
-]
-
-function StackedCards() {
-  const [order, setOrder] = useState(CARDS.map((_, i) => i))
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setOrder((prev) => {
-        const next = [...prev]
-        const last = next.pop()!
-        next.unshift(last)
-        return next
-      })
-    }, 2500)
-    return () => clearInterval(interval)
-  }, [])
-
+export function HeroSection() {
   return (
-    <div className="relative w-[320px] h-[320px] select-none" aria-hidden="true">
-      {order.map((cardIdx, stackPos) => {
-        const card = CARDS[cardIdx]
-        const total = order.length
-        const isTop = stackPos === total - 1
+    <section
+      id="hero"
+      className="relative isolate overflow-hidden pt-28 pb-24 lg:pt-36 lg:pb-32"
+      aria-label="Hero"
+    >
+      <HeroBackdrop />
 
-        const xOffset = (total - 1 - stackPos) * 14
-        const yOffset = (total - 1 - stackPos) * 6
-        const scale = 1 - (total - 1 - stackPos) * 0.04
-        const zIndex = stackPos
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center">
+          <HeroCopy />
+          <div className="relative">
+            <div className="absolute -inset-8 -z-10 rounded-[2.5rem] bg-gradient-to-br from-cyan-500/10 via-blue-500/10 to-violet-500/10 blur-3xl" aria-hidden />
+            <TapBoxSimulator />
+          </div>
+        </div>
 
-        return (
-          <motion.div
-            key={card.id}
-            layout
-            animate={{ x: xOffset, y: yOffset, scale, zIndex }}
-            whileHover={isTop ? { scale: scale * 1.02, y: yOffset - 4 } : {}}
-            transition={{ type: "spring", stiffness: 280, damping: 28 }}
-            className="absolute inset-0 rounded-2xl overflow-hidden shadow-2xl cursor-pointer"
-            style={{ boxShadow: isTop ? "0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)" : undefined }}
-          >
-            <Image
-              src={card.image}
-              alt={card.label}
-              fill
-              className="object-cover"
-              sizes="320px"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-            <div className="absolute bottom-4 left-4 right-4">
-              <p className="text-white font-semibold text-sm drop-shadow-lg">{card.label}</p>
-            </div>
-          </motion.div>
-        )
-      })}
+        <HeroTrustRow />
+      </div>
+    </section>
+  )
+}
+
+function HeroBackdrop() {
+  return (
+    <>
+      <div className="absolute inset-0 -z-20">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#070a0f] via-[#0a0f17] to-background" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] rounded-full bg-gradient-to-b from-cyan-500/15 via-blue-500/10 to-transparent blur-3xl" />
+        <div className="absolute top-40 -left-40 w-[480px] h-[480px] rounded-full bg-violet-500/10 blur-[100px]" />
+        <div className="absolute bottom-0 -right-32 w-[480px] h-[480px] rounded-full bg-cyan-500/10 blur-[100px]" />
+      </div>
+      <div className="absolute inset-0 -z-10 grid-bg [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" aria-hidden />
+    </>
+  )
+}
+
+function HeroCopy() {
+  return (
+    <div className="relative">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="inline-flex items-center gap-2 rounded-full glass px-3 py-1.5 text-xs font-medium text-white/80 mb-6"
+      >
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-400" />
+        </span>
+        Now live: Explainable AI for Customer Support
+      </motion.div>
+
+      <motion.h1
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, delay: 0.05 }}
+        className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-semibold tracking-tight leading-[1.05] text-gradient"
+      >
+        Transparent AI Support
+        <br />
+        for{" "}
+        <span className="text-gradient-brand font-semibold">
+          Better Customer Experiences
+        </span>
+      </motion.h1>
+
+      <motion.p
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, delay: 0.15 }}
+        className="mt-6 text-lg lg:text-xl text-white/65 max-w-xl leading-relaxed"
+      >
+        Resolve tickets in seconds — not minutes. Every answer is sourced,
+        scored, and explainable, so customers trust the AI and your team keeps
+        full context across every channel.
+      </motion.p>
+
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, delay: 0.25 }}
+        className="mt-9 flex flex-col sm:flex-row gap-3"
+      >
+        <Button
+          size="lg"
+          asChild
+          className="group relative overflow-hidden rounded-full bg-white text-slate-900 hover:bg-white/90 h-12 px-7 text-base font-medium shadow-[0_8px_32px_-8px_rgba(34,211,238,0.6)] transition-all"
+        >
+          <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
+            Book a demo
+            <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </a>
+        </Button>
+        <Button
+          size="lg"
+          variant="outline"
+          asChild
+          className="rounded-full h-12 px-7 text-base font-medium border-white/15 bg-white/[0.03] hover:bg-white/[0.06] text-white hover:text-white"
+        >
+          <a href="#workflow">
+            See how it works
+            <ChevronDown className="ml-2 w-4 h-4" />
+          </a>
+        </Button>
+      </motion.div>
+
+      <motion.ul
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, delay: 0.35 }}
+        className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/55"
+      >
+        <li className="flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-cyan-400" />
+          SOC 2 + GDPR ready
+        </li>
+        <li className="flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-cyan-400" />
+          Source-cited answers
+        </li>
+        <li className="flex items-center gap-2">
+          <Activity className="w-4 h-4 text-cyan-400" />
+          Live confidence scoring
+        </li>
+      </motion.ul>
     </div>
   )
 }
 
-export function HeroSection() {
-  const mouseX = useMotionValue(0.5)
-  const mouseY = useMotionValue(0.5)
-  const glowX = useSpring(useTransform(mouseX, [0, 1], ["-10%", "110%"]), { stiffness: 40, damping: 20 })
-  const glowY = useSpring(useTransform(mouseY, [0, 1], ["-10%", "110%"]), { stiffness: 40, damping: 20 })
-
-  function handleMouseMove(e: React.MouseEvent<HTMLElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    mouseX.set((e.clientX - rect.left) / rect.width)
-    mouseY.set((e.clientY - rect.top) / rect.height)
-  }
-
+function HeroTrustRow() {
+  const logos = ["Linear", "Notion", "Vercel", "Stripe", "Loom", "Ramp"]
   return (
-    <section
-      className="relative min-h-screen bg-[#0a0a0a] overflow-hidden flex items-center"
-      onMouseMove={handleMouseMove}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.7 }}
+      className="mt-20 lg:mt-28"
     >
-      {/* Background gradient */}
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#111] to-[#0a0a0a]" />
-        <motion.div
-          className="absolute w-[600px] h-[600px] rounded-full blur-[100px] pointer-events-none"
-          style={{
-            left: glowX,
-            top: glowY,
-            transform: "translate(-50%, -50%)",
-            background: "radial-gradient(circle, rgba(124, 58, 237, 0.15) 0%, transparent 70%)",
-          }}
-        />
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-[#E85D04]/5 blur-[80px]" />
-      </div>
-      {/* Grid pattern */}
-      <div className="absolute inset-0 opacity-[0.03]"
-        style={{ backgroundImage: "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)", backgroundSize: "60px 60px" }}
-      />
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16 w-full">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          {/* Left: text */}
-          <div>
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="font-light text-white mb-6 text-[40px] font-serif"
-            >
-              AI-Powered<br />Growth Systems for<br />
-              <span className="italic text-[#E85D04]">Predictable Revenue</span>
-            </motion.h1>
-
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.5 }}
-              className="text-lg text-white/60 max-w-lg mb-10 leading-relaxed"
-            >
-              Build, optimize, and scale AI agents that generate new demand, reactivate existing leads, and convert inbound traffic.
-            </motion.p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.8 }}
-              className="flex flex-col sm:flex-row gap-4"
-            >
-              <Button size="lg" asChild
-                className="group bg-[#7c3aed] hover:bg-[#6d28d9] text-white rounded-full px-8 h-13 text-base shadow-xl shadow-purple-900/40"
-              >
-                <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
-                  Book a demo
-                  <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </a>
-              </Button>
-              <Button size="lg" variant="outline" asChild
-                className="border-white/15 text-white hover:bg-white/8 hover:border-white/25 rounded-full px-8 h-13 text-base bg-transparent transition-all"
-              >
-                <a href="#platform" onClick={(e) => {
-                  e.preventDefault()
-                  const el = document.getElementById("platform")
-                  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
-                }}>
-                  See how it works
-                </a>
-              </Button>
-            </motion.div>
+      <p className="text-center text-xs uppercase tracking-[0.2em] text-white/40">
+        Trusted by modern support teams
+      </p>
+      <div className="mt-6 grid grid-cols-3 sm:grid-cols-6 gap-6 items-center justify-items-center">
+        {logos.map((logo) => (
+          <div key={logo} className="text-white/40 hover:text-white/70 transition-colors text-base font-medium tracking-tight">
+            {logo}
           </div>
-
-          {/* Right: stacked cards */}
-          <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1, delay: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
-            className="hidden lg:flex flex-1 items-center justify-center"
-          >
-            <div className="relative">
-              <div className="absolute inset-0 scale-110 rounded-3xl blur-3xl bg-purple-500/10 pointer-events-none" />
-              <StackedCards />
-            </div>
-          </motion.div>
-        </div>
+        ))}
       </div>
-    </section>
+    </motion.div>
   )
 }
