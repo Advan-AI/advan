@@ -32,7 +32,7 @@ const PLANS = [
     href: BOOKING_URL,
     featured: true,
     features: [
-      "Up to 25,000 resolved tickets / mo",
+      "Up to 10,000 resolved tickets / mo",
       "All channels: email, chat, voice, Slack, web",
       "Cross-channel memory + reasoning audit",
       "Human-in-loop policy gates",
