@@ -71,18 +71,18 @@ export default function AboutPage() {
                 <h2 className="text-3xl lg:text-4xl font-semibold tracking-tight text-gradient mb-5">
                   Our mission
                 </h2>
-                <div className="space-y-4 text-base text-white/65 leading-relaxed">
+                <div className="space-y-4 text-base text-foreground/65 leading-relaxed">
                   <p>
                     Customer support is the front door of every modern company. When AI gets it
                     wrong — silently — it costs trust faster than any other channel.
                   </p>
                   <p>
-                    Advan exists to make every AI answer explainable, every action reversible, and
+                    Advan exists to make every answer explainable, every action reversible, and
                     every customer interaction observable. Not as a feature flag. As the entire
                     posture of the product.
                   </p>
                   <p>
-                    We're building for the next decade of support: AI-first, but human-led, and
+                    We&apos;re building for the next decade of support: AI-first, but human-led, and
                     accountable on day one.
                   </p>
                 </div>
@@ -99,7 +99,7 @@ export default function AboutPage() {
                   <div className="grid-bg absolute inset-0 rounded-2xl opacity-40 [mask-image:radial-gradient(circle_at_center,black_30%,transparent_70%)]" />
                   <div className="relative text-center">
                     <div className="text-5xl font-semibold text-gradient-brand">Advan</div>
-                    <div className="mt-2 text-sm text-white/55 font-mono">transparent.support</div>
+                    <div className="mt-2 text-sm text-foreground/55 font-mono">transparent.support</div>
                   </div>
                 </div>
               </motion.div>
@@ -132,11 +132,11 @@ export default function AboutPage() {
                     <GlassCard glow="cyan" className="h-full">
                       <div className="flex items-start gap-4">
                         <div className="w-11 h-11 rounded-xl glass flex items-center justify-center shrink-0">
-                          <Icon className="w-5 h-5 text-cyan-200" />
+                          <Icon className="w-5 h-5 text-cyan-600" />
                         </div>
                         <div>
-                          <h3 className="text-base font-semibold text-white mb-1.5">{value.title}</h3>
-                          <p className="text-sm text-white/60 leading-relaxed">{value.description}</p>
+                          <h3 className="text-base font-semibold text-foreground mb-1.5">{value.title}</h3>
+                          <p className="text-sm text-foreground/60 leading-relaxed">{value.description}</p>
                         </div>
                       </div>
                     </GlassCard>
@@ -158,14 +158,14 @@ export default function AboutPage() {
             >
               See it for yourself
             </motion.h2>
-            <p className="text-base lg:text-lg text-white/60 mb-9 max-w-xl mx-auto leading-relaxed">
+            <p className="text-base lg:text-lg text-foreground/60 mb-9 max-w-xl mx-auto leading-relaxed">
               Book a demo and watch Advan resolve a real ticket — with every source and decision
               visible.
             </p>
             <Button
               asChild
               size="lg"
-              className="group rounded-full bg-white text-slate-900 hover:bg-white/90 h-12 px-7 text-base font-medium shadow-[0_8px_32px_-8px_rgba(34,211,238,0.6)]"
+              className="group rounded-full bg-foreground text-background hover:bg-foreground/90 h-12 px-7 text-base font-medium shadow-[0_8px_32px_-8px_rgba(34,211,238,0.6)]"
             >
               <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
                 Book a demo
