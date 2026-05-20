@@ -42,13 +42,13 @@ export function TapBoxSimulator() {
       className="relative mx-auto w-full max-w-[520px]"
     >
       <div className="relative rounded-3xl glass-strong shadow-[0_30px_80px_-20px_rgba(0,0,0,0.6)]">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-black/[0.06]">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/70" />
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-mono text-white/40">
+          <div className="flex items-center gap-1.5 text-[11px] font-mono text-foreground/40">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             advan / inbox / live
           </div>
@@ -90,10 +90,10 @@ function CustomerMessage() {
       </div>
       <div className="flex-1">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-medium text-white/70">Maria · Acme Corp</span>
-          <span className="text-[10px] text-white/30 font-mono">just now</span>
+          <span className="text-xs font-medium text-foreground/70">Maria · Acme Corp</span>
+          <span className="text-[10px] text-foreground/30 font-mono">just now</span>
         </div>
-        <div className="rounded-2xl rounded-tl-md bg-white/[0.04] border border-white/[0.06] px-4 py-3 text-sm text-white/85 leading-relaxed">
+        <div className="rounded-2xl rounded-tl-md bg-black/[0.04] border border-black/[0.06] px-4 py-3 text-sm text-foreground/85 leading-relaxed">
           How do I configure my webhook timeout?
         </div>
       </div>
@@ -114,14 +114,14 @@ function AiResponse() {
       </div>
       <div className="flex-1">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-medium text-white/70">Advan AI</span>
-          <span className="text-[10px] text-cyan-300/80 font-mono">drafting · explainable</span>
+          <span className="text-xs font-medium text-foreground/70">Advan AI</span>
+          <span className="text-[10px] text-cyan-600 font-mono">drafting · explainable</span>
         </div>
-        <div className="rounded-2xl rounded-tl-md bg-gradient-to-br from-cyan-500/[0.08] to-blue-500/[0.04] border border-cyan-300/15 px-4 py-3 text-sm text-white/90 leading-relaxed">
-          Webhook timeout defaults to <span className="font-mono text-cyan-200">30s</span> with{" "}
-          <span className="font-mono text-cyan-200">3 retries</span>. Override per endpoint under
-          <span className="text-white"> Settings → Webhooks → Advanced</span>. Want me to draft a
-          curl example for your <span className="font-mono text-cyan-200">prod</span> endpoint?
+        <div className="rounded-2xl rounded-tl-md bg-gradient-to-br from-cyan-500/[0.08] to-blue-500/[0.04] border border-cyan-500/15 px-4 py-3 text-sm text-foreground/90 leading-relaxed">
+          Webhook timeout defaults to <span className="font-mono text-cyan-600">30s</span> with{" "}
+          <span className="font-mono text-cyan-600">3 retries</span>. Override per endpoint under
+          <span className="text-foreground"> Settings → Webhooks → Advanced</span>. Want me to draft a
+          curl example for your <span className="font-mono text-cyan-600">prod</span> endpoint?
         </div>
       </div>
     </motion.div>
@@ -142,23 +142,23 @@ function TapBox({ open, onToggle }: { open: boolean; onToggle: () => void }) {
         aria-expanded={open}
         aria-controls="tapbox-details"
         data-testid="tapbox-toggle"
-        className="group w-full flex items-center justify-between gap-3 rounded-2xl glass px-4 py-3 hover:border-cyan-400/30 transition-all"
+        className="group w-full flex items-center justify-between gap-3 rounded-2xl glass px-4 py-3 hover:border-cyan-500/30 transition-all"
       >
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Brain className="w-4 h-4 text-cyan-300" />
-            <span className="absolute inset-0 blur-md bg-cyan-400/30 rounded-full" aria-hidden />
+            <Brain className="w-4 h-4 text-cyan-500" />
+            <span className="absolute inset-0 blur-md bg-cyan-500/30 rounded-full" aria-hidden />
           </div>
-          <span className="text-xs font-medium text-white/85">
+          <span className="text-xs font-medium text-foreground/85">
             Tap to inspect AI reasoning
           </span>
-          <span className="rounded-full bg-cyan-400/10 border border-cyan-400/20 px-2 py-0.5 text-[10px] font-mono text-cyan-200">
+          <span className="rounded-full bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[10px] font-mono text-cyan-600">
             98% confidence
           </span>
         </div>
         <ChevronDown
-          className={`w-4 h-4 text-white/50 transition-transform duration-300 ${
-            open ? "rotate-180 text-cyan-300" : ""
+          className={`w-4 h-4 text-foreground/50 transition-transform duration-300 ${
+            open ? "rotate-180 text-cyan-500" : ""
           }`}
         />
       </button>
@@ -175,7 +175,7 @@ function TapBox({ open, onToggle }: { open: boolean; onToggle: () => void }) {
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden"
           >
-            <div className="mt-3 rounded-2xl glass p-5 space-y-5 border border-cyan-400/15 shadow-[0_0_40px_-12px_rgba(34,211,238,0.4)]">
+            <div className="mt-3 rounded-2xl glass p-5 space-y-5 border border-cyan-500/15 shadow-[0_0_40px_-12px_rgba(34,211,238,0.4)]">
               <ConfidenceRow />
               <SourcesRow />
               <ReasoningRow />
@@ -193,13 +193,13 @@ function ConfidenceRow() {
     <div className="flex items-center gap-5">
       <ConfidenceRing value={98} />
       <div className="flex-1">
-        <p className="text-[11px] uppercase tracking-wider text-white/40 font-medium">
+        <p className="text-[11px] uppercase tracking-wider text-foreground/40 font-medium">
           Confidence Score
         </p>
-        <p className="mt-1 text-2xl font-semibold text-white" data-testid="confidence-score">
-          98<span className="text-white/40 text-base">%</span>
+        <p className="mt-1 text-2xl font-semibold text-foreground" data-testid="confidence-score">
+          98<span className="text-foreground/40 text-base">%</span>
         </p>
-        <p className="mt-0.5 text-xs text-white/55">
+        <p className="mt-0.5 text-xs text-foreground/55">
           High match. Safe to auto-send under enterprise policy.
         </p>
       </div>
@@ -221,7 +221,7 @@ function ConfidenceRing({ value }: { value: number }) {
             <stop offset="100%" stopColor="hsl(152 76% 55%)" />
           </linearGradient>
         </defs>
-        <circle cx="32" cy="32" r={radius} stroke="hsl(0 0% 100% / 0.08)" strokeWidth="4" fill="none" />
+        <circle cx="32" cy="32" r={radius} stroke="hsl(0 0% 0% / 0.08)" strokeWidth="4" fill="none" />
         <motion.circle
           cx="32"
           cy="32"
@@ -246,13 +246,13 @@ function ConfidenceRing({ value }: { value: number }) {
 
 function SourcesRow() {
   const toneMap = {
-    cyan: "bg-cyan-400/10 border-cyan-400/25 text-cyan-200",
-    violet: "bg-violet-400/10 border-violet-400/25 text-violet-200",
-    blue: "bg-blue-400/10 border-blue-400/25 text-blue-200",
+    cyan: "bg-cyan-500/10 border-cyan-500/25 text-cyan-600",
+    violet: "bg-violet-500/10 border-violet-500/25 text-violet-600",
+    blue: "bg-blue-500/10 border-blue-500/25 text-blue-600",
   }
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wider text-white/40 font-medium mb-2">
+      <p className="text-[11px] uppercase tracking-wider text-foreground/40 font-medium mb-2">
         Knowledge Sources
       </p>
       <div className="flex flex-wrap gap-2" data-testid="source-badges">
@@ -276,7 +276,7 @@ function SourcesRow() {
 function ReasoningRow() {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wider text-white/40 font-medium mb-2">
+      <p className="text-[11px] uppercase tracking-wider text-foreground/40 font-medium mb-2">
         AI Reasoning
       </p>
       <ol className="space-y-1.5">
@@ -286,9 +286,9 @@ function ReasoningRow() {
             initial={{ opacity: 0, x: -4 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 + i * 0.1, duration: 0.3 }}
-            className="flex items-start gap-2 text-xs text-white/65 leading-relaxed"
+            className="flex items-start gap-2 text-xs text-foreground/65 leading-relaxed"
           >
-            <span className="mt-1.5 w-1 h-1 rounded-full bg-cyan-300 shrink-0" />
+            <span className="mt-1.5 w-1 h-1 rounded-full bg-cyan-500 shrink-0" />
             <span>{step}</span>
           </motion.li>
         ))}
@@ -300,21 +300,21 @@ function ReasoningRow() {
 function HistoryRow() {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wider text-white/40 font-medium mb-2">
+      <p className="text-[11px] uppercase tracking-wider text-foreground/40 font-medium mb-2">
         Ticket History
       </p>
       <div className="space-y-1.5">
         {HISTORY.map((h) => (
           <div
             key={h.id}
-            className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.02] border border-white/[0.04] px-3 py-2"
+            className="flex items-center justify-between gap-3 rounded-lg bg-black/[0.02] border border-black/[0.04] px-3 py-2"
           >
             <div className="flex items-center gap-2 min-w-0">
-              <MessageSquare className="w-3.5 h-3.5 text-white/40 shrink-0" />
-              <span className="font-mono text-[11px] text-white/55 shrink-0">{h.id}</span>
-              <span className="text-xs text-white/70 truncate">{h.subject}</span>
+              <MessageSquare className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+              <span className="font-mono text-[11px] text-foreground/55 shrink-0">{h.id}</span>
+              <span className="text-xs text-foreground/70 truncate">{h.subject}</span>
             </div>
-            <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-300/90 shrink-0">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-500 shrink-0">
               {h.status}
             </span>
           </div>
@@ -340,7 +340,7 @@ function FloatingChip({
       initial={{ opacity: 0, y: 10, scale: 0.9 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ delay, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className={`absolute glass rounded-full px-3 py-1.5 flex items-center gap-1.5 text-[11px] font-medium text-white/80 shadow-xl ${className}`}
+      className={`absolute glass rounded-full px-3 py-1.5 flex items-center gap-1.5 text-[11px] font-medium text-foreground/80 shadow-xl ${className}`}
     >
       {icon}
       {label}

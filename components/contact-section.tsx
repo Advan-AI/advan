@@ -24,7 +24,7 @@ export function ContactSection() {
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.6 }}
           >
-            <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-200/90 mb-5">
+            <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-600 mb-5">
               <Sparkles className="w-3 h-3" />
               Talk to us
             </div>
@@ -32,15 +32,15 @@ export function ContactSection() {
               Ready for AI support your{" "}
               <span className="text-gradient-brand">whole team trusts?</span>
             </h2>
-            <p className="mt-5 text-base lg:text-lg text-white/65 leading-relaxed max-w-md">
+            <p className="mt-5 text-base lg:text-lg text-foreground/65 leading-relaxed max-w-md">
               Book 25 minutes with our team. We&apos;ll show Advan resolving real tickets, with every
               source and decision visible.
             </p>
 
             <ul className="mt-8 space-y-2.5">
               {BULLETS.map((item) => (
-                <li key={item} className="flex items-center gap-3 text-sm text-white/75">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shrink-0" />
+                <li key={item} className="flex items-center gap-3 text-sm text-foreground/75">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shrink-0" />
                   {item}
                 </li>
               ))}
@@ -58,11 +58,11 @@ export function ContactSection() {
 
             <div className="flex items-center gap-3 mb-2">
               <div className="w-9 h-9 rounded-xl glass flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-cyan-200" />
+                <Calendar className="w-4 h-4 text-cyan-600" />
               </div>
-              <h3 className="text-base font-semibold text-white">Book a 25-min demo</h3>
+              <h3 className="text-base font-semibold text-foreground">Book a 25-min demo</h3>
             </div>
-            <p className="text-sm text-white/55 leading-relaxed mb-7">
+            <p className="text-sm text-foreground/55 leading-relaxed mb-7">
               Free consultation. No commitment. SOC 2 + GDPR ready from day one.
             </p>
 
@@ -77,8 +77,8 @@ export function ContactSection() {
               </a>
             </Button>
 
-            <p className="mt-4 text-xs text-white/40 text-center">
-              Prefer email? Reach out at <span className="text-white/70">hello@advan.ai</span>
+            <p className="mt-4 text-xs text-foreground/40 text-center">
+              Prefer email? Reach out at <span className="text-foreground/70">hello@advan.ai</span>
             </p>
           </motion.div>
         </div>

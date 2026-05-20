@@ -56,15 +56,15 @@ export function TestimonialsSection() {
               transition={{ duration: 0.5, delay: i * 0.08 }}
               className="relative rounded-2xl glass p-6 flex flex-col"
             >
-              <Quote className="w-6 h-6 text-cyan-300/60 mb-4" />
-              <blockquote className="text-sm text-white/85 leading-relaxed flex-1">
+              <Quote className="w-6 h-6 text-cyan-500/60 mb-4" />
+              <blockquote className="text-sm text-foreground/85 leading-relaxed flex-1">
                 &ldquo;{t.quote}&rdquo;
               </blockquote>
-              <div className="mt-5 pt-5 border-t border-white/[0.06]">
+              <div className="mt-5 pt-5 border-t border-black/[0.06]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <figcaption className="text-sm font-medium text-white">{t.name}</figcaption>
-                    <p className="text-xs text-white/55">{t.role} · {t.company}</p>
+                    <figcaption className="text-sm font-medium text-foreground">{t.name}</figcaption>
+                    <p className="text-xs text-foreground/55">{t.role} · {t.company}</p>
                   </div>
                   <div className="flex gap-0.5">
                     {Array.from({ length: 5 }).map((_, j) => (
@@ -72,7 +72,7 @@ export function TestimonialsSection() {
                     ))}
                   </div>
                 </div>
-                <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-cyan-400/10 border border-cyan-400/25 px-2.5 py-1 text-[11px] font-medium text-cyan-200">
+                <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/25 px-2.5 py-1 text-[11px] font-medium text-cyan-600">
                   {t.metric}
                 </div>
               </div>

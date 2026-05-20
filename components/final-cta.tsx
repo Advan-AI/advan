@@ -24,7 +24,7 @@ export function FinalCTA() {
           </div>
           <div className="absolute inset-0 -z-10 grid-bg [mask-image:radial-gradient(circle_at_center,black_20%,transparent_70%)]" aria-hidden />
 
-          <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1.5 text-xs font-medium text-cyan-200 mb-6">
+          <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1.5 text-xs font-medium text-cyan-600 mb-6">
             <Sparkles className="w-3.5 h-3.5" />
             Ship explainable AI support in two weeks
           </div>
@@ -34,7 +34,7 @@ export function FinalCTA() {
             <span className="text-gradient-brand">live, with sources</span>
           </h2>
 
-          <p className="mt-5 text-base lg:text-lg text-white/65 max-w-xl mx-auto leading-relaxed">
+          <p className="mt-5 text-base lg:text-lg text-foreground/65 max-w-xl mx-auto leading-relaxed">
             Book a 25-minute call. We&apos;ll walk through your real tickets and show the reasoning
             behind every answer.
           </p>
@@ -54,13 +54,13 @@ export function FinalCTA() {
               asChild
               variant="outline"
               size="lg"
-              className="rounded-full h-12 px-7 text-base font-medium border-white/15 bg-white/[0.03] hover:bg-white/[0.06] text-white hover:text-white"
+              className="rounded-full h-12 px-7 text-base font-medium border-black/15 bg-black/[0.03] hover:bg-black/[0.06] text-foreground hover:text-foreground"
             >
               <a href="#contact">Talk to sales</a>
             </Button>
           </div>
 
-          <p className="mt-6 text-xs text-white/45">
+          <p className="mt-6 text-xs text-foreground/45">
             No card. No commitment. SOC 2 + GDPR ready from day one.
           </p>
         </motion.div>

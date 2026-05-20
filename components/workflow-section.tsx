@@ -69,17 +69,17 @@ export function WorkflowSection() {
                 <div className="relative rounded-2xl glass p-6 h-full overflow-hidden group">
                   <div className={`absolute inset-0 bg-gradient-to-b ${step.accent} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} aria-hidden />
                   <div className="relative">
-                    <div className={`w-12 h-12 rounded-xl bg-white/[0.04] border ${step.ring} flex items-center justify-center mb-5`}>
-                      <step.icon className="w-5 h-5 text-white/90" />
+                    <div className={`w-12 h-12 rounded-xl bg-black/[0.04] border ${step.ring} flex items-center justify-center mb-5`}>
+                      <step.icon className="w-5 h-5 text-foreground/90" />
                     </div>
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`w-1.5 h-1.5 rounded-full ${step.dot}`} />
-                      <span className="text-[10px] uppercase tracking-[0.18em] text-white/40 font-medium font-mono">
+                      <span className="text-[10px] uppercase tracking-[0.18em] text-foreground/40 font-medium font-mono">
                         Step {String(i + 1).padStart(2, "0")}
                       </span>
                     </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
-                    <p className="text-sm text-white/60 leading-relaxed">{step.body}</p>
+                    <h3 className="text-lg font-semibold text-foreground mb-2">{step.title}</h3>
+                    <p className="text-sm text-foreground/60 leading-relaxed">{step.body}</p>
                   </div>
                 </div>
               </motion.li>
@@ -92,11 +92,11 @@ export function WorkflowSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="mt-12 flex items-center justify-center gap-2 text-sm text-white/55"
+          className="mt-12 flex items-center justify-center gap-2 text-sm text-foreground/55"
         >
           <span>End-to-end latency target</span>
-          <ArrowRight className="w-4 h-4 text-cyan-300" />
-          <span className="font-mono text-cyan-200">&lt; 4s p95</span>
+          <ArrowRight className="w-4 h-4 text-cyan-500" />
+          <span className="font-mono text-cyan-600">&lt; 4s p95</span>
         </motion.div>
       </div>
     </section>

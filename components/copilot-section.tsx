@@ -79,10 +79,10 @@ export function CopilotSection() {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.4, delay: 0.1 + i * 0.07 }}
-                  className="flex items-start gap-3 text-sm text-white/75"
+                  className="flex items-start gap-3 text-sm text-foreground/75"
                 >
-                  <span className="mt-0.5 w-5 h-5 rounded-full bg-cyan-400/10 border border-cyan-400/25 flex items-center justify-center shrink-0">
-                    <b.icon className="w-3 h-3 text-cyan-200" />
+                  <span className="mt-0.5 w-5 h-5 rounded-full bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center shrink-0">
+                    <b.icon className="w-3 h-3 text-cyan-600" />
                   </span>
                   {b.label}
                 </motion.li>
@@ -144,13 +144,13 @@ function LiveConversation() {
       className="rounded-2xl glass-strong overflow-hidden shadow-[0_30px_80px_-20px_rgba(0,0,0,0.5)]"
     >
       {/* window chrome */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-black/[0.06]">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
           <span className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/70" />
         </div>
-        <div className="flex items-center gap-1.5 text-[11px] font-mono text-white/40">
+        <div className="flex items-center gap-1.5 text-[11px] font-mono text-foreground/40">
           <Users className="w-3 h-3" />
           Ticket #4912 · Co-pilot active
         </div>
@@ -236,15 +236,15 @@ function LiveConversation() {
       </div>
 
       {/* metrics footer */}
-      <div className="border-t border-white/[0.06] px-4 py-3 grid grid-cols-3 gap-2">
+      <div className="border-t border-black/[0.06] px-4 py-3 grid grid-cols-3 gap-2">
         {[
           { label: "Avg resolve", value: "11s" },
           { label: "CSAT", value: "+22pts" },
           { label: "Escalations", value: "−47%" },
         ].map((m) => (
           <div key={m.label} className="text-center">
-            <div className="text-[10px] text-white/40 uppercase tracking-wider">{m.label}</div>
-            <div className="text-sm font-semibold text-white">{m.value}</div>
+            <div className="text-[10px] text-foreground/40 uppercase tracking-wider">{m.label}</div>
+            <div className="text-sm font-semibold text-foreground">{m.value}</div>
           </div>
         ))}
       </div>
@@ -272,7 +272,7 @@ function ChatBubble({ role, text }: { role: Role; text: string }) {
       <div className="max-w-[75%]">
         <div
           className={`text-xs font-medium mb-1 ${
-            isCustomer ? "text-white/50" : "text-right text-white/50"
+            isCustomer ? "text-foreground/50" : "text-right text-foreground/50"
           }`}
         >
           {isCustomer ? "Maria · Acme Corp" : isAi ? "Advan AI" : "Jordan (agent)"}
@@ -280,30 +280,30 @@ function ChatBubble({ role, text }: { role: Role; text: string }) {
         <div
           className={`rounded-2xl px-3 py-2.5 text-xs leading-relaxed ${
             isCustomer
-              ? "rounded-tl-md bg-white/[0.04] border border-white/[0.06] text-white/85"
+              ? "rounded-tl-md bg-black/[0.04] border border-black/[0.06] text-foreground/85"
               : isAi
-              ? "rounded-tr-md bg-gradient-to-br from-cyan-500/[0.1] to-blue-500/[0.06] border border-cyan-300/20 text-white/90"
-              : "rounded-tr-md bg-gradient-to-br from-violet-500/[0.1] to-blue-500/[0.06] border border-violet-300/20 text-white/90"
+              ? "rounded-tr-md bg-gradient-to-br from-cyan-500/[0.1] to-blue-500/[0.06] border border-cyan-500/20 text-foreground/90"
+              : "rounded-tr-md bg-gradient-to-br from-violet-500/[0.1] to-blue-500/[0.06] border border-violet-500/20 text-foreground/90"
           }`}
         >
           {text}
           {isAi && (
-            <div className="mt-2.5 flex items-center gap-2 border-t border-white/[0.06] pt-2">
+            <div className="mt-2.5 flex items-center gap-2 border-t border-black/[0.06] pt-2">
               <button
                 type="button"
-                className="rounded-full bg-white text-slate-900 px-2.5 py-0.5 text-[10px] font-semibold hover:bg-white/90 transition-colors inline-flex items-center gap-1"
+                className="rounded-full bg-foreground text-background px-2.5 py-0.5 text-[10px] font-semibold hover:bg-foreground/90 transition-colors inline-flex items-center gap-1"
               >
                 <CheckCircle2 className="w-2.5 h-2.5" />
                 Approve
               </button>
               <button
                 type="button"
-                className="rounded-full glass px-2.5 py-0.5 text-[10px] font-medium text-white/70 hover:text-white inline-flex items-center gap-1"
+                className="rounded-full glass px-2.5 py-0.5 text-[10px] font-medium text-foreground/70 hover:text-foreground inline-flex items-center gap-1"
               >
                 <Pencil className="w-2.5 h-2.5" />
                 Edit
               </button>
-              <span className="ml-auto text-[10px] font-mono text-cyan-200/80">94%</span>
+              <span className="ml-auto text-[10px] font-mono text-cyan-600">94%</span>
             </div>
           )}
         </div>
@@ -364,12 +364,12 @@ function CollaborationAvatars() {
       {colors.map((c, i) => (
         <div
           key={i}
-          className={`w-6 h-6 rounded-full bg-gradient-to-br ${c} border border-white/20 flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-background`}
+          className={`w-6 h-6 rounded-full bg-gradient-to-br ${c} border border-black/20 flex items-center justify-center text-[9px] font-bold text-foreground ring-2 ring-background`}
         >
           {labels[i]}
         </div>
       ))}
-      <span className="ml-3 text-[10px] text-emerald-300/80 font-mono">● live</span>
+      <span className="ml-3 text-[10px] text-emerald-500 font-mono">● live</span>
     </div>
   )
 }

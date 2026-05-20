@@ -36,10 +36,10 @@ function HeroBackdrop() {
   return (
     <>
       <div className="absolute inset-0 -z-20">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#070a0f] via-[#0a0f17] to-background" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] rounded-full bg-gradient-to-b from-cyan-500/15 via-blue-500/10 to-transparent blur-3xl" />
-        <div className="absolute top-40 -left-40 w-[480px] h-[480px] rounded-full bg-violet-500/10 blur-[100px]" />
-        <div className="absolute bottom-0 -right-32 w-[480px] h-[480px] rounded-full bg-cyan-500/10 blur-[100px]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-background" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] rounded-full bg-gradient-to-b from-cyan-500/10 via-blue-500/5 to-transparent blur-3xl" />
+        <div className="absolute top-40 -left-40 w-[480px] h-[480px] rounded-full bg-violet-500/5 blur-[100px]" />
+        <div className="absolute bottom-0 -right-32 w-[480px] h-[480px] rounded-full bg-cyan-500/5 blur-[100px]" />
       </div>
       <div className="absolute inset-0 -z-10 grid-bg [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" aria-hidden />
     </>
@@ -53,7 +53,7 @@ function HeroCopy() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="inline-flex items-center gap-2 rounded-full glass px-3 py-1.5 text-xs font-medium text-white/80 mb-6"
+        className="inline-flex items-center gap-2 rounded-full glass px-3 py-1.5 text-xs font-medium text-foreground/80 mb-6"
       >
         <span className="relative flex h-2 w-2">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
@@ -80,7 +80,7 @@ function HeroCopy() {
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, delay: 0.15 }}
-        className="mt-6 text-lg lg:text-xl text-white/65 max-w-xl leading-relaxed"
+        className="mt-6 text-lg lg:text-xl text-foreground/65 max-w-xl leading-relaxed"
       >
         Resolve tickets in seconds — not minutes. Every answer is sourced,
         scored, and explainable, so customers trust the AI and your team keeps
@@ -107,7 +107,7 @@ function HeroCopy() {
           size="lg"
           variant="outline"
           asChild
-          className="rounded-full h-12 px-7 text-base font-medium border-white/15 bg-white/[0.03] hover:bg-white/[0.06] text-white hover:text-white"
+          className="rounded-full h-12 px-7 text-base font-medium border-black/15 bg-black/[0.03] hover:bg-black/[0.06] text-foreground hover:text-foreground"
         >
           <a href="#workflow">
             See how it works
@@ -120,7 +120,7 @@ function HeroCopy() {
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, delay: 0.35 }}
-        className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/55"
+        className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-foreground/55"
       >
         <li className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-cyan-400" />
@@ -149,12 +149,12 @@ function HeroTrustRow() {
       transition={{ duration: 0.7 }}
       className="mt-20 lg:mt-28"
     >
-      <p className="text-center text-xs uppercase tracking-[0.2em] text-white/40">
+      <p className="text-center text-xs uppercase tracking-[0.2em] text-foreground/40">
         Trusted by modern support teams
       </p>
       <div className="mt-6 grid grid-cols-3 sm:grid-cols-6 gap-6 items-center justify-items-center">
         {logos.map((logo) => (
-          <div key={logo} className="text-white/40 hover:text-white/70 transition-colors text-base font-medium tracking-tight">
+          <div key={logo} className="text-foreground/40 hover:text-foreground/70 transition-colors text-base font-medium tracking-tight">
             {logo}
           </div>
         ))}

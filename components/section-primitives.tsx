@@ -5,7 +5,7 @@ import type { ReactNode } from "react"
 
 export function SectionEyebrow({ children }: { children: ReactNode }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-200/90">
+    <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-600">
       {children}
     </div>
   )
@@ -26,7 +26,7 @@ export function SectionTitle({ children, align = "center" }: { children: ReactNo
 export function SectionLede({ children, align = "center" }: { children: ReactNode; align?: "center" | "left" }) {
   return (
     <p
-      className={`text-base lg:text-lg text-white/60 max-w-2xl leading-relaxed ${
+      className={`text-base lg:text-lg text-foreground/60 max-w-2xl leading-relaxed ${
         align === "center" ? "text-center mx-auto" : ""
       }`}
     >
@@ -77,7 +77,7 @@ export function GlassCard({
     green: "shadow-[0_20px_60px_-20px_rgba(52,211,153,0.35)]",
   }
   return (
-    <div className={`relative rounded-2xl glass p-6 transition-all hover:-translate-y-0.5 hover:border-white/15 ${glow ? glowMap[glow] : ""} ${className}`}>
+    <div className={`relative rounded-2xl glass p-6 transition-all hover:-translate-y-0.5 hover:border-black/15 ${glow ? glowMap[glow] : ""} ${className}`}>
       {children}
     </div>
   )

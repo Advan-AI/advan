@@ -51,8 +51,8 @@ export function Footer() {
   }
 
   return (
-    <footer className="relative border-t border-white/[0.06] bg-background/60">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" aria-hidden />
+    <footer className="relative border-t border-black/[0.06] bg-background/60">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" aria-hidden />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:py-20">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10 lg:gap-12">
           <div className="md:col-span-5">
@@ -62,11 +62,11 @@ export function Footer() {
                 alt="Advan AI Logo"
                 width={36}
                 height={36}
-                className="rounded-lg ring-1 ring-white/10"
+                className="rounded-lg ring-1 ring-black/10"
               />
-              <span className="font-semibold text-lg text-white tracking-tight">Advan</span>
+              <span className="font-semibold text-lg text-foreground tracking-tight">Advan</span>
             </Link>
-            <p className="text-sm text-white/55 leading-relaxed max-w-sm">
+            <p className="text-sm text-foreground/55 leading-relaxed max-w-sm">
               Transparent AI support for better customer experiences. Sourced answers, live confidence,
               cross-channel memory.
             </p>
@@ -79,10 +79,10 @@ export function Footer() {
                     href={social.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-9 h-9 rounded-lg glass flex items-center justify-center hover:border-cyan-300/40 transition-colors"
+                    className="w-9 h-9 rounded-lg glass flex items-center justify-center hover:border-cyan-500/40 transition-colors"
                     aria-label={social.label}
                   >
-                    <Icon className="w-4 h-4 text-white/70" />
+                    <Icon className="w-4 h-4 text-foreground/70" />
                   </a>
                 )
               })}
@@ -91,7 +91,7 @@ export function Footer() {
 
           {Object.entries(footerLinks).map(([title, links]) => (
             <div key={title} className="md:col-span-2 md:col-start-auto first:md:col-start-7">
-              <h3 className="text-[11px] font-semibold text-white/40 uppercase tracking-[0.18em] mb-4">
+              <h3 className="text-[11px] font-semibold text-foreground/40 uppercase tracking-[0.18em] mb-4">
                 {title}
               </h3>
               <ul className="space-y-3">
@@ -102,7 +102,7 @@ export function Footer() {
                         href={link.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-white/75 hover:text-cyan-200 transition-colors"
+                        className="text-sm text-foreground/75 hover:text-cyan-600 transition-colors"
                       >
                         {link.label}
                       </a>
@@ -110,14 +110,14 @@ export function Footer() {
                       <a
                         href={link.href}
                         onClick={(e) => handleAnchorClick(e, link.href)}
-                        className="text-sm text-white/75 hover:text-cyan-200 transition-colors cursor-pointer"
+                        className="text-sm text-foreground/75 hover:text-cyan-600 transition-colors cursor-pointer"
                       >
                         {link.label}
                       </a>
                     ) : (
                       <Link
                         href={link.href}
-                        className="text-sm text-white/75 hover:text-cyan-200 transition-colors"
+                        className="text-sm text-foreground/75 hover:text-cyan-600 transition-colors"
                       >
                         {link.label}
                       </Link>
@@ -129,11 +129,11 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-14 pt-8 border-t border-white/[0.06] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <p className="text-xs text-white/40">
+        <div className="mt-14 pt-8 border-t border-black/[0.06] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <p className="text-xs text-foreground/40">
             © {new Date().getFullYear()} Advan AI. All rights reserved.
           </p>
-          <div className="flex items-center gap-4 text-xs text-white/40">
+          <div className="flex items-center gap-4 text-xs text-foreground/40">
             <span className="inline-flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               All systems operational
