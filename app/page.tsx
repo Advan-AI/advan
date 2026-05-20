@@ -1,26 +1,34 @@
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { HeroSection } from "@/components/hero-section"
-import { NewStandardSection } from "@/components/new-standard-section"
-import { LifecycleSection } from "@/components/lifecycle-section"
-import { SuccessStories } from "@/components/success-stories"
-import { ComplianceSection } from "@/components/compliance-section"
-import { FinalCTA } from "@/components/final-cta"
+import { WorkflowSection } from "@/components/workflow-section"
+import { CopilotSection } from "@/components/copilot-section"
+import { MemorySection } from "@/components/memory-section"
+import { OrchestrationSection } from "@/components/orchestration-section"
+import { TrustSection } from "@/components/trust-section"
+import { ComparisonSection } from "@/components/comparison-section"
+import { TestimonialsSection } from "@/components/testimonials-section"
+import { PricingSection } from "@/components/pricing-section"
 import { FAQSection } from "@/components/faq-section"
+import { FinalCTA } from "@/components/final-cta"
 import { ContactSection } from "@/components/contact-section"
 
 export default function HomePage() {
   return (
     <>
       <Header />
-      <main>
+      <main className="relative">
         <HeroSection />
-        <NewStandardSection />
-        <LifecycleSection />
-        <SuccessStories />
-        <ComplianceSection />
-        <FinalCTA />
+        <WorkflowSection />
+        <CopilotSection />
+        <MemorySection />
+        <OrchestrationSection />
+        <TrustSection />
+        <ComparisonSection />
+        <TestimonialsSection />
+        <PricingSection />
         <FAQSection />
+        <FinalCTA />
         <ContactSection />
       </main>
       <Footer />

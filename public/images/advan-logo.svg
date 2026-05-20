@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Advan AI">
+  <defs>
+    <linearGradient id="advanBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0d10"/>
+      <stop offset="100%" stop-color="#1a1f26"/>
+    </linearGradient>
+    <linearGradient id="advanStar" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e6f0ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="180" ry="180" fill="url(#advanBg)"/>
+  <path fill="url(#advanStar)" d="M512 160l92 252 264 16-205 168 67 256-218-141-218 141 67-256-205-168 264-16z"/>
+</svg>
