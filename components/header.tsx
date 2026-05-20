@@ -62,7 +62,7 @@ export function Header() {
         <div className="flex items-center justify-between h-16 lg:h-20">
           <Link href="/" className="flex items-center gap-2.5 group">
             <Image
-              src="/images/advan-logo.svg"
+              src="/images/advan-logo.png"
               alt="Advan AI Logo"
               width={36}
               height={36}

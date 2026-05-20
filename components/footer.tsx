@@ -58,7 +58,7 @@ export function Footer() {
           <div className="md:col-span-5">
             <Link href="/" className="inline-flex items-center gap-2.5 mb-5">
               <Image
-                src="/images/advan-logo.svg"
+                src="/images/advan-logo.png"
                 alt="Advan AI Logo"
                 width={36}
                 height={36}
