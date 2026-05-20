@@ -26,7 +26,7 @@ const PLANS = [
   {
     name: "Growth",
     tagline: "For scaling support orgs going AI-first",
-    price: "$1,200",
+    price: "$599",
     period: "/ month",
     cta: "Book a demo",
     href: BOOKING_URL,
