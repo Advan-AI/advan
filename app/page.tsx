@@ -10,7 +10,6 @@ import { ComparisonSection } from "@/components/comparison-section"
 import { PricingSection } from "@/components/pricing-section"
 import { FAQSection } from "@/components/faq-section"
 import { FinalCTA } from "@/components/final-cta"
-import { ContactSection } from "@/components/contact-section"
 
 export default function HomePage() {
   return (
@@ -27,7 +26,6 @@ export default function HomePage() {
         <PricingSection />
         <FAQSection />
         <FinalCTA />
-        <ContactSection />
       </main>
       <Footer />
     </>
