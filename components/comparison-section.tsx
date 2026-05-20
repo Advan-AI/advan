@@ -36,12 +36,12 @@ export function ComparisonSection() {
           transition={{ duration: 0.6 }}
           className="mt-14 rounded-2xl glass-strong overflow-hidden"
         >
-          <div className="grid grid-cols-4 px-5 py-4 border-b border-white/[0.06] text-[11px] uppercase tracking-[0.18em] text-white/40 font-medium">
+          <div className="grid grid-cols-4 px-5 py-4 border-b border-black/[0.06] text-[11px] uppercase tracking-[0.18em] text-foreground/40 font-medium">
             <div>Capability</div>
             <div className="text-center">Legacy ticketing</div>
             <div className="text-center">Generic AI bots</div>
             <div className="text-center">
-              <span className="inline-flex items-center gap-1 text-cyan-200">
+              <span className="inline-flex items-center gap-1 text-cyan-600">
                 <Sparkles className="w-3 h-3" />
                 Advan
               </span>
@@ -55,10 +55,10 @@ export function ComparisonSection() {
               viewport={{ once: true }}
               transition={{ duration: 0.3, delay: i * 0.04 }}
               className={`grid grid-cols-4 px-5 py-4 items-center text-sm ${
-                i % 2 === 0 ? "bg-white/[0.015]" : ""
+                i % 2 === 0 ? "bg-black/[0.015]" : ""
               }`}
             >
-              <div className="text-white/85">{row.feature}</div>
+              <div className="text-foreground/85">{row.feature}</div>
               <div className="flex justify-center">
                 <Cell value={row.legacy} />
               </div>
@@ -81,19 +81,19 @@ function Cell({ value, highlight = false }: { value: boolean | "partial"; highli
     return (
       <span
         className={`inline-flex w-6 h-6 rounded-full items-center justify-center ${
-          highlight ? "bg-cyan-400/15 border border-cyan-400/40" : "bg-emerald-400/10 border border-emerald-400/25"
+          highlight ? "bg-cyan-500/15 border border-cyan-500/40" : "bg-emerald-500/10 border border-emerald-500/25"
         }`}
       >
-        <Check className={`w-3.5 h-3.5 ${highlight ? "text-cyan-200" : "text-emerald-300"}`} />
+        <Check className={`w-3.5 h-3.5 ${highlight ? "text-cyan-600" : "text-emerald-600"}`} />
       </span>
     )
   }
   if (value === "partial") {
-    return <span className="text-xs text-amber-300/80 font-medium">Partial</span>
+    return <span className="text-xs text-amber-600 font-medium">Partial</span>
   }
   return (
-    <span className="inline-flex w-6 h-6 rounded-full items-center justify-center bg-white/[0.03] border border-white/10">
-      <X className="w-3.5 h-3.5 text-white/35" />
+    <span className="inline-flex w-6 h-6 rounded-full items-center justify-center bg-black/[0.03] border border-black/10">
+      <X className="w-3.5 h-3.5 text-foreground/35" />
     </span>
   )
 }

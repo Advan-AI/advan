@@ -42,7 +42,7 @@ export function MemorySection() {
                     className={`aspect-square rounded-xl glass border ${c.ring} flex flex-col items-center justify-center gap-1.5`}
                   >
                     <c.icon className={`w-5 h-5 ${c.color}`} />
-                    <span className="text-[11px] font-medium text-white/70">{c.label}</span>
+                    <span className="text-[11px] font-medium text-foreground/70">{c.label}</span>
                   </motion.div>
                 ))}
               </div>
@@ -59,7 +59,7 @@ export function MemorySection() {
                   <div className="w-3 h-3 rounded-full bg-cyan-300 animate-pulse" />
                   <div className="absolute inset-0 rounded-2xl border border-cyan-300/30 animate-ping" />
                 </div>
-                <span className="text-[11px] uppercase tracking-[0.18em] text-white/50 font-mono">unified memory</span>
+                <span className="text-[11px] uppercase tracking-[0.18em] text-foreground/50 font-mono">unified memory</span>
                 <div className="hidden lg:block w-10 h-px bg-gradient-to-r from-transparent via-violet-400/60 to-transparent" />
               </motion.div>
 
@@ -90,11 +90,11 @@ export function MemorySection() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="mt-8 flex items-center justify-center gap-2 text-sm text-white/55"
+          className="mt-8 flex items-center justify-center gap-2 text-sm text-foreground/55"
         >
           <span>Context retention</span>
-          <ArrowRight className="w-4 h-4 text-cyan-300" />
-          <span className="font-mono text-cyan-200">100% across handoffs</span>
+          <ArrowRight className="w-4 h-4 text-cyan-500" />
+          <span className="font-mono text-cyan-600">100% across handoffs</span>
         </motion.p>
       </div>
     </section>
@@ -110,8 +110,8 @@ function ContextCard({ label, body }: { label: string; body: string }) {
       transition={{ duration: 0.4 }}
       className="rounded-lg glass px-3 py-2.5"
     >
-      <div className="text-[10px] uppercase tracking-wider text-white/40 font-medium">{label}</div>
-      <div className="mt-0.5 text-xs text-white/85 leading-relaxed">{body}</div>
+      <div className="text-[10px] uppercase tracking-wider text-foreground/40 font-medium">{label}</div>
+      <div className="mt-0.5 text-xs text-foreground/85 leading-relaxed">{body}</div>
     </motion.div>
   )
 }

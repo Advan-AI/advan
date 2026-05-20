@@ -94,21 +94,21 @@ export function PricingSection() {
                 )}
 
                 <div className="mb-5">
-                  <h3 className="text-base font-semibold text-white">{plan.name}</h3>
-                  <p className="mt-1 text-xs text-white/55 leading-relaxed">{plan.tagline}</p>
+                  <h3 className="text-base font-semibold text-foreground">{plan.name}</h3>
+                  <p className="mt-1 text-xs text-foreground/55 leading-relaxed">{plan.tagline}</p>
                 </div>
 
                 <div className="mb-6">
-                  <span className={`text-4xl font-semibold tracking-tight ${plan.featured ? "text-gradient-brand" : "text-white"}`}>
+                  <span className={`text-4xl font-semibold tracking-tight ${plan.featured ? "text-gradient-brand" : "text-foreground"}`}>
                     {plan.price}
                   </span>
-                  <span className="ml-1.5 text-xs text-white/50">{plan.period}</span>
+                  <span className="ml-1.5 text-xs text-foreground/50">{plan.period}</span>
                 </div>
 
                 <ul className="space-y-2.5 mb-7 flex-1">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm text-white/75 leading-relaxed">
-                      <Check className="w-4 h-4 text-cyan-300 shrink-0 mt-0.5" />
+                    <li key={f} className="flex items-start gap-2.5 text-sm text-foreground/75 leading-relaxed">
+                      <Check className="w-4 h-4 text-cyan-500 shrink-0 mt-0.5" />
                       {f}
                     </li>
                   ))}
@@ -118,8 +118,8 @@ export function PricingSection() {
                   asChild
                   className={`group w-full rounded-full h-11 text-sm font-medium ${
                     plan.featured
-                      ? "bg-white text-slate-900 hover:bg-white/90 shadow-[0_8px_32px_-8px_rgba(34,211,238,0.6)]"
-                      : "bg-white/[0.05] hover:bg-white/[0.1] text-white border border-white/15"
+                      ? "bg-foreground text-background hover:bg-foreground/90 shadow-[0_8px_32px_-8px_rgba(34,211,238,0.6)]"
+                      : "bg-black/[0.05] hover:bg-black/[0.1] text-foreground border border-black/15"
                   }`}
                 >
                   <a href={plan.href} target="_blank" rel="noopener noreferrer">
