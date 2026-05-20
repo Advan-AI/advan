@@ -49,19 +49,6 @@ function HeroBackdrop() {
 function HeroCopy() {
   return (
     <div className="relative">
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="inline-flex items-center gap-2 rounded-full glass px-3 py-1.5 text-xs font-medium text-foreground/80 mb-6"
-      >
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-400" />
-        </span>
-        Now live: Explainable AI for Customer Support
-      </motion.div>
-
       <motion.h1
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
