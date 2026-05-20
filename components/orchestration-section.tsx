@@ -158,20 +158,20 @@ export function OrchestrationSection() {
         >
           <div className="rounded-3xl glass-strong overflow-hidden">
             {/* toolbar */}
-            <div className="flex items-center justify-between gap-4 px-5 py-3.5 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between gap-4 px-5 py-3.5 border-b border-black/[0.06]">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/70" />
               </div>
-              <div className="flex items-center gap-1.5 text-[11px] font-mono text-white/40">
+              <div className="flex items-center gap-1.5 text-[11px] font-mono text-foreground/40">
                 <Zap className="w-3 h-3" />
                 workflow-canvas / webhook-support-v2
               </div>
               <div className="flex items-center gap-2 ml-auto">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1 text-[11px] font-medium text-white/70 hover:text-white transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1 text-[11px] font-medium text-foreground/70 hover:text-foreground transition-colors"
                 >
                   <Plus className="w-3 h-3" />
                   Add node
@@ -274,7 +274,7 @@ export function OrchestrationSection() {
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ delay: 0.5 }}
-            className="mt-4 text-center text-xs text-white/35 font-mono"
+            className="mt-4 text-center text-xs text-foreground/35 font-mono"
           >
             ↖ Drag nodes to rearrange · Click "Deploy workflow" to ship
           </motion.p>
@@ -288,8 +288,8 @@ export function OrchestrationSection() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4"
         >
-          <div className="flex items-center gap-2 text-sm text-white/60">
-            <Sparkles className="w-4 h-4 text-cyan-300" />
+          <div className="flex items-center gap-2 text-sm text-foreground/60">
+            <Sparkles className="w-4 h-4 text-cyan-500" />
             10+ pre-built workflow templates
           </div>
           <Button
@@ -366,8 +366,8 @@ function DraggableNode({
             <Icon className="w-4 h-4" style={{ color: node.glow.replace("rgba(", "rgb(").replace(", 0.5)", ")") }} />
           </div>
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold text-white truncate">{node.label}</div>
-            <div className="text-[9px] text-white/45 truncate">{node.sublabel}</div>
+            <div className="text-[11px] font-semibold text-foreground truncate">{node.label}</div>
+            <div className="text-[9px] text-foreground/45 truncate">{node.sublabel}</div>
           </div>
         </div>
         {/* drag handle dots */}

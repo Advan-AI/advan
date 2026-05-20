@@ -7,11 +7,9 @@ import { MemorySection } from "@/components/memory-section"
 import { OrchestrationSection } from "@/components/orchestration-section"
 import { TrustSection } from "@/components/trust-section"
 import { ComparisonSection } from "@/components/comparison-section"
-import { TestimonialsSection } from "@/components/testimonials-section"
 import { PricingSection } from "@/components/pricing-section"
 import { FAQSection } from "@/components/faq-section"
 import { FinalCTA } from "@/components/final-cta"
-import { ContactSection } from "@/components/contact-section"
 
 export default function HomePage() {
   return (
@@ -25,11 +23,9 @@ export default function HomePage() {
         <OrchestrationSection />
         <TrustSection />
         <ComparisonSection />
-        <TestimonialsSection />
         <PricingSection />
         <FAQSection />
         <FinalCTA />
-        <ContactSection />
       </main>
       <Footer />
     </>

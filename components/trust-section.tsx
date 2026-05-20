@@ -60,11 +60,11 @@ export function TrustSection() {
               <GlassCard glow={p.glow} className="h-full">
                 <div className="flex items-start gap-4">
                   <div className="w-11 h-11 rounded-xl glass flex items-center justify-center shrink-0">
-                    <p.icon className="w-5 h-5 text-cyan-200" />
+                    <p.icon className="w-5 h-5 text-cyan-600" />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-white mb-1.5">{p.title}</h3>
-                    <p className="text-sm text-white/60 leading-relaxed">{p.body}</p>
+                    <h3 className="text-base font-semibold text-foreground mb-1.5">{p.title}</h3>
+                    <p className="text-sm text-foreground/60 leading-relaxed">{p.body}</p>
                   </div>
                 </div>
               </GlassCard>
@@ -82,9 +82,9 @@ export function TrustSection() {
           {BADGES.map((b) => (
             <span
               key={b}
-              className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1.5 text-xs font-medium text-white/75"
+              className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1.5 text-xs font-medium text-foreground/75"
             >
-              <KeyRound className="w-3 h-3 text-cyan-300" />
+              <KeyRound className="w-3 h-3 text-cyan-500" />
               {b}
             </span>
           ))}

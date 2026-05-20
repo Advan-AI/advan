@@ -54,7 +54,7 @@ export function Header() {
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "backdrop-blur-xl bg-background/70 border-b border-white/[0.06]"
+          ? "backdrop-blur-xl bg-background/70 border-b border-black/[0.06]"
           : "bg-transparent"
       }`}
     >
@@ -67,9 +67,9 @@ export function Header() {
               width={36}
               height={36}
               priority
-              className="rounded-lg ring-1 ring-white/10 group-hover:ring-cyan-300/40 transition-all"
+              className="rounded-lg ring-1 ring-black/10 group-hover:ring-cyan-500/40 transition-all"
             />
-            <span className="font-semibold text-lg text-white tracking-tight">Advan</span>
+            <span className="font-semibold text-lg text-foreground tracking-tight">Advan</span>
           </Link>
 
           <nav className="hidden lg:flex items-center gap-1 rounded-full glass px-1.5 py-1.5">
@@ -78,7 +78,7 @@ export function Header() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="px-3.5 py-1.5 text-sm font-medium text-white/70 hover:text-white hover:bg-white/[0.06] rounded-full transition-all"
+                  className="px-3.5 py-1.5 text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-black/[0.04] rounded-full transition-all"
                 >
                   {link.label}
                 </Link>
@@ -87,7 +87,7 @@ export function Header() {
                   key={link.href}
                   href={link.href}
                   onClick={(e) => handleNavClick(e, link.href)}
-                  className="px-3.5 py-1.5 text-sm font-medium text-white/70 hover:text-white hover:bg-white/[0.06] rounded-full transition-all cursor-pointer"
+                  className="px-3.5 py-1.5 text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-black/[0.04] rounded-full transition-all cursor-pointer"
                 >
                   {link.label}
                 </a>
@@ -99,7 +99,7 @@ export function Header() {
             <a
               href="#contact"
               onClick={(e) => handleNavClick(e, "#contact")}
-              className="text-sm font-medium text-white/70 hover:text-white transition-colors"
+              className="text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
             >
               Sign in
             </a>
@@ -115,7 +115,7 @@ export function Header() {
           </div>
 
           <button
-            className="lg:hidden p-2 rounded-lg text-white hover:bg-white/[0.06] transition-colors"
+            className="lg:hidden p-2 rounded-lg text-foreground hover:bg-black/[0.04] transition-colors"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             aria-label="Toggle menu"
           >
@@ -130,7 +130,7 @@ export function Header() {
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.2 }}
-              className="lg:hidden overflow-hidden border-t border-white/[0.06]"
+              className="lg:hidden overflow-hidden border-t border-black/[0.06]"
             >
               <nav className="py-4 space-y-1">
                 {navLinks.map((link) =>
@@ -138,7 +138,7 @@ export function Header() {
                     <Link
                       key={link.href}
                       href={link.href}
-                      className="block px-4 py-3 text-sm font-medium text-white/75 hover:text-white hover:bg-white/[0.05] rounded-lg transition-all"
+                      className="block px-4 py-3 text-sm font-medium text-foreground/75 hover:text-foreground hover:bg-black/[0.03] rounded-lg transition-all"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       {link.label}
@@ -148,7 +148,7 @@ export function Header() {
                       key={link.href}
                       href={link.href}
                       onClick={(e) => handleNavClick(e, link.href)}
-                      className="block px-4 py-3 text-sm font-medium text-white/75 hover:text-white hover:bg-white/[0.05] rounded-lg transition-all cursor-pointer"
+                      className="block px-4 py-3 text-sm font-medium text-foreground/75 hover:text-foreground hover:bg-black/[0.03] rounded-lg transition-all cursor-pointer"
                     >
                       {link.label}
                     </a>
