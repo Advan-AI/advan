@@ -6,7 +6,7 @@ export default function TermsPage() {
     <>
       <Header />
       <main className="pt-20">
-        <section className="py-24 bg-white">
+        <section className="py-24">
           <div className="max-w-3xl mx-auto px-6">
             <h1 className="text-4xl font-light text-[#1a1a1a] mb-4 font-serif">Terms of Service</h1>
             <p className="text-[#666] mb-10">Last updated: January 2026</p>

@@ -132,12 +132,6 @@ export function Footer() {
           <p className="text-xs text-foreground/40">
             © {new Date().getFullYear()} Advan AI. All rights reserved.
           </p>
-          <div className="flex items-center gap-4 text-xs text-foreground/40">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              All systems operational
-            </span>
-          </div>
         </div>
       </div>
     </footer>
