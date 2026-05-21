@@ -136,7 +136,7 @@ export function OrchestrationSection() {
   }, [])
 
   return (
-    <section id="orchestration" className="relative py-24 lg:py-32">
+    <section id="orchestration" className="relative py-14 lg:py-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
           eyebrow="Agent Orchestration"

@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { motion } from "framer-motion"
 import { ArrowRight, Target, Eye, Users, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -59,9 +60,9 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section className="py-16 lg:py-24">
+        <section className="py-14 lg:py-20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="max-w-2xl">
+            <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 whileInView={{ opacity: 1, x: 0 }}
@@ -85,6 +86,28 @@ export default function AboutPage() {
                     We&apos;re building for the next decade of support: AI-first, but human-led, and
                     accountable on day one.
                   </p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, x: 20, scale: 0.98 }}
+                whileInView={{ opacity: 1, x: 0, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+                className="relative"
+              >
+                <div className="absolute -inset-4 -z-10 rounded-[2rem] bg-gradient-to-br from-[#6B5CD6]/15 via-[#8E80E5]/10 to-[#5C9A70]/10 blur-2xl" aria-hidden />
+                <div className="relative rounded-[22px] overflow-hidden border border-black/[0.08] dash-shadow-md bg-white/40">
+                  <div className="relative aspect-[4/3]">
+                    <Image
+                      src="/images/diverse-team.png"
+                      alt="Diverse Advan team collaborating in a modern workspace"
+                      fill
+                      sizes="(min-width: 1024px) 50vw, 100vw"
+                      className="object-cover"
+                      priority
+                    />
+                  </div>
                 </div>
               </motion.div>
             </div>

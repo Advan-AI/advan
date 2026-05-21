@@ -1,49 +1,77 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { ArrowRight, Sparkles } from "lucide-react"
+import { ArrowRight, Sparkles, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const BOOKING_URL = "https://cal.com/day-nguyen"
 
+const PROOF = [
+  "Live demo on your real tickets",
+  "Source-cited answers from day one",
+  "SOC 2 + GDPR · EU residency available",
+]
+
 export function FinalCTA() {
   return (
-    <section id="cta" className="relative py-24 lg:py-32">
+    <section id="cta" className="relative py-14 lg:py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.7 }}
-          className="relative isolate overflow-hidden rounded-3xl glass-strong p-10 lg:p-16 text-center"
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className="relative isolate overflow-hidden rounded-3xl p-10 lg:p-16 text-center"
+          style={{
+            background:
+              "linear-gradient(180deg, #2A2520 0%, #1c1814 100%)",
+          }}
         >
           <div className="absolute inset-0 -z-10">
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.08] via-transparent to-violet-500/[0.08]" />
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full bg-cyan-500/15 blur-3xl" />
-            <div className="absolute -bottom-20 left-1/4 w-[400px] h-[300px] rounded-full bg-violet-500/10 blur-3xl" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[360px] rounded-full bg-[#6B5CD6]/35 blur-3xl" />
+            <div className="absolute -bottom-20 left-1/4 w-[400px] h-[320px] rounded-full bg-[#5C9A70]/20 blur-3xl" />
+            <div className="absolute top-10 -right-20 w-[400px] h-[300px] rounded-full bg-[#C5883C]/15 blur-3xl" />
           </div>
-          <div className="absolute inset-0 -z-10 grid-bg [mask-image:radial-gradient(circle_at_center,black_20%,transparent_70%)]" aria-hidden />
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 opacity-[0.06]"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
+              backgroundSize: "64px 64px",
+              maskImage:
+                "radial-gradient(ellipse at center, black 30%, transparent 70%)",
+            }}
+          />
 
-          <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1.5 text-xs font-medium text-cyan-600 mb-6">
-            <Sparkles className="w-3.5 h-3.5" />
-            Ship explainable AI support in two weeks
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#E1D8FA] mb-7 border border-white/10">
+            <Sparkles className="w-3 h-3 text-[#C8BEFF]" />
+            Ship in 2 weeks
           </div>
 
-          <h2 className="text-4xl lg:text-6xl font-semibold tracking-tight leading-[1.05] text-gradient max-w-3xl mx-auto">
+          <h2 className="text-4xl lg:text-[56px] font-bold tracking-[-0.02em] leading-[1.05] text-white max-w-3xl mx-auto">
             See Advan resolve a ticket{" "}
-            <span className="text-gradient-brand">live, with sources</span>
+            <span
+              className="bg-clip-text text-transparent"
+              style={{
+                backgroundImage:
+                  "linear-gradient(135deg, #C8BEFF 0%, #FFFFFF 55%, #B6E2C2 100%)",
+              }}
+            >
+              live, with sources
+            </span>
           </h2>
 
-          <p className="mt-5 text-base lg:text-lg text-foreground/65 max-w-xl mx-auto leading-relaxed">
-            Book a 25-minute call. We&apos;ll walk through your real tickets and show the reasoning
-            behind every answer.
+          <p className="mt-5 text-base lg:text-lg text-white/70 max-w-xl mx-auto leading-relaxed">
+            Book a 25-minute call. We&apos;ll walk through your real tickets and show
+            the reasoning behind every answer.
           </p>
 
           <div className="mt-9 flex flex-col sm:flex-row gap-3 justify-center">
             <Button
               asChild
               size="lg"
-              className="group rounded-full bg-white text-slate-900 hover:bg-white/90 h-12 px-7 text-base font-medium shadow-[0_8px_32px_-8px_rgba(34,211,238,0.6)]"
+              className="group rounded-full bg-white text-[#1c1814] hover:bg-white/95 hover:-translate-y-px h-12 px-7 text-[15px] font-semibold shadow-[0_18px_42px_-14px_rgba(0,0,0,0.55)] transition-all"
             >
               <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
                 Book a demo
@@ -54,15 +82,21 @@ export function FinalCTA() {
               asChild
               variant="outline"
               size="lg"
-              className="rounded-full h-12 px-7 text-base font-medium border-black/15 bg-black/[0.03] hover:bg-black/[0.06] text-foreground hover:text-foreground"
+              className="rounded-full h-12 px-7 text-[15px] font-semibold border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-white hover:text-white backdrop-blur transition-all"
             >
               <a href="#contact">Talk to sales</a>
             </Button>
           </div>
 
-          <p className="mt-6 text-xs text-foreground/45">
-            No card. No commitment. SOC 2 + GDPR ready from day one.
-          </p>
+          {/* Proof row */}
+          <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12.5px] text-white/65">
+            {PROOF.map((p) => (
+              <li key={p} className="inline-flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-[#7CD49B]" />
+                {p}
+              </li>
+            ))}
+          </ul>
         </motion.div>
       </div>
     </section>

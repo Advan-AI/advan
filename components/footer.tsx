@@ -10,7 +10,6 @@ const footerLinks = {
     { label: "Workflow", href: "/#workflow" },
     { label: "Copilot", href: "/#copilot" },
     { label: "Cross-channel memory", href: "/#memory" },
-    { label: "Pricing", href: "/#pricing" },
   ],
   Company: [
     { label: "About", href: "/about" },
@@ -58,11 +57,11 @@ export function Footer() {
           <div className="md:col-span-5">
             <Link href="/" className="inline-flex items-center gap-2.5 mb-5">
               <Image
-                src="/images/advan-logo.png"
+                src="/images/advan-logo.svg"
                 alt="Advan AI Logo"
                 width={36}
                 height={36}
-                className="rounded-lg ring-1 ring-black/10"
+                className="rounded-lg"
               />
               <span className="font-semibold text-lg text-foreground tracking-tight">Advan</span>
             </Link>

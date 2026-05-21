@@ -35,7 +35,7 @@ const BADGES = ["SOC 2 Type II", "GDPR", "HIPAA-ready", "ISO 27001", "BYOK"]
 
 export function TrustSection() {
   return (
-    <section id="trust" className="relative py-24 lg:py-32">
+    <section id="trust" className="relative py-14 lg:py-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
           eyebrow="Enterprise trust"

@@ -5,7 +5,8 @@ import type { ReactNode } from "react"
 
 export function SectionEyebrow({ children }: { children: ReactNode }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-600">
+    <div className="eyebrow-chip">
+      <span className="w-1.5 h-1.5 rounded-full bg-[#6B5CD6]" aria-hidden />
       {children}
     </div>
   )

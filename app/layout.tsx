@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Playfair_Display, Geist_Mono } from 'next/font/google'
+import { Inter, Playfair_Display, Geist_Mono, Hanken_Grotesk, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair', display: 'swap' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' })
+const hanken = Hanken_Grotesk({ subsets: ['latin'], variable: '--font-hanken', display: 'swap', weight: ['400', '500', '600', '700', '800'] })
+const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains', display: 'swap' })
 
 export const metadata: Metadata = {
   title: 'Advan AI — Transparent AI Support for Better Customer Experiences',
@@ -48,7 +50,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${playfair.variable} ${geistMono.variable} dark`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${playfair.variable} ${geistMono.variable} ${hanken.variable} ${jetbrains.variable} dark`} suppressHydrationWarning>
       <body className="font-sans antialiased min-h-screen bg-background text-foreground">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
