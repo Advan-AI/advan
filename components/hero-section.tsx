@@ -384,6 +384,11 @@ function Ring({ value }: { value: number }) {
 
 /* ─── floating agents card ───────────────────────────── */
 function AgentsMini() {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   const agents = [
     { label: "Triage",    color: "#6B5CD6" },
     { label: "Knowledge", color: "#5A85C3" },
@@ -405,7 +410,7 @@ function AgentsMini() {
         </span>
       </div>
       <ul className="space-y-1.5">
-        {agents.map((a) => (
+        {agents.map((a, i) => (
           <li key={a.label} className="flex items-center gap-2 text-[11px]">
             <span
               className="w-1.5 h-1.5 rounded-full"
@@ -417,7 +422,7 @@ function AgentsMini() {
               transition={{ duration: 1.6, repeat: Infinity }}
               className="ml-auto font-mono text-[9.5px] text-foreground/45"
             >
-              0.{(Math.floor(Math.random() * 9) + 1).toString()}s
+              0.{mounted ? (Math.floor(Math.abs(Math.sin(i * 1.33)) * 9) + 1) : "5"}s
             </motion.span>
           </li>
         ))}

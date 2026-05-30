@@ -727,6 +727,11 @@ function ResponsiveCanvasOverlay({ children }: { children: React.ReactNode }) {
 
 /* ─── canvas node ──────────────────────────────────────── */
 function CanvasNode({ agent, state }: { agent: AgentDef; state: AgentState }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   const Icon = agent.icon
   const c = TONE[agent.tone]
   const isLive = state === "thinking" || state === "processing"
@@ -793,7 +798,7 @@ function CanvasNode({ agent, state }: { agent: AgentDef; state: AgentState }) {
               transition={{ duration: 1.2, repeat: Infinity }}
               className="text-[9px] font-mono text-foreground/45"
             >
-              0.{(Math.floor(Math.random() * 9) + 1).toString()}s
+              0.{mounted ? (Math.floor(Math.abs(Math.sin((agent.id.length * 7) + 1)) * 9) + 1) : "5"}s
             </motion.span>
           )}
         </div>
