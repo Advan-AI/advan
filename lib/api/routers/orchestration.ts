@@ -3,6 +3,7 @@ import { router, protectedProcedure } from '../trpc';
 import { db } from '@/lib/db';
 import { workflows } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { WorkflowExecutor } from '@/lib/orchestration/executor';
 
 /**
  * Advan AI Orchestration Router (Layer 2 -> Layer 5 bridge)
@@ -13,6 +14,17 @@ export const orchestrationRouter = router({
       where: eq(workflows.orgId, ctx.user.orgId),
     });
   }),
+
+  // Integrated Execution Engine
+  runWorkflow: protectedProcedure
+    .input(z.object({
+      workflowId: z.string().uuid().optional(),
+      input: z.string().min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Execute the multi-agent graph with governance layers
+      return await WorkflowExecutor.run(ctx.user.orgId, input.input);
+    }),
 
   saveWorkflow: protectedProcedure
     .input(z.object({
