@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Playfair_Display, Geist_Mono, Hanken_Grotesk, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { Providers } from './providers'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
@@ -52,7 +53,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable} ${geistMono.variable} ${hanken.variable} ${jetbrains.variable} dark`} suppressHydrationWarning>
       <body className="font-sans antialiased min-h-screen bg-background text-foreground">
-        {children}
+        <Providers>
+          {children}
+        </Providers>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

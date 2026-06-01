@@ -1,39 +1,84 @@
 /**
  * Advan AI Governance Layer: Policy Engine (OPA) Client
- * Connects to Open Policy Agent for Rego-based business rule enforcement.
+ *
+ * In production: POSTs input to the Open Policy Agent REST API at OPA_SERVICE_URL.
+ * In development / when OPA is unavailable: falls back to the inline simulation
+ * that mirrors the logic in the .rego policy files.
  */
 
 export interface PolicyDecision {
-  allow: boolean;
-  reason?: string;
-  remediation?: string;
+  allow: boolean
+  reason?: string
+  remediation?: string
 }
 
 export class PolicyClient {
-  private static baseUrl = process.env.OPA_SERVICE_URL || 'http://localhost:8181';
+  private static baseUrl = process.env.OPA_SERVICE_URL ?? "http://localhost:8181"
+  private static timeoutMs = 2000
 
   /**
-   * Evaluates a security or business policy.
-   * @param path The OPA policy path (e.g., 'advan/safety/pii')
-   * @param input Data to evaluate against the policy
+   * Evaluate a policy rule.
+   * @param path  - OPA policy path, e.g. "advan/safety/intent"
+   * @param input - The request context passed to the Rego rule
    */
   static async evaluate<T>(path: string, input: T): Promise<PolicyDecision> {
-    try {
-      // In a real environment, this would call the OPA REST API
-      // For now, we implement a fallback logic that can be gated by Rego later.
-      console.log(`[OPA] Evaluating policy: ${path}`, input);
-      
-      // Default: Allow if no obvious safety violations (simulated)
-      return {
-        allow: true,
-        reason: 'Policy check passed (mock)',
-      };
-    } catch (error) {
-      console.error('[OPA] Policy evaluation failed:', error);
-      return {
-        allow: false,
-        reason: 'Policy engine unreachable',
-      };
+    // Try live OPA first
+    if (process.env.OPA_SERVICE_URL) {
+      try {
+        const controller = new AbortController()
+        const tid = setTimeout(() => controller.abort(), this.timeoutMs)
+
+        const response = await fetch(`${this.baseUrl}/v1/data/${path.replace(/\//g, "/")}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input }),
+          signal: controller.signal,
+        })
+        clearTimeout(tid)
+
+        if (response.ok) {
+          const json = await response.json() as { result?: { allow?: boolean; reason?: string; remediation?: string } }
+          const result = json.result ?? {}
+          return {
+            allow: result.allow ?? true,
+            reason: result.reason,
+            remediation: result.remediation,
+          }
+        }
+      } catch (err) {
+        console.warn("[OPA] Live policy evaluation failed, using fallback:", (err as Error).message)
+      }
     }
+
+    // Inline simulation — mirrors the .rego policy files in lib/governance/policies/
+    return this.simulatePolicy(path, input)
+  }
+
+  private static simulatePolicy<T>(path: string, input: T): PolicyDecision {
+    const i = input as any
+
+    if (path === "advan/safety/intent") {
+      if (i.emergency_lock) return { allow: false, reason: "Emergency Lock active" }
+      if (i.toxic) return { allow: false, reason: "Toxic content detected" }
+      if (i.intent === "jailbreak") return { allow: false, reason: "Jailbreak attempt blocked" }
+    }
+
+    if (path === "advan/privacy/pii") {
+      if (i.has_pii && !i.masked) {
+        return { allow: false, reason: "Unmasked PII in response", remediation: "Apply PII masker" }
+      }
+    }
+
+    if (path === "advan/handoff") {
+      if (i.confidence !== undefined && Number(i.confidence) < 85) {
+        return {
+          allow: false,
+          reason: `Low confidence: ${i.confidence}% (threshold: 85%)`,
+          remediation: "Route to human agent via HITL queue",
+        }
+      }
+    }
+
+    return { allow: true, reason: "Policy check passed" }
   }
 }

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signOut } from "next-auth/react"
 import {
   Bell,
   HelpCircle,
@@ -13,10 +14,12 @@ import {
   Settings,
   User,
 } from "lucide-react"
-import { signOut, type AdvanUser } from "@/lib/auth"
+import type { Session } from "next-auth"
+
+type SessionUser = Session["user"] | null
 
 interface TopbarProps {
-  user: AdvanUser | null
+  user: SessionUser
   onOpenSidebar?: () => void
 }
 
@@ -24,8 +27,8 @@ export function DashboardTopbar({ user, onOpenSidebar }: TopbarProps) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
 
-  function handleSignOut() {
-    signOut()
+  async function handleSignOut() {
+    await signOut({ redirect: false })
     router.push("/signin")
   }
 
@@ -94,8 +97,7 @@ export function DashboardTopbar({ user, onOpenSidebar }: TopbarProps) {
             <span
               className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-[12px] font-bold text-white"
               style={{
-                background:
-                  "linear-gradient(135deg,#8E80E5,#5C4DC1)",
+                background: "linear-gradient(135deg,#8E80E5,#5C4DC1)",
               }}
               aria-hidden
             >

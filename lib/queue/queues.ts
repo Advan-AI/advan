@@ -1,0 +1,65 @@
+import { Queue } from "bullmq"
+
+/**
+ * BullMQ queue connection via raw Redis URL.
+ * For production, set REDIS_URL to your Upstash Redis TLS endpoint:
+ *   rediss://default:<token>@<host>.upstash.io:6379
+ *
+ * BullMQ bundles its own ioredis so we pass the URL directly rather than
+ * importing a separate ioredis instance.
+ */
+function getConnectionConfig() {
+  const url = process.env.REDIS_URL
+  if (!url) {
+    throw new Error("[Queue] REDIS_URL is not set. BullMQ requires a raw Redis connection.")
+  }
+  const parsed = new URL(url)
+  return {
+    host: parsed.hostname,
+    port: Number(parsed.port) || 6379,
+    password: parsed.password || undefined,
+    username: parsed.username || undefined,
+    tls: url.startsWith("rediss://") ? {} : undefined,
+    maxRetriesPerRequest: null as null,
+    enableReadyCheck: false,
+  }
+}
+
+export type EmbedDocumentJob = {
+  knowledgeSourceId: string
+  orgId: string
+}
+
+export type NotificationJob = {
+  type: "ticket_resolved" | "csat_follow_up"
+  recipientEmail: string
+  payload: Record<string, unknown>
+}
+
+/**
+ * Queue for generating pgvector embeddings (Ollama) when a KB document is added.
+ * Processed by: lib/queue/workers/embedding-worker.ts
+ */
+export const embeddingQueue = new Queue<EmbedDocumentJob>("embedding", {
+  connection: getConnectionConfig(),
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: "exponential", delay: 2000 },
+    removeOnComplete: 100,
+    removeOnFail: 500,
+  },
+})
+
+/**
+ * Queue for async notifications (CSAT follow-ups, resolution emails).
+ * Processed by: lib/queue/workers/notification-worker.ts
+ */
+export const notificationQueue = new Queue<NotificationJob>("notification", {
+  connection: getConnectionConfig(),
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: "exponential", delay: 1000 },
+    removeOnComplete: 50,
+    removeOnFail: 200,
+  },
+})
