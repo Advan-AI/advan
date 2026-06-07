@@ -12,10 +12,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  experimental: {
-    turbo: { root: "." },
-    instrumentationHook: true,
-  },
   devIndicators: {
     buildActivity: false,
   },

@@ -1,11 +1,13 @@
 import type { NextAuthConfig } from "next-auth"
 
 /**
- * Edge-compatible auth config — no Node.js-only modules.
- * Used by middleware.ts for route protection on the Vercel Edge.
- * Full config (with DB + bcrypt) lives in auth.ts.
+ * Shared auth config (pages, session strategy, `authorized` callback).
+ * Merged into `auth.ts` with providers. `proxy.ts` imports `auth` from there
+ * so the proxy and API routes use one NextAuth instance.
  */
 export const authConfig: NextAuthConfig = {
+  /** Explicit for prod behind proxies; dev is trusted via env defaults too */
+  trustHost: true,
   pages: {
     signIn: "/signin",
     error: "/signin",

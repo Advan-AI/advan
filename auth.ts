@@ -8,6 +8,17 @@ import { db } from "@/lib/db"
 import { users } from "@/lib/db/schema"
 import { authConfig } from "./auth.config"
 
+/** Trailing slash on NEXTAUTH_URL/AUTH_URL breaks OAuth redirect_uri vs Google Console. */
+function normalizePublicAuthUrls() {
+  for (const key of ["NEXTAUTH_URL", "AUTH_URL"] as const) {
+    const v = process.env[key]
+    if (typeof v !== "string") continue
+    const trimmed = v.trim().replace(/\/+$/, "")
+    if (trimmed && trimmed !== v) process.env[key] = trimmed
+  }
+}
+normalizePublicAuthUrls()
+
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -52,6 +63,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     authorized: authConfig.callbacks!.authorized!,
+
+    /**
+     * After Google (or any provider) returns, Auth.js redirects here.
+     * Keep same-origin absolute URLs and relative paths (e.g. /dashboard).
+     * Fix redirect_uri_mismatch in Google: set Console URI exactly to
+     * `{NEXTAUTH_URL}/api/auth/callback/google` with the same host as the browser.
+     */
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`
+      try {
+        const next = new URL(url)
+        const base = new URL(baseUrl)
+        if (next.origin === base.origin) return url
+      } catch {
+        /* ignore */
+      }
+      return baseUrl
+    },
 
     async signIn({ user, account }) {
       if (account?.provider === "google") {

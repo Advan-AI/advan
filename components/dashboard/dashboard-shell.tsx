@@ -19,7 +19,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     setSidebarOpen(false)
   }, [pathname])
 
-  // Auth is enforced by middleware.ts — this handles the loading skeleton
+  // Auth is enforced by proxy.ts — this handles the loading skeleton
   if (status === "loading") {
     return (
       <div className="min-h-screen dash-shell flex">
