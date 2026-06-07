@@ -1,10 +1,16 @@
 import { createServer } from "http"
 import { Server as SocketIOServer } from "socket.io"
-import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { hitlQueue } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { signalHITLDecision } from "@/lib/temporal/client"
+import {
+  createSubscriber,
+  HITL_NEW_CHANNEL,
+  HITL_RESOLVED_CHANNEL,
+  PIPELINE_STEP_CHANNEL,
+  PIPELINE_RUN_FINISHED_CHANNEL,
+} from "@/lib/realtime/event-bus"
 
 /**
  * Socket.IO server for real-time HITL queue updates.
@@ -101,10 +107,41 @@ async function resolveHITL(
 
 /**
  * Exported helper so the Next.js API layer can broadcast new HITL items
- * when the Temporal workflow creates them.
+ * when the Temporal workflow creates them (in-process fallback).
  */
 export function broadcastHITLNew(orgId: string, item: unknown) {
   io.to(`org:${orgId}`).emit("hitl:new", { item })
+}
+
+// ── Cross-process fan-out via Redis pub/sub ─────────────────────────────────
+// HITL items / pipeline steps are produced by the Next.js app process; relay
+// them to connected Socket.IO clients regardless of which process emitted them.
+const subscriber = createSubscriber()
+if (subscriber) {
+  subscriber.subscribe(
+    HITL_NEW_CHANNEL,
+    HITL_RESOLVED_CHANNEL,
+    PIPELINE_STEP_CHANNEL,
+    PIPELINE_RUN_FINISHED_CHANNEL,
+    (err) => {
+    if (err) console.error("[Socket] Redis subscribe failed:", err.message)
+    else console.log("[Socket] Subscribed to realtime event bus")
+  })
+  subscriber.on("message", (channel, raw) => {
+    try {
+      const msg = JSON.parse(raw) as { orgId: string; [k: string]: unknown }
+      if (!msg.orgId) return
+      const room = `org:${msg.orgId}`
+      if (channel === HITL_NEW_CHANNEL) io.to(room).emit("hitl:new", { item: msg.item })
+      else if (channel === HITL_RESOLVED_CHANNEL) io.to(room).emit("hitl:resolved", msg)
+      else if (channel === PIPELINE_STEP_CHANNEL) io.to(room).emit("pipeline:step", msg)
+      else if (channel === PIPELINE_RUN_FINISHED_CHANNEL) io.to(room).emit("pipeline:run:finished", msg)
+    } catch {
+      /* malformed payload — ignore */
+    }
+  })
+} else {
+  console.warn("[Socket] REDIS_URL not set — cross-process fan-out disabled (single-process only)")
 }
 
 httpServer.listen(PORT, () => {

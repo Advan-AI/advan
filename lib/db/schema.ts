@@ -165,6 +165,7 @@ export const auditLogs = pgTable("audit_logs", {
       latencyMs: number
       model?: string
       hallucinationFlags?: string[]
+      decision?: { action: "accept" | "reject" | "modify"; finalText?: string; by: string; at: string }
     }>()
     .notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -213,6 +214,39 @@ export const hitlQueue = pgTable("hitl_queue", {
   reviewNote: text("review_note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   resolvedAt: timestamp("resolved_at"),
+})
+
+// ─── Pipeline execution (Feature 2) ───────────────────────────────────────────
+
+export const pipelineRuns = pgTable("pipeline_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  workflowId: uuid("workflow_id").references(() => workflows.id),
+  temporalWorkflowId: text("temporal_workflow_id").notNull(),
+  temporalRunId: text("temporal_run_id"),
+  status: text("status", { enum: ["running", "completed", "failed", "cancelled"] })
+    .default("running")
+    .notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+})
+
+export const pipelineRunSteps = pgTable("pipeline_run_steps", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  runId: uuid("run_id")
+    .references(() => pipelineRuns.id, { onDelete: "cascade" })
+    .notNull(),
+  nodeId: text("node_id").notNull(),
+  nodeType: text("node_type").notNull(),
+  status: text("status", {
+    enum: ["pending", "running", "completed", "failed", "skipped"],
+  }).notNull(),
+  output: jsonb("output"),
+  error: text("error"),
+  latencyMs: integer("latency_ms"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
 export const jobs = pgTable("jobs", {

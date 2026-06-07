@@ -4,6 +4,7 @@ import Link from "next/link"
 import { LayoutGrid, Plus, PlayCircle, Pause, GitBranch } from "lucide-react"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
+import { EMPTY_PIPELINE } from "@/lib/pipeline/schema"
 
 const STATUS_TONE: Record<string, string> = {
   active:   "bg-[var(--dash-sage-wash)] text-[#2f5d3f]",
@@ -36,7 +37,7 @@ export default function WorkflowsPage() {
               onClick={() =>
                 saveWorkflow.mutate({
                   name: "New workflow",
-                  definition: { nodes: [], edges: [] },
+                  definition: EMPTY_PIPELINE,
                 })
               }
               disabled={saveWorkflow.isPending}
@@ -62,7 +63,7 @@ export default function WorkflowsPage() {
               <div className="col-span-2 py-12 text-center text-[13px] text-[var(--dash-ink-faint)]">
                 No workflows yet.{" "}
                 <button
-                  onClick={() => saveWorkflow.mutate({ name: "My first workflow", definition: { nodes: [], edges: [] } })}
+                  onClick={() => saveWorkflow.mutate({ name: "My first workflow", definition: EMPTY_PIPELINE })}
                   className="text-[var(--dash-accent-deep)] font-semibold hover:underline"
                 >
                   Create one →

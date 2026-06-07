@@ -3,3 +3,4 @@
  * Keeps `require.resolve(...)` in the worker daemon deterministic.
  */
 export { ticketResolutionWorkflow } from "./ticket-resolution"
+export { pipelineExecutionWorkflow } from "./pipeline-execution"

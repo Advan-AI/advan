@@ -239,8 +239,15 @@ function ConfidenceRing({ value }: { value: number }) {
   const color = value >= 85 ? ["#76B98C", "#4A8A60"] : value >= 70 ? ["#E5A84F", "#B07A2A"] : ["#E58080", "#A04040"]
 
   return (
-    <div className="relative w-[88px] h-[88px] shrink-0">
-      <svg width={88} height={88} viewBox="0 0 88 88" className="-rotate-90">
+    <div
+      className="relative w-[88px] h-[88px] shrink-0"
+      role="meter"
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={`AI confidence ${value} percent`}
+    >
+      <svg width={88} height={88} viewBox="0 0 88 88" className="-rotate-90" aria-hidden>
         <defs>
           <linearGradient id="ringgrad" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor={color[0]} />

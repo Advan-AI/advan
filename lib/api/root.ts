@@ -1,6 +1,7 @@
 import { router } from "./trpc"
 import { governanceRouter } from "./routers/governance"
 import { orchestrationRouter } from "./routers/orchestration"
+import { copilotRouter } from "./routers/copilot"
 import { ticketsRouter } from "./routers/tickets"
 import { conversationsRouter } from "./routers/conversations"
 import { customersRouter } from "./routers/customers"
@@ -13,6 +14,7 @@ import { analyticsRouter } from "./routers/analytics"
 export const appRouter = router({
   governance: governanceRouter,
   orchestration: orchestrationRouter,
+  copilot: copilotRouter,
   tickets: ticketsRouter,
   conversations: conversationsRouter,
   customers: customersRouter,

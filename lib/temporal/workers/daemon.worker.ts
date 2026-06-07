@@ -3,6 +3,7 @@ import path from "node:path"
 import { createRequire } from "node:module"
 import { Worker } from "@temporalio/worker"
 import { agentActivities } from "../activities/agent-activities"
+import { pipelineActivities } from "../activities/pipeline-activities"
 import { parseTemporalConfig } from "../config/environment.validator"
 import { TemporalConnectionManager } from "../services/connection.manager"
 
@@ -51,7 +52,7 @@ export async function runTemporalWorkerDaemon(): Promise<void> {
     ...workflowLoader,
     connection,
     namespace: envConfig.namespace,
-    activities: agentActivities,
+    activities: { ...agentActivities, ...pipelineActivities },
     taskQueue: process.env.TEMPORAL_TASK_QUEUE?.trim() || DEFAULT_TASK_QUEUE,
     shutdownGraceTime: SHUTDOWN_GRACE_MS,
   })
