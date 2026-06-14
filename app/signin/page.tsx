@@ -4,10 +4,10 @@ import { useState, FormEvent } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { motion } from "framer-motion"
 import { ArrowRight, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { signInWithEmail, signInWithGoogle } from "@/lib/auth"
 
 export default function SignInPage() {
   const router = useRouter()
@@ -25,18 +25,24 @@ export default function SignInPage() {
       return
     }
     setLoading("email")
-    // Simulated auth latency
-    await new Promise((r) => setTimeout(r, 700))
-    signInWithEmail(email)
-    router.push("/dashboard")
+    const result = await signIn("credentials", {
+      redirect: false,
+      email,
+      password,
+    })
+    setLoading(null)
+    if (result?.error) {
+      setError("Invalid email or password. Please try again.")
+    } else {
+      router.push("/dashboard")
+      router.refresh()
+    }
   }
 
   async function handleGoogle() {
     setError(null)
     setLoading("google")
-    await new Promise((r) => setTimeout(r, 700))
-    signInWithGoogle()
-    router.push("/dashboard")
+    await signIn("google", { callbackUrl: "/dashboard" })
   }
 
   return (

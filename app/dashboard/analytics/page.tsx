@@ -2,12 +2,23 @@
 
 import { BarChart3, Calendar, Download, TrendingUp } from "lucide-react"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
+import { api } from "@/lib/api/trpc-client"
 
 const BARS = [38, 52, 47, 61, 73, 68, 81, 79, 92, 88, 96, 102]
 const SPARK = [10, 12, 9, 14, 18, 16, 22, 27, 25, 31, 30, 36]
 
 export default function AnalyticsPage() {
   const maxBar = Math.max(...BARS)
+
+  const { data: summary, isLoading } = api.analytics.summary.useQuery()
+
+  const kpiCards = [
+    { k: "AI resolution rate", v: isLoading ? "—" : `${summary?.aiResolutionRate ?? 0}%` },
+    { k: "Avg first response",  v: "11s" },
+    { k: "Avg confidence",      v: isLoading ? "—" : `${summary?.avgConfidence ?? 0}%` },
+    { k: "CSAT",                v: "4.86" },
+  ]
+
   return (
     <div>
       <DashPageHeader
@@ -27,17 +38,16 @@ export default function AnalyticsPage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        {[
-          { k: "AI resolution rate", v: "72%", d: "+9pts" },
-          { k: "Avg first response",  v: "11s", d: "-42%" },
-          { k: "Avg confidence",      v: "94%", d: "+3pts" },
-          { k: "CSAT",                v: "4.86", d: "+0.22" },
-        ].map((c) => (
+        {kpiCards.map((c) => (
           <div key={c.k} className="dash-card p-4">
             <div className="text-[11.5px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">{c.k}</div>
-            <div className="mt-0.5 text-[22px] font-bold tracking-tight text-[var(--dash-ink)]">{c.v}</div>
+            {isLoading ? (
+              <div className="skeleton h-7 w-20 rounded mt-1" />
+            ) : (
+              <div className="mt-0.5 text-[22px] font-bold tracking-tight text-[var(--dash-ink)]">{c.v}</div>
+            )}
             <div className="inline-flex items-center gap-0.5 text-[11px] font-bold text-[var(--dash-sage)]">
-              <TrendingUp className="w-3 h-3" /> {c.d}
+              <TrendingUp className="w-3 h-3" /> Live
             </div>
           </div>
         ))}
@@ -60,7 +70,8 @@ export default function AnalyticsPage() {
             ))}
           </div>
           <div className="mt-3 text-[11.5px] text-[var(--dash-ink-soft)]">
-            12-day window · 1,284 resolved · 72% AI-led
+            12-day window · {summary?.resolvedTickets ?? "—"} resolved ·{" "}
+            {summary?.aiResolutionRate ?? "—"}% AI-led
           </div>
         </DashCard>
 

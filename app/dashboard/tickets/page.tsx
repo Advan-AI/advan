@@ -3,56 +3,41 @@
 import { useMemo, useState } from "react"
 import { Filter, Plus, Search, Ticket } from "lucide-react"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
+import { api } from "@/lib/api/trpc-client"
 
-type Status = "Open" | "AI Draft" | "Pending" | "Escalated" | "Resolved"
-type Priority = "Low" | "Normal" | "High" | "Urgent"
+type StatusFilter = "All" | "open" | "pending" | "resolved" | "closed"
 
-const TICKETS: {
-  id: string
-  subject: string
-  customer: string
-  channel: string
-  status: Status
-  priority: Priority
-  age: string
-}[] = [
-  { id: "TK-84219", subject: "Overcharge on May invoice",     customer: "Jenna Lee",  channel: "Email",  status: "AI Draft",  priority: "High",   age: "2m"  },
-  { id: "TK-84211", subject: "Webhook signature rotation",    customer: "Marcus Hall", channel: "Slack",  status: "Open",      priority: "Urgent", age: "9m"  },
-  { id: "TK-84203", subject: "SSO not provisioning new seats",customer: "Priya Shah",  channel: "Chat",   status: "Escalated", priority: "High",   age: "22m" },
-  { id: "TK-84198", subject: "Refund processed — confirm",    customer: "Tom Becker",  channel: "Email",  status: "Resolved",  priority: "Normal", age: "47m" },
-  { id: "TK-84190", subject: "Quarterly usage report export", customer: "Dana Romero", channel: "Web",    status: "Pending",   priority: "Low",    age: "1h"  },
-  { id: "TK-84182", subject: "Enable EU residency",           customer: "Liam Patel",  channel: "Email",  status: "Open",      priority: "High",   age: "3h"  },
-  { id: "TK-84171", subject: "Custom SLA escalation tier",    customer: "Mia Carter",  channel: "Chat",   status: "AI Draft",  priority: "Normal", age: "5h"  },
-  { id: "TK-84160", subject: "Bulk seat reassignment",        customer: "Noah Chen",   channel: "Slack",  status: "Open",      priority: "Normal", age: "8h"  },
-]
-
-const STATUS_TONE: Record<Status, string> = {
-  "Open":      "bg-[var(--dash-amber-wash)] text-[#8a5a1e]",
-  "AI Draft":  "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]",
-  "Pending":   "bg-[var(--dash-blue-wash)] text-[#244e8a]",
-  "Escalated": "bg-[var(--dash-rose-wash)] text-[#8a3e3e]",
-  "Resolved":  "bg-[var(--dash-sage-wash)] text-[#2f5d3f]",
+const STATUS_TONE: Record<string, string> = {
+  open:    "bg-[var(--dash-amber-wash)] text-[#8a5a1e]",
+  pending: "bg-[var(--dash-blue-wash)] text-[#244e8a]",
+  resolved:"bg-[var(--dash-sage-wash)] text-[#2f5d3f]",
+  closed:  "bg-[var(--dash-line)] text-[var(--dash-ink-faint)]",
 }
-const PRIORITY_TONE: Record<Priority, string> = {
-  "Low":    "text-[var(--dash-ink-faint)]",
-  "Normal": "text-[var(--dash-blue)]",
-  "High":   "text-[var(--dash-amber)]",
-  "Urgent": "text-[var(--dash-rose)]",
+const PRIORITY_TONE: Record<string, string> = {
+  low:    "text-[var(--dash-ink-faint)]",
+  medium: "text-[var(--dash-blue)]",
+  high:   "text-[var(--dash-amber)]",
+  urgent: "text-[var(--dash-rose)]",
 }
-
-const STATUSES: Array<"All" | Status> = ["All", "Open", "AI Draft", "Pending", "Escalated", "Resolved"]
+const STATUSES: StatusFilter[] = ["All", "open", "pending", "resolved", "closed"]
 
 export default function TicketsPage() {
-  const [filter, setFilter] = useState<"All" | Status>("All")
+  const [filter, setFilter] = useState<StatusFilter>("All")
   const [q, setQ] = useState("")
 
+  const { data, isLoading } = api.tickets.list.useQuery({
+    status: filter === "All" ? undefined : filter,
+    limit: 50,
+  })
+
   const rows = useMemo(() => {
-    return TICKETS.filter((t) => {
-      if (filter !== "All" && t.status !== filter) return false
-      if (q && !`${t.id} ${t.subject} ${t.customer}`.toLowerCase().includes(q.toLowerCase())) return false
-      return true
-    })
-  }, [filter, q])
+    if (!data?.tickets) return []
+    if (!q) return data.tickets
+    const lower = q.toLowerCase()
+    return data.tickets.filter((r) =>
+      `${r.ticket.subject} ${r.customer?.name ?? ""} ${r.ticket.id}`.toLowerCase().includes(lower)
+    )
+  }, [data, q])
 
   return (
     <div>
@@ -76,16 +61,14 @@ export default function TicketsPage() {
         title="All tickets"
         icon={<Ticket className="w-[18px] h-[18px]" />}
         right={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 dash-bg-card border dash-border rounded-lg px-2.5 py-1.5 w-[220px]">
-              <Search className="w-3.5 h-3.5 text-[var(--dash-ink-faint)]" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search…"
-                className="bg-transparent outline-none text-[12px] text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] w-full"
-              />
-            </div>
+          <div className="flex items-center gap-2 dash-bg-card border dash-border rounded-lg px-2.5 py-1.5 w-[220px]">
+            <Search className="w-3.5 h-3.5 text-[var(--dash-ink-faint)]" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search…"
+              className="bg-transparent outline-none text-[12px] text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] w-full"
+            />
           </div>
         }
         padded={false}
@@ -96,7 +79,7 @@ export default function TicketsPage() {
             <button
               key={s}
               onClick={() => setFilter(s)}
-              className={`text-[11.5px] font-semibold rounded-md px-2.5 py-1 transition ${
+              className={`text-[11.5px] font-semibold rounded-md px-2.5 py-1 transition capitalize ${
                 filter === s
                   ? "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]"
                   : "text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)]"
@@ -106,7 +89,7 @@ export default function TicketsPage() {
             </button>
           ))}
           <span className="ml-auto text-[11px] text-[var(--dash-ink-faint)]">
-            {rows.length} of {TICKETS.length}
+            {rows.length} {data?.total ? `of ${data.total}` : ""}
           </span>
         </div>
 
@@ -120,32 +103,51 @@ export default function TicketsPage() {
                 <Th>Channel</Th>
                 <Th>Status</Th>
                 <Th>Priority</Th>
-                <Th>Age</Th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((t) => (
-                <tr
-                  key={t.id}
-                  className="border-t dash-border-soft hover:bg-[rgba(107,92,214,0.04)] transition cursor-pointer"
-                >
-                  <Td>
-                    <div className="flex flex-col">
-                      <span className="font-mono text-[10.5px] text-[var(--dash-ink-faint)]">{t.id}</span>
-                      <span className="font-semibold text-[var(--dash-ink)]">{t.subject}</span>
-                    </div>
-                  </Td>
-                  <Td className="text-[var(--dash-ink-soft)]">{t.customer}</Td>
-                  <Td className="text-[var(--dash-ink-soft)]">{t.channel}</Td>
-                  <Td>
-                    <span className={`text-[11px] font-bold rounded-md px-2 py-1 ${STATUS_TONE[t.status]}`}>
-                      {t.status}
-                    </span>
-                  </Td>
-                  <Td className={`font-bold ${PRIORITY_TONE[t.priority]}`}>{t.priority}</Td>
-                  <Td className="text-[var(--dash-ink-faint)]">{t.age}</Td>
+              {isLoading
+                ? Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="border-t dash-border-soft">
+                      <Td><div className="skeleton h-4 w-48 rounded" /></Td>
+                      <Td><div className="skeleton h-4 w-24 rounded" /></Td>
+                      <Td><div className="skeleton h-4 w-16 rounded" /></Td>
+                      <Td><div className="skeleton h-4 w-20 rounded" /></Td>
+                      <Td><div className="skeleton h-4 w-16 rounded" /></Td>
+                    </tr>
+                  ))
+                : rows.map((r) => (
+                    <tr
+                      key={r.ticket.id}
+                      className="border-t dash-border-soft hover:bg-[rgba(107,92,214,0.04)] transition cursor-pointer"
+                    >
+                      <Td>
+                        <div className="flex flex-col">
+                          <span className="font-mono text-[10.5px] text-[var(--dash-ink-faint)]">
+                            {r.ticket.id.slice(0, 8).toUpperCase()}
+                          </span>
+                          <span className="font-semibold text-[var(--dash-ink)]">{r.ticket.subject}</span>
+                        </div>
+                      </Td>
+                      <Td className="text-[var(--dash-ink-soft)]">{r.customer?.name ?? "—"}</Td>
+                      <Td className="text-[var(--dash-ink-soft)] capitalize">{r.ticket.channel}</Td>
+                      <Td>
+                        <span className={`text-[11px] font-bold rounded-md px-2 py-1 capitalize ${STATUS_TONE[r.ticket.status] ?? ""}`}>
+                          {r.ticket.status}
+                        </span>
+                      </Td>
+                      <Td className={`font-bold capitalize ${PRIORITY_TONE[r.ticket.priority] ?? ""}`}>
+                        {r.ticket.priority}
+                      </Td>
+                    </tr>
+                  ))}
+              {!isLoading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-[13px] text-[var(--dash-ink-faint)]">
+                    No tickets found.
+                  </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

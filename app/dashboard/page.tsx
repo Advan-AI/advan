@@ -4,7 +4,6 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import {
   ArrowUpRight,
-  ArrowDownRight,
   Sparkles,
   MessageSquare,
   Clock,
@@ -12,38 +11,39 @@ import {
   CheckCircle2,
   Activity,
   Ticket,
-  Users,
 } from "lucide-react"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
+import { api } from "@/lib/api/trpc-client"
+import { useSession } from "next-auth/react"
 
-const STATS = [
-  { label: "Tickets resolved", value: "1,284", delta: "+18%", up: true, icon: CheckCircle2 },
-  { label: "Avg first response", value: "11s", delta: "-42%", up: true, icon: Clock },
-  { label: "CSAT", value: "4.86", delta: "+0.22", up: true, icon: Smile },
-  { label: "AI resolution rate", value: "72%", delta: "+9pts", up: true, icon: Sparkles },
-]
-
-const RECENT = [
-  { id: "TK-84219", who: "Jenna Lee", subject: "Overcharge on May invoice", state: "AI Draft", tone: "ai" as const, time: "2m" },
-  { id: "TK-84211", who: "Marcus Hall", subject: "Webhook signature rotation", state: "Open", tone: "open" as const, time: "9m" },
-  { id: "TK-84203", who: "Priya Shah", subject: "SSO not provisioning new seats", state: "Escalated", tone: "esc" as const, time: "22m" },
-  { id: "TK-84198", who: "Tom Becker", subject: "Refund processed — confirmation", state: "Resolved", tone: "ok" as const, time: "47m" },
-  { id: "TK-84190", who: "Dana Romero", subject: "Quarterly usage report export", state: "Pending", tone: "open" as const, time: "1h" },
-]
-
-const TONE_MAP: Record<string, string> = {
-  ai:   "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]",
-  open: "bg-[var(--dash-amber-wash)] text-[#8a5a1e]",
-  esc:  "bg-[var(--dash-rose-wash)] text-[#8a3e3e]",
-  ok:   "bg-[var(--dash-sage-wash)] text-[#2f5d3f]",
+const STATUS_TONE: Record<string, string> = {
+  open:    "bg-[var(--dash-amber-wash)] text-[#8a5a1e]",
+  pending: "bg-[var(--dash-blue-wash)] text-[#244e8a]",
+  resolved:"bg-[var(--dash-sage-wash)] text-[#2f5d3f]",
+  closed:  "bg-[var(--dash-line)] text-[var(--dash-ink-faint)]",
 }
 
 export default function DashboardOverviewPage() {
+  const { data: session } = useSession()
+  const firstName = session?.user?.name?.split(" ")[0] ?? "there"
+
+  const { data: kpis, isLoading: kpisLoading } = api.tickets.kpis.useQuery()
+  const { data: recentData, isLoading: recentLoading } = api.tickets.list.useQuery({
+    limit: 5,
+  })
+
+  const STATS = [
+    { label: "Tickets resolved", value: kpis ? String(kpis.resolved) : "—", icon: CheckCircle2 },
+    { label: "AI resolution rate", value: kpis ? `${kpis.aiResolutionRate}%` : "—", icon: Sparkles },
+    { label: "Avg first response", value: "11s", icon: Clock },
+    { label: "CSAT", value: "4.86", icon: Smile },
+  ]
+
   return (
     <div>
       <DashPageHeader
         eyebrow="Workspace"
-        title="Good afternoon, Sarah"
+        title={`Good afternoon, ${firstName}`}
         subtitle="Here's how your support team and Advan AI are performing today."
         actions={
           <>
@@ -81,21 +81,20 @@ export default function DashboardOverviewPage() {
                 <div className="w-9 h-9 rounded-lg dash-bg-accent-wash flex items-center justify-center">
                   <Icon className="w-4 h-4 text-[var(--dash-accent-deep)]" />
                 </div>
-                <span
-                  className={`inline-flex items-center gap-0.5 text-[11px] font-bold rounded-md px-1.5 py-0.5 ${
-                    s.up ? "text-[#2f5d3f] bg-[var(--dash-sage-wash)]" : "text-[#8a3e3e] bg-[var(--dash-rose-wash)]"
-                  }`}
-                >
-                  {s.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                  {s.delta}
+                <span className="inline-flex items-center gap-0.5 text-[11px] font-bold rounded-md px-1.5 py-0.5 text-[#2f5d3f] bg-[var(--dash-sage-wash)]">
+                  <ArrowUpRight className="w-3 h-3" /> Live
                 </span>
               </div>
               <div className="text-[11.5px] font-semibold uppercase tracking-wider text-[var(--dash-ink-faint)]">
                 {s.label}
               </div>
-              <div className="mt-0.5 text-[24px] font-bold tracking-tight text-[var(--dash-ink)]">
-                {s.value}
-              </div>
+              {kpisLoading ? (
+                <div className="skeleton h-7 w-16 rounded mt-1" />
+              ) : (
+                <div className="mt-0.5 text-[24px] font-bold tracking-tight text-[var(--dash-ink)]">
+                  {s.value}
+                </div>
+              )}
             </motion.div>
           )
         })}
@@ -106,73 +105,69 @@ export default function DashboardOverviewPage() {
           title="Recent activity"
           icon={<Activity className="w-[18px] h-[18px]" />}
           right={
-            <Link
-              href="/dashboard/conversations"
-              className="text-[12px] font-semibold text-[var(--dash-accent-deep)] hover:underline"
-            >
+            <Link href="/dashboard/tickets" className="text-[12px] font-semibold text-[var(--dash-accent-deep)] hover:underline">
               View all
             </Link>
           }
           padded={false}
         >
           <ul>
-            {RECENT.map((r) => (
-              <li
-                key={r.id}
-                className="flex items-center gap-3 px-4 py-3 border-b dash-border-soft last:border-b-0 hover:bg-[rgba(107,92,214,0.04)] transition"
-              >
-                <div className="w-8 h-8 rounded-full dash-bg-deep flex items-center justify-center text-[11px] font-bold text-[var(--dash-ink-soft)]">
-                  {r.who.split(" ").map((p) => p[0]).slice(0, 2).join("")}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-[var(--dash-ink)] truncate">{r.who}</span>
-                    <span className="text-[10.5px] text-[var(--dash-ink-faint)] font-mono">{r.id}</span>
-                  </div>
-                  <div className="text-[12.5px] text-[var(--dash-ink-soft)] truncate">{r.subject}</div>
-                </div>
-                <span className={`text-[11px] font-bold rounded-md px-2 py-1 ${TONE_MAP[r.tone]}`}>
-                  {r.state}
-                </span>
-                <span className="text-[11px] text-[var(--dash-ink-faint)] w-8 text-right">{r.time}</span>
-              </li>
-            ))}
+            {recentLoading
+              ? Array.from({ length: 5 }).map((_, i) => (
+                  <li key={i} className="flex items-center gap-3 px-4 py-3 border-b dash-border-soft">
+                    <div className="skeleton w-8 h-8 rounded-full" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="skeleton h-3.5 w-32 rounded" />
+                      <div className="skeleton h-3 w-48 rounded" />
+                    </div>
+                  </li>
+                ))
+              : (recentData?.tickets ?? []).map((row) => (
+                  <li
+                    key={row.ticket.id}
+                    className="flex items-center gap-3 px-4 py-3 border-b dash-border-soft last:border-b-0 hover:bg-[rgba(107,92,214,0.04)] transition"
+                  >
+                    <div className="w-8 h-8 rounded-full dash-bg-deep flex items-center justify-center text-[11px] font-bold text-[var(--dash-ink-soft)]">
+                      {(row.customer?.name ?? "?").split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-bold text-[var(--dash-ink)] truncate">
+                          {row.customer?.name ?? "Unknown"}
+                        </span>
+                      </div>
+                      <div className="text-[12.5px] text-[var(--dash-ink-soft)] truncate">
+                        {row.ticket.subject}
+                      </div>
+                    </div>
+                    <span className={`text-[11px] font-bold rounded-md px-2 py-1 ${STATUS_TONE[row.ticket.status] ?? ""}`}>
+                      {row.ticket.status}
+                    </span>
+                  </li>
+                ))}
           </ul>
         </DashCard>
 
         <div className="flex flex-col gap-4">
-          <DashCard
-            title="Today's queue"
-            icon={<Ticket className="w-[18px] h-[18px]" />}
-          >
+          <DashCard title="Today's queue" icon={<Ticket className="w-[18px] h-[18px]" />}>
             <div className="space-y-3">
               {[
-                { label: "Open", value: 42, color: "var(--dash-amber)", wash: "var(--dash-amber-wash)" },
-                { label: "In progress", value: 18, color: "var(--dash-accent)", wash: "var(--dash-accent-wash)" },
-                { label: "Escalated", value: 3, color: "var(--dash-rose)", wash: "var(--dash-rose-wash)" },
-                { label: "Resolved", value: 187, color: "var(--dash-sage)", wash: "var(--dash-sage-wash)" },
+                { label: "Open",       value: kpis?.open ?? "—",     color: "var(--dash-amber)", wash: "var(--dash-amber-wash)" },
+                { label: "Resolved",   value: kpis?.resolved ?? "—", color: "var(--dash-sage)",  wash: "var(--dash-sage-wash)" },
+                { label: "AI resolved",value: kpis ? `${kpis.aiResolutionRate}%` : "—", color: "var(--dash-accent)", wash: "var(--dash-accent-wash)" },
               ].map((row) => (
                 <div key={row.label} className="flex items-center gap-3">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: row.color }}
-                  />
+                  <span className="w-2 h-2 rounded-full" style={{ background: row.color }} />
                   <span className="text-[13px] text-[var(--dash-ink-soft)] flex-1">{row.label}</span>
-                  <span
-                    className="text-[12px] font-bold rounded-md px-2 py-0.5"
-                    style={{ background: row.wash, color: row.color }}
-                  >
-                    {row.value}
+                  <span className="text-[12px] font-bold rounded-md px-2 py-0.5" style={{ background: row.wash, color: row.color }}>
+                    {kpisLoading ? "—" : row.value}
                   </span>
                 </div>
               ))}
             </div>
           </DashCard>
 
-          <DashCard
-            title="AI Copilot status"
-            icon={<Sparkles className="w-[18px] h-[18px]" />}
-          >
+          <DashCard title="AI Copilot status" icon={<Sparkles className="w-[18px] h-[18px]" />}>
             <div className="space-y-3 text-[13px]">
               <div className="flex items-center justify-between">
                 <span className="text-[var(--dash-ink-soft)]">Model</span>
@@ -185,10 +180,6 @@ export default function DashboardOverviewPage() {
               <div className="flex items-center justify-between">
                 <span className="text-[var(--dash-ink-soft)]">Sources / answer</span>
                 <span className="font-bold text-[var(--dash-ink)]">3.2</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[var(--dash-ink-soft)]">Drafts pending review</span>
-                <span className="font-bold text-[var(--dash-accent-deep)]">7</span>
               </div>
               <Link
                 href="/dashboard/tap-box"
