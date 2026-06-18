@@ -1,36 +1,26 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { type ReactNode } from "react"
+import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { AnimatePresence, motion } from "framer-motion"
+import { useState, useEffect } from "react"
 import { DashboardSidebar } from "./sidebar"
 import { DashboardTopbar } from "./topbar"
-import { getSession, type AdvanSession } from "@/lib/auth"
 import { Loader2 } from "lucide-react"
 
 export function DashboardShell({ children }: { children: ReactNode }) {
-  const router = useRouter()
   const pathname = usePathname()
-  const [session, setSession] = useState<AdvanSession | null>(null)
-  const [checked, setChecked] = useState(false)
+  const { data: session, status } = useSession()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  useEffect(() => {
-    const s = getSession()
-    if (!s) {
-      router.replace("/signin")
-      return
-    }
-    setSession(s)
-    setChecked(true)
-  }, [router])
 
   // Close mobile drawer on route change
   useEffect(() => {
     setSidebarOpen(false)
   }, [pathname])
 
-  if (!checked) {
+  // Auth is enforced by proxy.ts — this handles the loading skeleton
+  if (status === "loading") {
     return (
       <div className="min-h-screen dash-shell flex">
         <aside className="hidden lg:flex w-[228px] shrink-0 dash-bg-sidebar border-r dash-border h-screen flex-col gap-3 p-4">

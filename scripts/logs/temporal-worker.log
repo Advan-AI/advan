@@ -1,0 +1,42 @@
+
+> my-project@0.1.0 temporal:worker
+> npx tsx lib/temporal/worker.ts
+
+[TemporalWorker] Fatal error: TransportError: tonic::transport::Error(Transport, ConnectError(ConnectError("tcp connect error", 127.0.0.1:7233, Os { code: 111, kind: ConnectionRefused, message: "Connection refused" })))
+    at NativeConnection.connect (/home/arslan/Documents/Remote/v0-advan/node_modules/@temporalio/worker/src/connection.ts:249:15)
+    at async runTemporalWorkerDaemon (/home/arslan/Documents/Remote/v0-advan/lib/temporal/workers/daemon.worker.ts:31:22)
+
+> my-project@0.1.0 temporal:worker
+> npx tsx lib/temporal/worker.ts
+
+[TemporalWorker] Fatal error: TransportError: tonic::transport::Error(Transport, ConnectError(ConnectError("tcp connect error", 127.0.0.1:7233, Os { code: 111, kind: ConnectionRefused, message: "Connection refused" })))
+    at NativeConnection.connect (/home/arslan/Documents/Remote/v0-advan/node_modules/@temporalio/worker/src/connection.ts:249:15)
+    at async runTemporalWorkerDaemon (/home/arslan/Documents/Remote/v0-advan/lib/temporal/workers/daemon.worker.ts:31:22)
+
+> my-project@0.1.0 temporal:worker
+> npx tsx lib/temporal/worker.ts
+
+[TemporalWorker] Fatal error: TransportError: tonic::transport::Error(Transport, ConnectError(ConnectError("tcp connect error", 127.0.0.1:7233, Os { code: 111, kind: ConnectionRefused, message: "Connection refused" })))
+    at NativeConnection.connect (/home/arslan/Documents/Remote/v0-advan/node_modules/@temporalio/worker/src/connection.ts:249:15)
+    at async runTemporalWorkerDaemon (/home/arslan/Documents/Remote/v0-advan/lib/temporal/workers/daemon.worker.ts:31:22)
+
+> my-project@0.1.0 temporal:worker
+> npx tsx lib/temporal/worker.ts
+
+[TemporalWorker] Fatal error: TransportError: tonic::transport::Error(Transport, ConnectError(ConnectError("tcp connect error", 127.0.0.1:7233, Os { code: 111, kind: ConnectionRefused, message: "Connection refused" })))
+    at NativeConnection.connect (/home/arslan/Documents/Remote/v0-advan/node_modules/@temporalio/worker/src/connection.ts:249:15)
+    at async runTemporalWorkerDaemon (/home/arslan/Documents/Remote/v0-advan/lib/temporal/workers/daemon.worker.ts:31:22)
+
+> my-project@0.1.0 temporal:worker
+> npx tsx lib/temporal/worker.ts
+
+[TemporalWorker] Fatal error: TransportError: tonic::transport::Error(Transport, ConnectError(ConnectError("tcp connect error", 127.0.0.1:7233, Os { code: 111, kind: ConnectionRefused, message: "Connection refused" })))
+    at NativeConnection.connect (/home/arslan/Documents/Remote/v0-advan/node_modules/@temporalio/worker/src/connection.ts:249:15)
+    at async runTemporalWorkerDaemon (/home/arslan/Documents/Remote/v0-advan/lib/temporal/workers/daemon.worker.ts:31:22)
+
+> my-project@0.1.0 temporal:worker
+> npx tsx lib/temporal/worker.ts
+
+[TemporalWorker] Fatal error: TransportError: tonic::transport::Error(Transport, ConnectError(ConnectError("tcp connect error", 127.0.0.1:7233, Os { code: 111, kind: ConnectionRefused, message: "Connection refused" })))
+    at NativeConnection.connect (/home/arslan/Documents/Remote/v0-advan/node_modules/@temporalio/worker/src/connection.ts:249:15)
+    at async runTemporalWorkerDaemon (/home/arslan/Documents/Remote/v0-advan/lib/temporal/workers/daemon.worker.ts:31:22)

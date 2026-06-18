@@ -104,7 +104,7 @@ export function CopilotSection() {
   return (
     <section id="copilot" className="relative py-14 lg:py-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-[1fr_1.45fr] gap-10 lg:gap-14 items-start">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)] gap-10 lg:gap-14 items-start">
           <CopilotCopy stage={stage} />
           <CopilotWorkspace
             stage={stage}
@@ -170,7 +170,7 @@ function CopilotCopy({ stage }: { stage: Stage }) {
       </div>
 
       {/* Productivity tiles */}
-      <ul className="mt-8 grid grid-cols-3 gap-3">
+      <ul className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
         {productivity.map((p) => {
           const Icon = p.icon
           return (
@@ -243,7 +243,7 @@ function CopilotWorkspace({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-      className="relative"
+      className="relative min-w-0"
     >
       {/* Halo */}
       <div

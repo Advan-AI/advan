@@ -84,7 +84,7 @@ export function FinalCTA() {
               size="lg"
               className="rounded-full h-12 px-7 text-[15px] font-semibold border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-white hover:text-white backdrop-blur transition-all"
             >
-              <a href="#contact">Talk to sales</a>
+              <a href="mailto:hello@advan.ai?subject=Talk%20to%20Advan%20sales">Talk to sales</a>
             </Button>
           </div>
 

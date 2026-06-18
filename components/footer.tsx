@@ -13,7 +13,7 @@ const footerLinks = {
   ],
   Company: [
     { label: "About", href: "/about" },
-    { label: "Contact", href: "/#contact" },
+    { label: "Contact", href: "mailto:hello@advan.ai", external: true },
     { label: "Book a demo", href: "https://cal.com/day-nguyen", external: true },
   ],
   Trust: [
