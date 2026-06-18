@@ -1,0 +1,933 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "Advan AI Logo Advan" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img "Advan AI Logo" [ref=e6]
+        - generic [ref=e7]: Advan
+      - button "Toggle menu" [ref=e8]:
+        - img [ref=e9]
+  - main [ref=e10]:
+    - region "Advan AI hero" [ref=e11]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - generic [ref=e17]:
+            - generic [ref=e18]:
+              - img [ref=e19]
+              - text: Trust Engine live in every response
+            - heading "The Trust Infrastructure Layer for AI Customer Support" [level=1] [ref=e22]
+            - paragraph [ref=e23]: "Advan AI turns every support answer into a governed workflow: approved retrieval, source-cited drafting, confidence scoring, policy validation, human approval when needed, and a complete audit trail."
+            - generic [ref=e24]:
+              - link "Book a demo" [ref=e25] [cursor=pointer]:
+                - /url: https://cal.com/day-nguyen
+                - text: Book a demo
+                - img
+              - link "Watch the workflow" [ref=e26] [cursor=pointer]:
+                - /url: "#workflow"
+                - text: Watch the workflow
+                - img
+            - list [ref=e27]:
+              - listitem [ref=e28]:
+                - img [ref=e30]
+                - text: Approved knowledge only
+              - listitem [ref=e35]:
+                - img [ref=e37]
+                - text: Policy validated
+              - listitem [ref=e41]:
+                - img [ref=e43]
+                - text: Audit trail created
+          - generic [ref=e50]:
+            - generic [ref=e51]:
+              - generic [ref=e56]:
+                - img [ref=e57]
+                - text: advan / trust-engine / support-workflow
+              - button "Pause" [ref=e61]
+            - generic [ref=e62]:
+              - generic [ref=e63]:
+                - generic [ref=e64]:
+                  - generic [ref=e65]:
+                    - generic [ref=e66]: Live support conversation
+                    - generic [ref=e67]: Acme Corp / Webhook timeout
+                  - generic [ref=e68]: Inbound captured
+                - generic [ref=e69]:
+                  - generic [ref=e70]:
+                    - img [ref=e72]
+                    - generic [ref=e75]:
+                      - generic [ref=e76]:
+                        - generic [ref=e77]: Maria L.
+                        - generic [ref=e78]: Email
+                      - generic [ref=e79]: Our production webhooks started timing out after a deploy. What setting should we check first?
+                  - generic [ref=e84]: AI waiting for sources
+                  - generic [ref=e86]:
+                    - img [ref=e87]
+                    - generic [ref=e89]:
+                      - generic [ref=e90]: Escalated before send
+                      - generic [ref=e91]: Confidence is below the 85% threshold, so the AI creates a human review task with sources and a recommended response.
+                  - generic [ref=e92]:
+                    - generic [ref=e93]:
+                      - img [ref=e94]
+                      - generic [ref=e97]: Cross-channel memory sync
+                    - generic [ref=e98]:
+                      - generic [ref=e99]: Email
+                      - generic [ref=e100]: Chat
+                      - generic [ref=e101]: Voice
+                      - generic [ref=e102]: Slack
+              - generic [ref=e103]:
+                - generic [ref=e104]:
+                  - generic [ref=e105]:
+                    - generic [ref=e106]:
+                      - img [ref=e107]
+                      - text: Trust Engine
+                    - heading "Customer asks a question" [level=3] [ref=e110]
+                  - img "Confidence 22%" [ref=e111]:
+                    - img [ref=e112]
+                    - generic [ref=e116]: "22"
+                - paragraph [ref=e117]: Email, chat, voice, or Slack lands in one governed queue.
+                - generic [ref=e118]:
+                  - generic [ref=e119]:
+                    - generic [ref=e120]: Confidence threshold
+                    - generic [ref=e121]: 22% / 85%
+                  - generic [ref=e124]:
+                    - img [ref=e125]
+                    - generic [ref=e129]: Route to human reviewer
+                - list [ref=e130]:
+                  - listitem [ref=e131]:
+                    - img [ref=e133]
+                    - generic [ref=e138]: Approved knowledge retrieval
+                    - generic [ref=e139]: passed
+                  - listitem [ref=e140]:
+                    - img [ref=e142]
+                    - generic [ref=e145]: Hallucination prevention
+                    - generic [ref=e146]: queued
+                  - listitem [ref=e147]:
+                    - img [ref=e149]
+                    - generic [ref=e153]: Policy validation
+                    - generic [ref=e154]: queued
+                  - listitem [ref=e155]:
+                    - img [ref=e157]
+                    - generic [ref=e161]: Human approval gate
+                    - generic [ref=e162]: queued
+                  - listitem [ref=e163]:
+                    - img [ref=e165]
+                    - generic [ref=e169]: Audit trail generation
+                    - generic [ref=e170]: queued
+                - button "Tap Box verification Inspect sources, confidence, and reasoning" [ref=e172]:
+                  - generic [ref=e173]:
+                    - img [ref=e175]
+                    - generic [ref=e183]:
+                      - generic [ref=e184]: Tap Box verification
+                      - generic [ref=e185]: Inspect sources, confidence, and reasoning
+                  - img [ref=e186]
+            - generic [ref=e188]:
+              - generic [ref=e189]:
+                - generic [ref=e190]: 42%
+                - generic [ref=e191]: Faster resolution
+              - generic [ref=e192]:
+                - generic [ref=e193]: 78%
+                - generic [ref=e194]: Fewer escalations
+              - generic [ref=e195]:
+                - generic [ref=e196]: 92%
+                - generic [ref=e197]: Source-cited
+              - generic [ref=e198]:
+                - generic [ref=e199]: 50%
+                - generic [ref=e200]: Less repetition
+        - generic [ref=e201]:
+          - generic [ref=e202]:
+            - generic [ref=e203]:
+              - generic [ref=e204]: 42%
+              - img [ref=e205]
+            - generic [ref=e208]: Faster Resolution
+            - generic [ref=e209]: p95 response time down
+          - generic [ref=e210]:
+            - generic [ref=e211]:
+              - generic [ref=e212]: 78%
+              - img [ref=e213]
+            - generic [ref=e216]: Fewer Escalations
+            - generic [ref=e217]: for approved intents
+          - generic [ref=e218]:
+            - generic [ref=e219]:
+              - generic [ref=e220]: 92%
+              - img [ref=e221]
+            - generic [ref=e224]: Source-Cited Responses
+            - generic [ref=e225]: with visible citations
+          - generic [ref=e226]:
+            - generic [ref=e227]:
+              - generic [ref=e228]: 50%
+              - img [ref=e229]
+            - generic [ref=e232]: Fewer Repeated Explanations
+            - generic [ref=e233]: across channels
+    - generic [ref=e237]:
+      - generic [ref=e238]:
+        - generic [ref=e239]: Workflow
+        - heading "From inbound message to resolved ticket — in seconds" [level=2] [ref=e241]
+        - paragraph [ref=e242]: "Advan handles the full support loop: ingest, reason, verify, resolve. Every step is observable, reversible, and shows you exactly why the AI chose its answer."
+      - generic [ref=e245]:
+        - generic [ref=e246]:
+          - generic [ref=e247]: Live pipeline
+          - generic [ref=e249]:
+            - generic [ref=e250]: TK-84219
+            - generic [ref=e251]: ·
+            - generic [ref=e252]: Maria Lopez
+            - generic [ref=e253]: ·
+            - generic [ref=e254]: Webhook timeout
+          - generic [ref=e255]:
+            - generic [ref=e256]:
+              - img [ref=e257]
+              - generic [ref=e260]: 0.0s
+            - generic [ref=e261]:
+              - img [ref=e262]
+              - generic [ref=e264]: 1,284
+              - generic [ref=e265]: resolved today
+        - generic [ref=e267]:
+          - list [ref=e269]:
+            - listitem [ref=e270]:
+              - generic [ref=e272]:
+                - generic [ref=e273]:
+                  - img [ref=e275]
+                  - generic:
+                    - generic: Step 01
+                    - generic: Ingest
+                  - generic [ref=e278]:
+                    - img [ref=e279]
+                    - text: Running
+                - generic [ref=e281]: Email · Chat · Voice · Slack
+                - generic [ref=e282]:
+                  - img [ref=e283]
+                  - text: Unified inbox · channel auto-detected
+            - listitem [ref=e285]:
+              - generic [ref=e287]:
+                - generic [ref=e288]:
+                  - img [ref=e290]
+                  - generic:
+                    - generic: Step 02
+                    - generic: Reason
+                  - generic [ref=e302]: Pending
+                - generic [ref=e303]: Source-cited · scored
+            - listitem [ref=e304]:
+              - generic [ref=e306]:
+                - generic [ref=e307]:
+                  - img [ref=e309]
+                  - generic:
+                    - generic: Step 03
+                    - generic: Verify
+                  - generic [ref=e312]: Pending
+                - generic [ref=e313]: Policy + redaction
+            - listitem [ref=e314]:
+              - generic [ref=e316]:
+                - generic [ref=e317]:
+                  - img [ref=e319]
+                  - generic:
+                    - generic: Step 04
+                    - generic: Resolve
+                  - generic [ref=e322]: Pending
+                - generic [ref=e323]: Reply + sync CRM
+          - generic:
+            - generic:
+              - generic:
+                - img
+        - generic [ref=e324]:
+          - generic [ref=e325]:
+            - generic [ref=e326]: Latency p95
+            - generic [ref=e327]:
+              - generic [ref=e328]: < 4s
+              - generic [ref=e329]: first reply
+          - generic [ref=e330]:
+            - generic [ref=e331]: AI resolution rate
+            - generic [ref=e332]:
+              - generic [ref=e333]: 72%
+              - generic [ref=e334]: +9pts qoq
+          - generic [ref=e335]:
+            - generic [ref=e336]: Re-explain rate
+            - generic [ref=e337]:
+              - generic [ref=e338]: 0%
+              - generic [ref=e339]: vs 38% baseline
+          - generic [ref=e340]:
+            - generic [ref=e341]: CSAT
+            - generic [ref=e342]:
+              - generic [ref=e343]: "4.86"
+              - generic [ref=e344]: +0.22 lift
+    - generic [ref=e349]:
+      - generic [ref=e350]:
+        - generic [ref=e351]:
+          - generic [ref=e352]: Human + AI Copilot
+          - heading "Your team stays in control — the AI just makes them faster" [level=2] [ref=e354]
+          - paragraph [ref=e355]: Advan drafts the answer, surfaces reasoning and confidence, suggests next-best actions, then hands control to your agent. One click to approve, one keystroke to rewrite.
+        - generic [ref=e356]:
+          - generic [ref=e358]: Currently
+          - generic [ref=e359]: Inbound from customer
+        - list [ref=e360]:
+          - listitem [ref=e361]:
+            - img [ref=e363]
+            - generic [ref=e366]: 11s
+            - generic [ref=e367]: First response
+            - generic [ref=e368]: −84% vs baseline
+          - listitem [ref=e369]:
+            - img [ref=e371]
+            - generic [ref=e374]: 72%
+            - generic [ref=e375]: AI resolution
+            - generic [ref=e376]: +9pts qoq
+          - listitem [ref=e377]:
+            - img [ref=e379]
+            - generic [ref=e382]: "+0.22"
+            - generic [ref=e383]: CSAT lift
+            - generic [ref=e384]: vs control
+        - list [ref=e385]:
+          - listitem [ref=e386]:
+            - img [ref=e388]
+            - text: Suggested replies in-line — never auto-sent on sensitive intents
+          - listitem [ref=e391]:
+            - img [ref=e393]
+            - text: Agents edit, approve, or rewrite — every decision feeds the model
+          - listitem [ref=e396]:
+            - img [ref=e398]
+            - text: Confidence + sources surfaced before send, not after
+      - generic [ref=e403]:
+        - generic [ref=e404]:
+          - generic [ref=e409]:
+            - img [ref=e410]
+            - text: "advan / inbox / #TK-84219"
+          - generic [ref=e412]: Live
+        - generic [ref=e414]:
+          - button "Inbound from customer" [ref=e415]: Inbound from customer
+          - button "AI reasoning" [ref=e417]: AI reasoning
+          - button "AI drafted" [ref=e419]: AI drafted
+          - button "Agent edit" [ref=e421]: Agent edit
+          - button "Approved & sent" [ref=e423]: Approved & sent
+          - button "Resolved" [ref=e425]: Resolved
+          - button "Pause" [ref=e427]:
+            - text: Pause
+            - img [ref=e428]
+        - generic [ref=e430]:
+          - generic [ref=e431]:
+            - generic [ref=e432]: Conversation
+            - generic [ref=e434]:
+              - img [ref=e436]
+              - generic [ref=e439]:
+                - generic [ref=e440]:
+                  - generic [ref=e441]: Maria Lopez · Acme
+                  - generic [ref=e442]: Customer
+                  - generic [ref=e443]: 10:24 AM
+                - generic [ref=e444]: Our webhooks stopped after we rotated API keys. Did we miss a step?
+            - generic [ref=e445]:
+              - generic [ref=e446]: "Reply on email · Maria's preferred tone: concise, friendly"
+              - generic [ref=e447]:
+                - generic [ref=e448]: ⌘+Enter to send
+                - generic [ref=e449]:
+                  - img [ref=e450]
+                  - text: 3 viewing
+          - generic [ref=e455]:
+            - generic [ref=e456]:
+              - generic [ref=e457]:
+                - img [ref=e458]
+                - text: AI copilot panel
+              - generic [ref=e461]:
+                - generic [ref=e462]: Confidence
+                - generic [ref=e464]: 0%
+            - generic [ref=e465]:
+              - generic [ref=e466]:
+                - img [ref=e467]
+                - text: AI reasoning
+              - list
+            - generic [ref=e475]:
+              - generic [ref=e476]:
+                - generic [ref=e477]:
+                  - img [ref=e479]
+                  - generic [ref=e487]: Detected intent
+                - generic [ref=e488]: Webhook / Sig rotation
+              - generic [ref=e489]:
+                - generic [ref=e490]:
+                  - img [ref=e492]
+                  - generic [ref=e495]: Sentiment
+                - generic [ref=e496]: Frustrated · cooling
+            - generic [ref=e497]:
+              - generic [ref=e498]:
+                - img [ref=e499]
+                - text: Suggested actions
+              - generic [ref=e501]:
+                - button "Refund the add-on" [ref=e502]:
+                  - img [ref=e503]
+                  - text: Refund the add-on
+                - button "Share docs link" [ref=e506]:
+                  - img [ref=e507]
+                  - text: Share docs link
+                - button "Escalate to CSM" [ref=e509]:
+                  - img [ref=e510]
+                  - text: Escalate to CSM
+            - generic [ref=e514]:
+              - generic [ref=e515]:
+                - img [ref=e516]
+                - text: Next-best actions
+              - list [ref=e518]:
+                - listitem [ref=e519]: Tag thread to CSM
+                - listitem [ref=e521]: Schedule 24h follow-up
+                - listitem [ref=e523]: Add to webhook-rotation runbook
+            - generic [ref=e525]:
+              - button "Edit" [ref=e526]:
+                - img [ref=e527]
+                - text: Edit
+              - button "Approve & send" [ref=e530]:
+                - img [ref=e531]
+                - text: Approve & send
+        - generic [ref=e534]:
+          - generic [ref=e535]:
+            - generic [ref=e536]: Drafts/hr
+            - generic [ref=e537]: "47"
+          - generic [ref=e538]:
+            - generic [ref=e539]: Auto-approved
+            - generic [ref=e540]: 61%
+          - generic [ref=e541]:
+            - generic [ref=e542]: Avg edits
+            - generic [ref=e543]: "0.8"
+          - generic [ref=e544]:
+            - generic [ref=e545]: Edge escalates
+            - generic [ref=e546]: 3.2%
+    - generic [ref=e550]:
+      - generic [ref=e551]:
+        - generic [ref=e552]: Cross-channel memory
+        - heading "One customer, one memory — across every channel" [level=2] [ref=e554]
+        - paragraph [ref=e555]: Conversations don’t reset when a customer switches from chat to email to a call. Advan keeps full context — entitlements, history, tone — wherever they reach you.
+      - generic [ref=e556]:
+        - generic [ref=e557]:
+          - button "Jump to step 1" [ref=e558]: Email
+          - button "Jump to step 2" [ref=e560]: Live chat
+          - button "Jump to step 3" [ref=e562]: Voice call
+          - button "Jump to step 4" [ref=e564]: Resolution
+        - button "Pause" [ref=e566]:
+          - text: Pause
+          - img [ref=e567]
+      - generic [ref=e569]:
+        - generic [ref=e571]:
+          - generic [ref=e573]:
+            - generic [ref=e574]:
+              - generic [ref=e575]: Touchpoints
+              - generic [ref=e576]:
+                - img [ref=e578]
+                - generic [ref=e581]:
+                  - generic [ref=e582]:
+                    - generic [ref=e583]: Email
+                    - generic [ref=e584]: 9:12 AM
+                  - generic [ref=e585]: "Re: webhook timeout errors"
+                - generic [ref=e586]: Live
+              - generic [ref=e588]:
+                - img [ref=e590]
+                - generic [ref=e592]:
+                  - generic [ref=e593]:
+                    - generic [ref=e594]: Live chat
+                    - generic [ref=e595]: 10:24 AM
+                  - generic [ref=e596]: Following up on yesterday's email…
+                - generic [ref=e597]: Queued
+              - generic [ref=e598]:
+                - img [ref=e600]
+                - generic [ref=e602]:
+                  - generic [ref=e603]:
+                    - generic [ref=e604]: Voice call
+                    - generic [ref=e605]: 11:48 AM
+                  - generic [ref=e606]: Quick call about the invoice
+                - generic [ref=e607]: Queued
+              - generic [ref=e608]:
+                - generic [ref=e609]: Also unified
+                - generic [ref=e610]:
+                  - img [ref=e611]
+                  - text: Slack
+                - generic [ref=e620]:
+                  - img [ref=e621]
+                  - text: Web
+            - generic [ref=e626]:
+              - generic [ref=e627]: What Advan knows about Maria
+              - generic [ref=e628]:
+                - img [ref=e630]
+                - generic [ref=e633]:
+                  - generic [ref=e634]: Maria Lopez · Acme
+                  - generic [ref=e635]: Enterprise · CSM Jordan
+            - generic [ref=e636]:
+              - generic [ref=e637]: Customer journey
+              - list [ref=e640]:
+                - listitem [ref=e641]:
+                  - generic [ref=e644]:
+                    - generic [ref=e645]: Inbound email
+                    - generic [ref=e646]: Webhook timeout error
+                - listitem [ref=e647]:
+                  - generic [ref=e649]:
+                    - generic [ref=e650]: Switched to chat
+                    - generic [ref=e651]: +1 follow-up, same thread
+                - listitem [ref=e652]:
+                  - generic [ref=e654]:
+                    - generic [ref=e655]: Voice call
+                    - generic [ref=e656]: Billing question, no re-explain
+                - listitem [ref=e657]:
+                  - generic [ref=e659]:
+                    - generic [ref=e660]: Resolved by Advan
+                    - generic [ref=e661]: 12s total agent time
+          - generic [ref=e662]:
+            - generic [ref=e663]:
+              - generic [ref=e664]: Re-explain rate
+              - generic [ref=e665]:
+                - generic [ref=e666]: 0%
+                - generic [ref=e667]: vs 38% industry
+            - generic [ref=e668]:
+              - generic [ref=e669]: Context retention
+              - generic [ref=e670]:
+                - generic [ref=e671]: 100%
+                - generic [ref=e672]: across handoffs
+            - generic [ref=e673]:
+              - generic [ref=e674]: Mean wait reduction
+              - generic [ref=e675]:
+                - generic [ref=e676]: −84%
+                - generic [ref=e677]: first → final reply
+        - generic:
+          - generic:
+            - img
+            - text: Email synced · 0.2s
+      - generic [ref=e678]:
+        - generic [ref=e679]:
+          - generic [ref=e680]:
+            - generic [ref=e681]: Without Advan
+            - generic [ref=e682]: fragmented
+          - generic [ref=e683]:
+            - generic [ref=e684]:
+              - generic [ref=e685]: Email thread
+              - generic [ref=e686]: isolated
+            - generic [ref=e687]:
+              - generic [ref=e688]: "Chat ticket #4821"
+              - generic [ref=e689]: isolated
+            - generic [ref=e690]:
+              - generic [ref=e691]: "Voice call #4730"
+              - generic [ref=e692]: isolated
+          - paragraph [ref=e693]: Each agent starts from zero. Customer re-explains 3× → frustration, churn.
+        - generic [ref=e694]:
+          - generic [ref=e695]:
+            - generic [ref=e696]: With Advan
+            - generic [ref=e697]: unified
+          - generic [ref=e698]:
+            - generic [ref=e699]:
+              - img [ref=e701]
+              - generic [ref=e704]: Maria · single thread
+              - generic [ref=e705]: live
+            - generic [ref=e706]:
+              - generic [ref=e707]: Email · webhook timeout
+              - generic [ref=e709]: Chat · followed up
+              - generic [ref=e711]:
+                - text: Voice · invoice
+                - generic [ref=e713]: resolved
+          - paragraph [ref=e714]: One memory across channels. Zero re-explains. −84% wait time.
+    - generic [ref=e718]:
+      - generic [ref=e719]:
+        - generic [ref=e720]: Agent Orchestration
+        - heading "An AI ops center where specialists collaborate in real time" [level=2] [ref=e722]
+        - paragraph [ref=e723]: Watch Advan’s autonomous agents triage, retrieve, gate, and escalate — coordinated by a policy-aware orchestrator with a human always one click away.
+      - generic [ref=e725]:
+        - generic [ref=e726]:
+          - generic [ref=e727]:
+            - button "Jump to stage 1" [ref=e728]: "1"
+            - button "Jump to stage 2" [ref=e729]: "2"
+            - button "Jump to stage 3" [ref=e730]: "3"
+            - button "Jump to stage 4" [ref=e731]: "4"
+          - button "Pause Evolution" [ref=e732]:
+            - text: Pause Evolution
+            - img [ref=e733]
+          - generic [ref=e735]:
+            - img [ref=e736]
+            - text: Inbound · Maria Lopez · Email
+        - generic [ref=e738]:
+          - generic [ref=e739]:
+            - generic [ref=e744]:
+              - img [ref=e745]
+              - text: advan / orchestrator / engine-v2-production
+            - generic [ref=e750]: SYSTEM LIVE
+          - generic [ref=e752]:
+            - generic [ref=e753]:
+              - generic [ref=e754]:
+                - img [ref=e755]
+                - text: Agent fleet
+              - list [ref=e759]:
+                - listitem [ref=e760]:
+                  - button "Triage Intent classifier thinking" [ref=e761]:
+                    - img [ref=e763]
+                    - generic [ref=e771]:
+                      - generic [ref=e772]: Triage
+                      - generic [ref=e773]: Intent classifier
+                    - generic [ref=e775]:
+                      - img [ref=e776]
+                      - text: thinking
+                - listitem [ref=e778]:
+                  - button "Knowledge Docs · KB · Tickets idle" [ref=e779]:
+                    - img [ref=e781]
+                    - generic [ref=e783]:
+                      - generic [ref=e784]: Knowledge
+                      - generic [ref=e785]: Docs · KB · Tickets
+                    - generic [ref=e787]: idle
+                - listitem [ref=e788]:
+                  - button "Billing Specialist Invoice + refund logic idle" [ref=e789]:
+                    - img [ref=e791]
+                    - generic [ref=e794]:
+                      - generic [ref=e795]: Billing Specialist
+                      - generic [ref=e796]: Invoice + refund logic
+                    - generic [ref=e798]: idle
+                - listitem [ref=e799]:
+                  - button "Voice Agent Call transcription idle" [ref=e800]:
+                    - img [ref=e802]
+                    - generic [ref=e806]:
+                      - generic [ref=e807]: Voice Agent
+                      - generic [ref=e808]: Call transcription
+                    - generic [ref=e810]: idle
+                - listitem [ref=e811]:
+                  - button "Policy Guard Compliance + redaction idle" [ref=e812]:
+                    - img [ref=e814]
+                    - generic [ref=e817]:
+                      - generic [ref=e818]: Policy Guard
+                      - generic [ref=e819]: Compliance + redaction
+                    - generic [ref=e821]: idle
+                - listitem [ref=e822]:
+                  - button "Composer Draft & send reply idle" [ref=e823]:
+                    - img [ref=e825]
+                    - generic [ref=e828]:
+                      - generic [ref=e829]: Composer
+                      - generic [ref=e830]: Draft & send reply
+                    - generic [ref=e832]: idle
+                - listitem [ref=e833]:
+                  - button "Human-in-loop Agent approval idle" [ref=e834]:
+                    - img [ref=e836]
+                    - generic [ref=e840]:
+                      - generic [ref=e841]: Human-in-loop
+                      - generic [ref=e842]: Agent approval
+                    - generic [ref=e844]: idle
+            - application [ref=e847]:
+              - img
+              - generic "Control Panel" [ref=e850]:
+                - button "Zoom In" [ref=e851] [cursor=pointer]:
+                  - img [ref=e852]
+                - button "Zoom Out" [ref=e854] [cursor=pointer]:
+                  - img [ref=e855]
+                - button "Fit View" [ref=e857] [cursor=pointer]:
+                  - img [ref=e858]
+            - generic [ref=e861]:
+              - generic [ref=e862]:
+                - generic [ref=e863]:
+                  - generic [ref=e864]: Handled
+                  - generic [ref=e865]: 1,284
+                - generic [ref=e866]:
+                  - generic [ref=e867]: p95 Latency
+                  - generic [ref=e868]:
+                    - text: "3.60"
+                    - generic [ref=e869]: s
+                - generic [ref=e870]:
+                  - generic [ref=e871]: Success Rate
+                  - generic [ref=e872]:
+                    - text: "98.4"
+                    - generic [ref=e873]: "%"
+              - generic [ref=e876]:
+                - generic [ref=e877]:
+                  - img [ref=e878]
+                  - text: Execution trace
+                - generic [ref=e880]: LIVE TELEMETRY
+    - generic [ref=e888]:
+      - generic [ref=e889]:
+        - generic [ref=e890]: Trust Engine
+        - heading "Governance is not a report. It is the runtime." [level=2] [ref=e892]
+        - paragraph [ref=e893]: "Advan makes trust visible in the product itself: every AI decision is retrieved, scored, validated, approved when needed, and logged."
+      - generic [ref=e894]:
+        - generic [ref=e895]:
+          - generic [ref=e896]:
+            - generic [ref=e901]:
+              - img [ref=e902]
+              - text: trust-engine / production / ruleset-v4
+            - generic [ref=e906]: enforcing
+          - generic [ref=e908]:
+            - generic [ref=e909]:
+              - generic [ref=e910]:
+                - generic [ref=e911]:
+                  - generic [ref=e912]: Decision graph
+                  - heading "Auto-send or escalate?" [level=3] [ref=e913]
+                - generic [ref=e914]: human gate
+              - generic [ref=e916]:
+                - generic [ref=e917]:
+                  - generic [ref=e918]:
+                    - img [ref=e920]
+                    - generic [ref=e923]: Sources
+                    - generic [ref=e924]: 92%
+                  - generic [ref=e925]:
+                    - img [ref=e927]
+                    - generic [ref=e930]: Confidence
+                    - generic [ref=e931]: 54%
+                  - generic [ref=e932]:
+                    - img [ref=e934]
+                    - generic [ref=e938]: Policy
+                    - generic [ref=e939]: review
+                  - generic [ref=e940]:
+                    - img [ref=e942]
+                    - generic [ref=e946]: Human
+                    - generic [ref=e947]: approve
+                - generic [ref=e948]:
+                  - img [ref=e949]
+                  - text: Escalation logic routes this request to a human because confidence is below threshold.
+              - generic [ref=e953]:
+                - generic [ref=e954]:
+                  - generic [ref=e955]: 92%
+                  - generic [ref=e956]: source coverage
+                - generic [ref=e957]:
+                  - generic [ref=e958]: 85%
+                  - generic [ref=e959]: send threshold
+                - generic [ref=e960]:
+                  - generic [ref=e961]: "6"
+                  - generic [ref=e962]: audit events
+            - generic [ref=e963]:
+              - generic [ref=e964]:
+                - img [ref=e965]
+                - generic [ref=e969]: Policy validation
+              - generic [ref=e970]:
+                - generic [ref=e971]:
+                  - img [ref=e972]
+                  - generic [ref=e975]: Source coverage
+                  - generic [ref=e976]: 92%
+                - generic [ref=e977]:
+                  - img [ref=e978]
+                  - generic [ref=e981]: PII redaction
+                  - generic [ref=e982]: "on"
+                - generic [ref=e983]:
+                  - img [ref=e984]
+                  - generic [ref=e987]: Refund policy v2.3
+                  - generic [ref=e988]: matched
+                - generic [ref=e989]:
+                  - img [ref=e990]
+                  - generic [ref=e994]: VIP customer
+                  - generic [ref=e995]: review
+                - generic [ref=e996]:
+                  - img [ref=e997]
+                  - generic [ref=e999]: Confidence under threshold
+                  - generic [ref=e1000]: escalate
+              - generic [ref=e1001]:
+                - generic [ref=e1002]:
+                  - img [ref=e1003]
+                  - text: Audit trail
+                - list [ref=e1006]:
+                  - listitem [ref=e1007]:
+                    - generic [ref=e1008]: =>
+                    - generic [ref=e1009]: query.intent = webhook_timeout
+                  - listitem [ref=e1010]:
+                    - generic [ref=e1011]: =>
+                    - generic [ref=e1012]: retrieval.sources = docs, kb, ticket
+                  - listitem [ref=e1013]:
+                    - generic [ref=e1014]: =>
+                    - generic [ref=e1015]: confidence.score = 92
+                  - listitem [ref=e1016]:
+                    - generic [ref=e1017]: =>
+                    - generic [ref=e1018]: policy.privacy = pass
+                  - listitem [ref=e1019]:
+                    - generic [ref=e1020]: =>
+                    - generic [ref=e1021]: policy.vip_account = human_review
+                  - listitem [ref=e1022]:
+                    - generic [ref=e1023]: =>
+                    - generic [ref=e1024]: audit.export = ready
+        - generic [ref=e1025]:
+          - generic [ref=e1026]:
+            - generic [ref=e1027]:
+              - img [ref=e1029]
+              - generic [ref=e1032]:
+                - generic [ref=e1033]: 3.2k
+                - generic [ref=e1034]: approved sources indexed
+            - heading "Approved knowledge retrieval" [level=3] [ref=e1035]
+            - paragraph [ref=e1036]: Answers can only use versioned docs, reviewed KB articles, CRM facts, and resolved-ticket history.
+          - generic [ref=e1037]:
+            - generic [ref=e1038]:
+              - img [ref=e1040]
+              - generic [ref=e1043]:
+                - generic [ref=e1044]: 85%
+                - generic [ref=e1045]: default send threshold
+            - heading "Confidence thresholds" [level=3] [ref=e1046]
+            - paragraph [ref=e1047]: Each intent has a configurable bar for auto-send, human review, or hard stop.
+          - generic [ref=e1048]:
+            - generic [ref=e1049]:
+              - img [ref=e1051]
+              - generic [ref=e1055]:
+                - generic [ref=e1056]: "12"
+                - generic [ref=e1057]: policy gates checked
+            - heading "Policy validation" [level=3] [ref=e1058]
+            - paragraph [ref=e1059]: Refund, privacy, PII, legal, and customer-tier policies run before any response leaves the queue.
+          - generic [ref=e1060]:
+            - generic [ref=e1061]:
+              - img [ref=e1063]
+              - generic [ref=e1067]:
+                - generic [ref=e1068]: 54%
+                - generic [ref=e1069]: escalation trigger shown
+            - heading "Human approval gates" [level=3] [ref=e1070]
+            - paragraph [ref=e1071]: Low confidence, sensitive topics, VIP accounts, and unresolved source conflicts route to agents.
+          - generic [ref=e1072]:
+            - generic [ref=e1073]:
+              - img [ref=e1075]
+              - generic [ref=e1078]:
+                - generic [ref=e1079]: "0"
+                - generic [ref=e1080]: uncited claims sent
+            - heading "Hallucination prevention" [level=3] [ref=e1081]
+            - paragraph [ref=e1082]: Unsupported claims are blocked unless they map to a cited source and pass policy scoring.
+          - generic [ref=e1083]:
+            - generic [ref=e1084]:
+              - img [ref=e1086]
+              - generic [ref=e1091]:
+                - generic [ref=e1092]: 100%
+                - generic [ref=e1093]: decisions traceable
+            - heading "Audit trail generation" [level=3] [ref=e1094]
+            - paragraph [ref=e1095]: Every retrieval, draft, score, approval, and policy decision is recorded for review and export.
+    - generic [ref=e1099]:
+      - generic [ref=e1100]:
+        - generic [ref=e1101]: Why Advan
+        - heading "Most AI support tools are a black box. Advan isn't." [level=2] [ref=e1103]
+        - paragraph [ref=e1104]: See exactly where the answer came from, why the model is confident, and what happens when it isn't.
+      - generic [ref=e1105]:
+        - generic [ref=e1106]:
+          - generic [ref=e1107]: Capability
+          - generic [ref=e1108]: Legacy ticketing
+          - generic [ref=e1109]: Generic AI bots
+          - generic [ref=e1111]:
+            - img [ref=e1112]
+            - text: Advan
+        - generic [ref=e1115]:
+          - generic [ref=e1116]: Source-cited answers
+          - img [ref=e1119]
+          - generic [ref=e1123]: Partial
+          - img [ref=e1126]
+        - generic [ref=e1128]:
+          - generic [ref=e1129]: Live confidence scoring
+          - img [ref=e1132]
+          - img [ref=e1137]
+          - img [ref=e1142]
+        - generic [ref=e1144]:
+          - generic [ref=e1145]: Cross-channel memory
+          - img [ref=e1148]
+          - generic [ref=e1152]: Partial
+          - img [ref=e1155]
+        - generic [ref=e1157]:
+          - generic [ref=e1158]: Full reasoning audit log
+          - img [ref=e1161]
+          - img [ref=e1166]
+          - img [ref=e1171]
+        - generic [ref=e1173]:
+          - generic [ref=e1174]: Human-in-loop policy gates
+          - generic [ref=e1176]: Partial
+          - generic [ref=e1178]: Partial
+          - img [ref=e1181]
+        - generic [ref=e1183]:
+          - generic [ref=e1184]: Tenant-isolated training
+          - img [ref=e1187]
+          - img [ref=e1192]
+          - img [ref=e1197]
+        - generic [ref=e1199]:
+          - generic [ref=e1200]: p95 resolution < 4s
+          - img [ref=e1203]
+          - img [ref=e1208]
+          - img [ref=e1213]
+    - generic [ref=e1218]:
+      - generic [ref=e1219]:
+        - generic [ref=e1220]: FAQ
+        - heading "Questions teams ask before they ship" [level=2] [ref=e1222]
+        - paragraph [ref=e1223]: The short version of every conversation we have with VP Support, CISOs, and CX leaders.
+      - generic [ref=e1225]:
+        - heading "What does “transparent AI support” actually mean?" [level=3] [ref=e1227]:
+          - button "What does “transparent AI support” actually mean?" [ref=e1228]:
+            - text: What does “transparent AI support” actually mean?
+            - img
+        - heading "How does Advan reduce customer wait times?" [level=3] [ref=e1230]:
+          - button "How does Advan reduce customer wait times?" [ref=e1231]:
+            - text: How does Advan reduce customer wait times?
+            - img
+        - heading "How is customer context preserved across channels?" [level=3] [ref=e1233]:
+          - button "How is customer context preserved across channels?" [ref=e1234]:
+            - text: How is customer context preserved across channels?
+            - img
+        - heading "Where does Advan fit alongside our existing helpdesk?" [level=3] [ref=e1236]:
+          - button "Where does Advan fit alongside our existing helpdesk?" [ref=e1237]:
+            - text: Where does Advan fit alongside our existing helpdesk?
+            - img
+        - heading "What about security and data residency?" [level=3] [ref=e1239]:
+          - button "What about security and data residency?" [ref=e1240]:
+            - text: What about security and data residency?
+            - img
+        - heading "How long does it take to roll out?" [level=3] [ref=e1242]:
+          - button "How long does it take to roll out?" [ref=e1243]:
+            - text: How long does it take to roll out?
+            - img
+        - heading "Will Advan replace my support agents?" [level=3] [ref=e1245]:
+          - button "Will Advan replace my support agents?" [ref=e1246]:
+            - text: Will Advan replace my support agents?
+            - img
+        - heading "How is pricing structured?" [level=3] [ref=e1248]:
+          - button "How is pricing structured?" [ref=e1249]:
+            - text: How is pricing structured?
+            - img
+    - generic [ref=e1254]:
+      - generic [ref=e1260]:
+        - img [ref=e1261]
+        - text: Ship in 2 weeks
+      - heading "See Advan resolve a ticket live, with sources" [level=2] [ref=e1264]
+      - paragraph [ref=e1265]: Book a 25-minute call. We'll walk through your real tickets and show the reasoning behind every answer.
+      - generic [ref=e1266]:
+        - link "Book a demo" [ref=e1267] [cursor=pointer]:
+          - /url: https://cal.com/day-nguyen
+          - text: Book a demo
+          - img
+        - link "Talk to sales" [ref=e1268] [cursor=pointer]:
+          - /url: "#contact"
+      - list [ref=e1269]:
+        - listitem [ref=e1270]:
+          - img [ref=e1271]
+          - text: Live demo on your real tickets
+        - listitem [ref=e1273]:
+          - img [ref=e1274]
+          - text: Source-cited answers from day one
+        - listitem [ref=e1276]:
+          - img [ref=e1277]
+          - text: SOC 2 + GDPR · EU residency available
+  - contentinfo [ref=e1279]:
+    - generic [ref=e1281]:
+      - generic [ref=e1282]:
+        - generic [ref=e1283]:
+          - link "Advan AI Logo Advan" [ref=e1284] [cursor=pointer]:
+            - /url: /
+            - img "Advan AI Logo" [ref=e1285]
+            - generic [ref=e1286]: Advan
+          - paragraph [ref=e1287]: Transparent AI support for better customer experiences. Sourced answers, live confidence, cross-channel memory.
+          - generic [ref=e1288]:
+            - link "LinkedIn" [ref=e1289] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/advanai/
+              - img [ref=e1290]
+            - link "YouTube" [ref=e1294] [cursor=pointer]:
+              - /url: https://www.youtube.com/@AdvanAI1
+              - img [ref=e1295]
+        - generic [ref=e1298]:
+          - heading "Product" [level=3] [ref=e1299]
+          - list [ref=e1300]:
+            - listitem [ref=e1301]:
+              - link "Workflow" [ref=e1302] [cursor=pointer]:
+                - /url: /#workflow
+            - listitem [ref=e1303]:
+              - link "Copilot" [ref=e1304] [cursor=pointer]:
+                - /url: /#copilot
+            - listitem [ref=e1305]:
+              - link "Cross-channel memory" [ref=e1306] [cursor=pointer]:
+                - /url: /#memory
+        - generic [ref=e1307]:
+          - heading "Company" [level=3] [ref=e1308]
+          - list [ref=e1309]:
+            - listitem [ref=e1310]:
+              - link "About" [ref=e1311] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e1312]:
+              - link "Contact" [ref=e1313] [cursor=pointer]:
+                - /url: /#contact
+            - listitem [ref=e1314]:
+              - link "Book a demo" [ref=e1315] [cursor=pointer]:
+                - /url: https://cal.com/day-nguyen
+        - generic [ref=e1316]:
+          - heading "Trust" [level=3] [ref=e1317]
+          - list [ref=e1318]:
+            - listitem [ref=e1319]:
+              - link "Enterprise trust" [ref=e1320] [cursor=pointer]:
+                - /url: /#trust
+            - listitem [ref=e1321]:
+              - link "Privacy" [ref=e1322] [cursor=pointer]:
+                - /url: /privacy
+            - listitem [ref=e1323]:
+              - link "Terms" [ref=e1324] [cursor=pointer]:
+                - /url: /terms
+      - paragraph [ref=e1326]: © 2026 Advan AI. All rights reserved.
+  - button "Open Next.js Dev Tools" [ref=e1332] [cursor=pointer]:
+    - img [ref=e1333]

@@ -2,10 +2,34 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "Next.js Dev",
+      "name": "next-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "mcp-http-server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "lib/mcp/http-server.ts"],
+      "port": 3001
+    },
+    {
+      "name": "socket-hitl-server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "lib/realtime/socket-server.ts"],
+      "port": 3002
+    },
+    {
+      "name": "temporal-worker",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "temporal:worker"],
+      "port": 3004
+    },
+    {
+      "name": "embedding-worker",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "lib/queue/workers/embedding-worker.ts"],
+      "port": 3003
     }
   ]
 }

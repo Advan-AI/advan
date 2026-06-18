@@ -2,6 +2,7 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ScrollProgress } from "@/components/scroll-progress"
 import { HeroSection } from "@/components/hero-section"
+import { SocialProofSection } from "@/components/social-proof-section"
 import { WorkflowSection } from "@/components/workflow-section"
 import { CopilotSection } from "@/components/copilot-section"
 import { MemorySection } from "@/components/memory-section"
@@ -18,6 +19,7 @@ export default function HomePage() {
       <Header />
       <main className="relative">
         <HeroSection />
+        <SocialProofSection />
         <SectionDivider />
         <WorkflowSection />
         <SectionDivider />
