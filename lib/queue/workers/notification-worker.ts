@@ -34,7 +34,8 @@ async function findExistingOutboundEvent(messageId: string) {
   return db.query.emailEvents.findFirst({
     where: and(
       eq(emailEvents.direction, "outbound"),
-      eq(emailEvents.providerId, messageId),
+      eq(emailEvents.messageId, messageId),
+      eq(emailEvents.status, "sent"),
     ),
   })
 }
@@ -130,6 +131,7 @@ export async function processAgentReplyJob(job: Job<AgentReplyEmailJob>) {
   let result
   try {
     result = await sendAgentReply({
+      orgId,
       conversationId,
       to: customerEmail,
       ticketSubject: row.ticketSubject,
@@ -159,10 +161,9 @@ export async function processAgentReplyJob(job: Job<AgentReplyEmailJob>) {
       conversationId,
       messageId,
       direction: "outbound",
-      providerId: messageId,
+      providerId: result.resendId,
       status: "sent",
       payload: {
-        resendId: result.resendId,
         rfcMessageId: result.messageId,
       },
     })
@@ -224,7 +225,7 @@ export function startNotificationWorker() {
 
   worker.on("failed", async (job, err) => {
     console.error(`[NotificationWorker] Job ${job?.id} failed:`, err.message)
-    if (!job || job.data.type !== "agent_reply") return
+    if (!job || !isAgentReplyJobPayload(job.data)) return
 
     const maxAttempts = job.opts.attempts ?? 3
     if (job.attemptsMade >= maxAttempts && !(err instanceof UnrecoverableError)) {
@@ -236,6 +237,10 @@ export function startNotificationWorker() {
 }
 
 type NotificationJobPayload = AgentReplyEmailJob | { type: string }
+
+function isAgentReplyJobPayload(data: NotificationJobPayload): data is AgentReplyEmailJob {
+  return data.type === "agent_reply" && "messageId" in data
+}
 
 const isMain =
   typeof process !== "undefined" &&

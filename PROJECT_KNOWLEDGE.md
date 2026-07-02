@@ -27,6 +27,7 @@ Core product themes:
 - Queue: BullMQ + Redis for embedding and notification/email jobs.
 - Realtime: Socket.IO HITL server.
 - Email: Resend with threaded outbound agent replies.
+- Webhook verification: Resend webhooks use Svix `Webhook.verify()`; do not replace with generic HMAC code.
 - Storage: AWS S3 for KB documents.
 - Governance: policy, PII masking, citations, hallucination detection under `lib/governance`.
 - Observability: Sentry, Vercel Analytics, OpenTelemetry in production.
@@ -68,6 +69,8 @@ Often needed by specific systems:
 - Temporal: `TEMPORAL_ADDRESS` and related TLS settings
 - Ollama embeddings/chat: `OLLAMA_BASE_URL`, embedding config in `lib/vector/embedding-config.ts`
 - Email: `RESEND_API_KEY` and email config in `lib/email/config.ts`
+- Resend inbound webhooks: `RESEND_WEBHOOK_SECRET`; route is `/api/webhooks/resend/inbound`
+- Dev-only inbound sender bypass: `ALLOW_UNVERIFIED_SENDER_DEV=false`; route asserts this is never true in production
 - AWS S3: storage config used by `lib/storage/s3-client.ts`
 
 Security notes:
@@ -152,6 +155,46 @@ Dashboard shell:
 - `components/dashboard/sidebar.tsx` groups nav into primary, AI Copilot, and Automation.
 - Sidebar count badges call `api.analytics.overview` and use `formatCount`.
 
+Copilot dashboard:
+
+- `/dashboard/copilot` keeps the original card-based dashboard design with `DashPageHeader`, the prompt/generate bar, the AI Copilot draft card, and the AI reasoning side card.
+- A compact "Live conversation context" card now loads org-scoped conversations through `conversations.listWorkbench`, supports active/archive views, search, unread/pinned metadata, quick create, pin/archive/delete actions, and optimistic rollback for those actions. The context card is intentionally styled as a polished triage module with selected-row accent rail, metadata pills, selected-thread KPI tiles, and a latest-context preview.
+- The generate row is a command surface showing the selected draft target, guidance input, and primary generate action as one workflow.
+- Draft, edit, and reasoning cards use clearer status chips, softer evidence surfaces, and explicit empty/source states while preserving the existing warm dashboard theme.
+- Draft generation uses the selected conversation thread to build the copilot SSE input and passes the real `ticketId`.
+- Sending a copilot reply first records the copilot decision, then creates a real `agent` message through `conversations.addMessage`; email conversations therefore reuse the existing queued outbound email pipeline.
+
+Tap Box dashboard:
+
+- `/dashboard/tap-box` is now a production audit workbench over `analytics.auditLogs` rather than only a latest-log viewer.
+- It supports decision search, risk filters (`all`, auto-pass, review, blocked), source filters, selectable audit history, refresh, copy trace, and JSON export.
+- The inspector surfaces confidence against the 85% gate, citations, policy checks, hallucination flags, AI input/output, decision metadata, and links to Copilot, Analytics, and Knowledge Base.
+- Empty, loading, and error states are handled directly in the page; the prior non-functional filter button was removed.
+
+Customers dashboard:
+
+- `/dashboard/customers` is now a customer operations workbench with real add-customer modal, refresh, tier filtering, server search, sortable directory columns, selected-customer profile, customer health metrics, and recent ticket history via `customers.getHistory`.
+- Customer list search in `lib/api/routers/customers.ts` now matches name, email, and company.
+- The customer profile panel links into tickets and conversations using the customer email as query context.
+
+Knowledge Base dashboard:
+
+- `/dashboard/knowledge-base` is now a source-management workbench with real add-source modal, source/status filters, server search, sortable source table, selected-source inspector, content preview, copy content, delete confirmation, and retrieval-readiness checks.
+- `knowledge.list` accepts `search` across title, URL, and content; `knowledge.getById` returns org-scoped source content for inspection.
+- Adding a source still queues the existing embedding job through `embeddingQueue`; list/detail queries poll/refresh to surface indexing status.
+
+Analytics dashboard:
+
+- `/dashboard/analytics` is now a live reporting workbench backed by `analytics.report`, with 7/30/90-day range selection, CSV export, refresh, KPI cards, ticket/AI-resolution trends, queue distribution, confidence/source coverage, latency charts, priority/channel mix, executive signals, recent ticket activity, and Copilot health.
+- `analytics.report` returns org-scoped overview data, daily ticket/audit trend buckets, status/priority/channel distributions, and recent audit health for the selected range.
+
+Workflows dashboard:
+
+- `/dashboard/workflows` is now a workflow lifecycle control plane with registry search, stats, readiness analysis, create-from-template, activate/pause, duplicate, delete confirmation, definition copy, preflight run, durable Temporal run, and builder handoff.
+- Workflow validation lives in `lib/workflows/analyzer.ts`; lifecycle run/activation policy lives in `lib/workflows/lifecycle.ts`, with focused Vitest coverage.
+- `orchestration.getWorkflows` returns each workflow with analysis. Router lifecycle procedures now include `validateWorkflow`, `setWorkflowActive`, `duplicateWorkflow`, `deleteWorkflow`, `preflightPipeline`, and guarded `runPipeline`.
+- Dashboard "Run preflight" compiles and validates without Temporal. "Start durable run" uses Temporal and now returns a clear `SERVICE_UNAVAILABLE` message if the durable runner is offline.
+
 ## API and Data Model
 
 tRPC root routers in `lib/api/root.ts`:
@@ -182,8 +225,10 @@ Important data model details:
 
 - `knowledgeSources.embedding` is `vector(768)` and must match `EMBEDDING_DIMENSION`.
 - `conversations` has email threading fields: `emailRootMessageId`, `emailReplyToAddress`.
+- `conversations` also has workbench metadata from migration `0005_conversation_workbench`: nullable `title`, `pinnedAt`, `archivedAt`, integer `unreadCount`, json `tags`, and `updatedAt`.
 - `messages.metadata.email` tracks `messageId`, `inReplyTo`, `resendId`, delivery status, and errors.
 - `tickets.create` also creates a conversation so queue "View" actions resolve.
+- `tickets.create` rejects `channel=email` unless the selected customer belongs to the org and has a syntactically valid email address; dashboard ticket creation mirrors this with a customer picker.
 
 ## Email Integration
 
@@ -192,15 +237,38 @@ Current email flow:
 - `conversations.addMessage` creates messages.
 - If the conversation is `email`, role is `agent`, and `metadata.isInternal` is false, it marks the message email delivery status as `queued`.
 - It enqueues a BullMQ `notification` job with type `agent_reply`.
+- Failed/bounced email agent replies can be retried through `conversations.retryAgentReply`, which reuses the same `agent_reply` queue path with the exact original `messageId`.
 - `lib/queue/workers/notification-worker.ts` processes notification jobs.
 - `lib/email/send-agent-reply.ts` sends through Resend and builds threading headers.
+- `lib/email/send-agent-reply.ts` checks `suppressed_emails` before every outbound send and throws non-retryable `Recipient suppressed` before calling Resend.
 - Resend errors are classified as retryable/permanent in `classifyResendError`.
+- `app/dashboard/conversations/page.tsx` shows delivery status pills on email agent bubbles and eagerly invalidates conversation queries after send/retry.
+- Known limitation: there is no conversation-specific websocket/SSE stream yet. Existing Socket.IO is scoped to HITL/pipeline events, and copilot SSE is separate, so conversation delivery status still relies on polling plus eager invalidation after local actions.
+- `app/api/webhooks/resend/events/route.ts` handles signed Resend `email.delivered`, `email.delivery_delayed`, `email.bounced`, and `email.complained` webhooks.
+- Resend delivery events map `data.email_id` to `email_events.providerId`; outbound send rows therefore store `providerId = resendId` and `messageId` as the local message FK.
+- Hard bounces and complaints insert `(orgId, email, reason)` into `suppressed_emails`; the conversations UI surfaces `bounced` and `suppressed` as channel-blocked states.
+
+Inbound email flow:
+
+- `app/api/webhooks/resend/inbound/route.ts` verifies the raw payload with Svix `Webhook.verify()` and `RESEND_WEBHOOK_SECRET`.
+- The route uses Upstash rate limiting when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured; production fails closed if they are missing.
+- `lib/email/parse-inbound.ts` normalizes Resend `email.received` plus `emails.receiving.get(email_id)`, sanitizes HTML/text, and strips quoted reply history with `email-reply-parser`.
+- Inbound content is passed through `PIIMasker.mask()` immediately before inserting the customer message.
+- Inbound conversation resolution order is reply address match on `conversations.emailReplyToAddress`, then stored inbound RFC message IDs from `messages.metadata.email.messageId` via `In-Reply-To` / `References`.
+- Unresolved, sender mismatch, and org scope mismatch cases are logged to `email_events` with explicit statuses and return 200 to stop Resend retries.
+- Inbound idempotency uses unique `(direction, providerId)` on `email_events`.
+- `email_events.orgId` and `email_events.conversationId` are nullable so unresolved inbound webhooks can be retained for manual triage.
+- Webhook auth/CSRF check: `proxy.ts` only matches `/dashboard` and `/dashboard/:path*`; there is no global CSRF middleware, so `/api/webhooks/resend/*` is protected by route-level Svix verification instead of session auth.
+- README contains the local two-way email runbook and DNS requirements. Public DNS check on 2026-07-02 for the configured domain found SPF present on `omniclaw.ai`, but DMARC missing on `omniclaw.ai`, and inbound MX/DMARC missing on `mail.omniclaw.ai`; DKIM selectors must be verified from Resend's dashboard-generated records.
 
 Relevant tests:
 
 - `lib/email/threading.test.ts`
 - `lib/email/parse-inbound.test.ts`
 - `lib/api/routers/conversations.email-outbound.test.ts`
+- `lib/api/routers/tickets.email-create.test.ts`
+- `app/api/webhooks/resend/inbound/route.test.ts`
+- `app/api/webhooks/resend/events/route.test.ts`
 
 ## Auth Notes
 

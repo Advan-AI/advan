@@ -72,6 +72,7 @@ type CreateTicketInput = {
   subject: string
   priority: TicketPriority
   channel: TicketChannel
+  customerId?: string
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -136,6 +137,11 @@ function sortRows(rows: TicketRow[], col: SortCol, dir: "asc" | "desc"): TicketR
     }
     return dir === "desc" ? -cmp : cmp
   })
+}
+
+function isValidEmail(value: string | null | undefined): boolean {
+  if (!value?.trim()) return false
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -336,13 +342,13 @@ export default function TicketsPage() {
       setOptimisticTickets((prev) => [optimistic, ...prev])
       return { optimisticId }
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx) {
         setOptimisticTickets((prev) =>
           prev.filter((t) => t.ticket.id !== ctx.optimisticId)
         )
       }
-      setGlobalError("Failed to create ticket — please try again")
+      setGlobalError(err.message || "Failed to create ticket — please try again")
     },
     onSuccess: () => {
       setShowNewTicket(false)
@@ -1304,8 +1310,21 @@ function NewTicketModal({
   const [subject, setSubject]     = useState("")
   const [priority, setPriority]   = useState<TicketPriority>("medium")
   const [channel, setChannel]     = useState<TicketChannel>("email")
+  const [customerId, setCustomerId] = useState("")
   const [validErr, setValidErr]   = useState("")
   const subjectRef = useRef<HTMLInputElement>(null)
+
+  const { data: customers = [], isLoading: customersLoading } = api.customers.list.useQuery(
+    { limit: 100, offset: 0 },
+    { enabled: open && channel === "email", staleTime: 30_000 }
+  )
+
+  const selectedCustomer = useMemo(
+    () => customers.find((customer) => customer.id === customerId) ?? null,
+    [customers, customerId]
+  )
+  const subjectError = validErr.startsWith("Subject") ? validErr : ""
+  const customerError = validErr && !subjectError ? validErr : ""
 
   useEffect(() => {
     if (open) {
@@ -1315,6 +1334,7 @@ function NewTicketModal({
       setSubject("")
       setPriority("medium")
       setChannel("email")
+      setCustomerId("")
       setValidErr("")
     }
   }, [open])
@@ -1340,10 +1360,25 @@ function NewTicketModal({
         subjectRef.current?.focus()
         return
       }
+      if (channel === "email") {
+        if (!selectedCustomer) {
+          setValidErr("Choose a customer with a valid email address for email tickets")
+          return
+        }
+        if (!isValidEmail(selectedCustomer.email)) {
+          setValidErr("Selected customer needs a valid email address before creating an email ticket")
+          return
+        }
+      }
       setValidErr("")
-      onCreate({ subject: trimmed, priority, channel })
+      onCreate({
+        subject: trimmed,
+        priority,
+        channel,
+        customerId: channel === "email" ? customerId : undefined,
+      })
     },
-    [subject, priority, channel, onCreate]
+    [subject, priority, channel, customerId, selectedCustomer, onCreate]
   )
 
   return (
@@ -1416,12 +1451,12 @@ function NewTicketModal({
                     placeholder="e.g. Unable to log in to account"
                     maxLength={255}
                     className={`w-full px-3.5 py-2.5 rounded-xl bg-[var(--dash-bg-deep)] border text-[13px] text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] outline-none transition focus:ring-2 focus:ring-[var(--dash-accent)]/40 focus:border-[var(--dash-accent)] ${
-                      validErr ? "border-[var(--dash-rose)]" : "dash-border"
+                      subjectError ? "border-[var(--dash-rose)]" : "dash-border"
                     }`}
                   />
-                  {validErr && (
+                  {subjectError && (
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#7a2929]">
-                      <AlertCircle className="w-3 h-3 shrink-0" /> {validErr}
+                      <AlertCircle className="w-3 h-3 shrink-0" /> {subjectError}
                     </p>
                   )}
                 </div>
@@ -1459,7 +1494,10 @@ function NewTicketModal({
                       <button
                         key={c}
                         type="button"
-                        onClick={() => setChannel(c)}
+                        onClick={() => {
+                          setChannel(c)
+                          if (validErr) setValidErr("")
+                        }}
                         className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11.5px] font-semibold capitalize transition ${
                           channel === c
                             ? "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)] ring-2 ring-[var(--dash-accent)]/50 ring-offset-1"
@@ -1472,6 +1510,47 @@ function NewTicketModal({
                     ))}
                   </div>
                 </div>
+
+                {channel === "email" && (
+                  <div>
+                    <label
+                      htmlFor="ticket-customer"
+                      className="block text-[11.5px] font-bold text-[var(--dash-ink-soft)] uppercase tracking-wide mb-1.5"
+                    >
+                      Customer <span className="text-[var(--dash-rose)] font-bold">*</span>
+                    </label>
+                    <select
+                      id="ticket-customer"
+                      value={customerId}
+                      onChange={(e) => {
+                        setCustomerId(e.target.value)
+                        if (validErr) setValidErr("")
+                      }}
+                      disabled={customersLoading}
+                      className={`w-full px-3.5 py-2.5 rounded-xl bg-[var(--dash-bg-deep)] border text-[13px] text-[var(--dash-ink)] outline-none transition focus:ring-2 focus:ring-[var(--dash-accent)]/40 focus:border-[var(--dash-accent)] ${
+                        customerError ? "border-[var(--dash-rose)]" : "dash-border"
+                      }`}
+                    >
+                      <option value="">
+                        {customersLoading ? "Loading customers..." : "Select a customer"}
+                      </option>
+                      {customers.map((customer) => (
+                        <option key={customer.id} value={customer.id}>
+                          {customer.name || customer.email || "Unnamed customer"}
+                          {customer.email ? ` — ${customer.email}` : " — no email"}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1.5 text-[11px] text-[var(--dash-ink-faint)]">
+                      Email tickets can only be opened for customers with a valid email address.
+                    </p>
+                    {customerError && (
+                      <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#7a2929]">
+                        <AlertCircle className="w-3 h-3 shrink-0" /> {customerError}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Footer */}
@@ -1485,9 +1564,9 @@ function NewTicketModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={!subject.trim() || isPending}
+                  disabled={isPending}
                   className={`flex-1 py-2 rounded-xl text-[13px] font-semibold transition ${
-                    subject.trim() && !isPending
+                    !isPending
                       ? "bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] text-white shadow-[0_4px_14px_-4px_rgba(107,92,214,0.5)] hover:opacity-90"
                       : "bg-[var(--dash-bg-deep)] text-[var(--dash-ink-faint)] cursor-not-allowed"
                   }`}

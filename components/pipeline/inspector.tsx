@@ -1,6 +1,7 @@
 "use client"
 
 import { z } from "zod"
+import { Copy, Trash2 } from "lucide-react"
 import { usePipelineStore } from "@/lib/pipeline/use-pipeline-store"
 import { nodeRegistry } from "@/lib/pipeline/registry"
 
@@ -15,6 +16,8 @@ export function PipelineInspector() {
   const selectedId = usePipelineStore((s) => s.selectedId)
   const node = usePipelineStore((s) => s.nodes.find((n) => n.id === s.selectedId))
   const update = usePipelineStore((s) => s.updateNodeConfig)
+  const duplicateNode = usePipelineStore((s) => s.duplicateNode)
+  const deleteNode = usePipelineStore((s) => s.deleteNode)
 
   if (!selectedId || !node || !node.type || !nodeRegistry.has(node.type)) {
     return (
@@ -34,6 +37,25 @@ export function PipelineInspector() {
     <div className="w-[260px] shrink-0 overflow-y-auto border-l dash-border-soft p-4 dash-bg-sidebar">
       <div className="mb-1 text-[13px] font-bold text-[var(--dash-ink)]">{def.label}</div>
       <p className="mb-3 text-[11px] leading-[1.5] text-[var(--dash-ink-faint)]">{def.description}</p>
+
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => duplicateNode(node.id)}
+          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border dash-border bg-white text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          Copy
+        </button>
+        <button
+          type="button"
+          onClick={() => deleteNode(node.id)}
+          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border dash-border bg-white text-[11.5px] font-bold text-[var(--dash-rose)] transition hover:dash-shadow-sm"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </button>
+      </div>
 
       <div className="flex flex-col gap-3">
         {Object.entries(shape).map(([key, fieldSchema]) => (

@@ -26,6 +26,9 @@ import {
   Globe,
   Building2,
   Clock,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
   Star,
   AlertCircle,
   Inbox,
@@ -49,6 +52,13 @@ type MsgMeta = {
   latencyMs?: number
   model?: string
   isInternal?: boolean
+  email?: {
+    messageId?: string
+    inReplyTo?: string
+    resendId?: string
+    deliveryStatus?: "queued" | "sent" | "delivered" | "failed" | "bounced" | "suppressed"
+    error?: string
+  }
 }
 
 type DbMessage = {
@@ -316,7 +326,13 @@ export default function ConversationsPage() {
           conversationId: vars.conversationId,
           role: vars.role as DbRole,
           content: vars.content,
-          metadata: (vars.metadata ?? null) as MsgMeta | null,
+          metadata: (
+            thread?.channel === "email" &&
+            vars.role === "agent" &&
+            !vars.metadata?.isInternal
+              ? { ...(vars.metadata ?? {}), email: { deliveryStatus: "queued" } }
+              : vars.metadata ?? null
+          ) as MsgMeta | null,
           createdAt: new Date().toISOString(),
         }
         return {
@@ -337,6 +353,51 @@ export default function ConversationsPage() {
         utils.conversations.getById.invalidate({ id: activeId })
         utils.conversations.list.invalidate()
         utils.analytics.overview.invalidate()
+      }
+    },
+  })
+
+  const retryAgentReply = api.conversations.retryAgentReply.useMutation({
+    onMutate: async ({ messageId }) => {
+      setSendError(null)
+      if (!activeId) return
+      await utils.conversations.getById.cancel({ id: activeId })
+      const prev = utils.conversations.getById.getData({ id: activeId })
+
+      utils.conversations.getById.setData({ id: activeId }, (old) => {
+        if (!old) return old
+        const current = old as unknown as ThreadData
+        return {
+          ...current,
+          messages: current.messages.map((message) => {
+            if (message.id !== messageId) return message
+            const { error: _oldError, ...email } = message.metadata?.email ?? {}
+            return {
+              ...message,
+              metadata: {
+                ...(message.metadata ?? {}),
+                email: {
+                  ...email,
+                  deliveryStatus: "queued",
+                },
+              },
+            }
+          }),
+        } as typeof old
+      })
+
+      return { prev }
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.prev && activeId) {
+        utils.conversations.getById.setData({ id: activeId }, ctx.prev)
+      }
+      setSendError(err.message || "Retry failed. Please try again.")
+    },
+    onSettled: () => {
+      if (activeId) {
+        void utils.conversations.getById.invalidate({ id: activeId })
+        void utils.conversations.list.invalidate()
       }
     },
   })
@@ -534,6 +595,9 @@ export default function ConversationsPage() {
                           content={m.content}
                           createdAt={m.createdAt}
                           metadata={m.metadata}
+                          channel={thread?.channel ?? "chat"}
+                          onRetry={() => retryAgentReply.mutate({ messageId: m.id })}
+                          isRetrying={retryAgentReply.variables?.messageId === m.id && retryAgentReply.isPending}
                         />
                       </motion.div>
                     ))}
@@ -554,6 +618,8 @@ export default function ConversationsPage() {
                 isPending={addMessage.isPending}
                 error={sendError}
                 onDismissError={() => setSendError(null)}
+                channel={thread?.channel ?? null}
+                destinationEmail={thread?.customerEmail ?? null}
               />
             </>
           )}
@@ -777,17 +843,17 @@ function MessageBubble({
   content,
   createdAt,
   metadata,
+  channel,
+  onRetry,
+  isRetrying,
 }: {
   role: DbRole
   content: string
   createdAt: Date | string
-  metadata: {
-    confidence?: number
-    citations?: Array<{ source: string; url?: string; confidence: number }>
-    isInternal?: boolean
-    latencyMs?: number
-    model?: string
-  } | null
+  metadata: MsgMeta | null
+  channel: ThreadData["channel"]
+  onRetry: () => void
+  isRetrying: boolean
 }) {
   const isCustomer = role === "user"
   const isAi = role === "assistant"
@@ -819,6 +885,8 @@ function MessageBubble({
     : "bg-[#F0FDF4] border border-[#BBF7D0] text-[#14532D] rounded-tr-sm"
 
   const isRight = isAgentReply || isNote
+  const deliveryStatus =
+    channel === "email" && isAgentReply ? metadata?.email?.deliveryStatus : undefined
 
   const badge = isAi
     ? "AI Draft"
@@ -880,6 +948,85 @@ function MessageBubble({
           </div>
         )}
       </div>
+
+      {deliveryStatus && (
+        <DeliveryStatusPill
+          status={deliveryStatus}
+          error={metadata?.email?.error}
+          onRetry={onRetry}
+          isRetrying={isRetrying}
+        />
+      )}
+    </div>
+  )
+}
+
+function DeliveryStatusPill({
+  status,
+  error,
+  onRetry,
+  isRetrying,
+}: {
+  status: NonNullable<MsgMeta["email"]>["deliveryStatus"]
+  error?: string
+  onRetry: () => void
+  isRetrying: boolean
+}) {
+  const isFailure = status === "failed" || status === "bounced" || status === "suppressed"
+  const canRetry = status === "failed"
+  const label =
+    status === "queued"
+      ? "Sending…"
+      : status === "sent"
+      ? "Sent"
+      : status === "delivered"
+      ? "Delivered"
+      : status === "bounced"
+      ? "Bounced"
+      : status === "suppressed"
+      ? "Suppressed"
+      : "Failed"
+
+  const Icon =
+    status === "queued"
+      ? Clock
+      : status === "sent" || status === "delivered"
+      ? CheckCircle2
+      : XCircle
+
+  return (
+    <div
+      className={`flex items-center gap-1.5 text-[10.5px] font-bold rounded-full border px-2 py-1 ${
+        isFailure
+          ? status === "suppressed"
+            ? "border-[#6B21A8] bg-[#FAF5FF] text-[#581C87] ring-1 ring-[#6B21A8]/20"
+            : "border-[#991B1B] bg-[#FEF2F2] text-[#7F1D1D] ring-1 ring-[#991B1B]/20"
+          : status === "queued"
+          ? "border-[#D97706] bg-[#FFFBEB] text-[#92400E]"
+          : "border-[#86EFAC] bg-[#F0FDF4] text-[#166534]"
+      }`}
+      title={error}
+    >
+      <Icon className="w-3 h-3 shrink-0" aria-hidden="true" />
+      <span>{label}</span>
+      {isFailure && (
+        <>
+          <span className="text-[9px] uppercase tracking-wide px-1 py-px rounded bg-white/80 border border-current/20">
+            {canRetry ? "Action needed" : "Channel blocked"}
+          </span>
+          {canRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={isRetrying}
+              className="inline-flex items-center gap-1 ml-0.5 px-1.5 py-0.5 rounded-full bg-white border border-current/30 hover:bg-[#FEE2E2] disabled:opacity-60 disabled:cursor-not-allowed transition"
+            >
+              <RefreshCw className={`w-2.5 h-2.5 ${isRetrying ? "animate-spin" : ""}`} />
+              Retry
+            </button>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -897,6 +1044,8 @@ function Composer({
   isPending,
   error,
   onDismissError,
+  channel,
+  destinationEmail,
 }: {
   mode: ComposeMode
   onModeChange: (m: ComposeMode) => void
@@ -908,8 +1057,11 @@ function Composer({
   isPending: boolean
   error: string | null
   onDismissError: () => void
+  channel: ThreadData["channel"] | null
+  destinationEmail: string | null
 }) {
   const isNote = mode === "note"
+  const showEmailDestination = channel === "email" && mode === "reply"
 
   return (
     <div
@@ -938,6 +1090,15 @@ function Composer({
           ⌘↵ to send
         </span>
       </div>
+
+      {showEmailDestination && (
+        <div className="px-3 py-1.5 border-b border-[var(--dash-bg-deep)] text-[11px] text-[var(--dash-ink-soft)]">
+          Sending email to{" "}
+          <span className="font-semibold text-[var(--dash-ink)]">
+            {destinationEmail || "No customer email on file"}
+          </span>
+        </div>
+      )}
 
       {/* Error banner */}
       <AnimatePresence>

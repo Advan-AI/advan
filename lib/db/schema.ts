@@ -117,12 +117,20 @@ export const conversations = pgTable(
       .default("chat")
       .notNull(),
     customerId: uuid("customer_id").references(() => customers.id),
+    title: text("title"),
+    pinnedAt: timestamp("pinned_at"),
+    archivedAt: timestamp("archived_at"),
+    unreadCount: integer("unread_count").default(0).notNull(),
+    tags: jsonb("tags").$type<string[]>().default([]).notNull(),
     emailRootMessageId: text("email_root_message_id"),
     emailReplyToAddress: text("email_reply_to_address"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
     index("conversations_email_reply_to_address_idx").on(table.emailReplyToAddress),
+    index("conversations_org_archived_updated_idx").on(table.orgId, table.archivedAt, table.updatedAt),
+    index("conversations_org_pinned_idx").on(table.orgId, table.pinnedAt),
   ],
 )
 
@@ -144,7 +152,7 @@ export const messages = pgTable("messages", {
       messageId?: string
       inReplyTo?: string
       resendId?: string
-      deliveryStatus?: "queued" | "sent" | "delivered" | "failed" | "bounced"
+      deliveryStatus?: "queued" | "sent" | "delivered" | "failed" | "bounced" | "suppressed"
       error?: string
     }
   }>(),
@@ -158,11 +166,9 @@ export const emailEvents = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: uuid("org_id")
-      .references(() => organizations.id, { onDelete: "cascade" })
-      .notNull(),
+      .references(() => organizations.id, { onDelete: "cascade" }),
     conversationId: uuid("conversation_id")
-      .references(() => conversations.id, { onDelete: "cascade" })
-      .notNull(),
+      .references(() => conversations.id, { onDelete: "cascade" }),
     messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
     direction: text("direction", { enum: ["outbound", "inbound"] }).notNull(),
     providerId: text("provider_id").notNull(),
@@ -175,6 +181,22 @@ export const emailEvents = pgTable(
       table.direction,
       table.providerId,
     ),
+  ],
+)
+
+export const suppressedEmails = pgTable(
+  "suppressed_emails",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    email: text("email").notNull(),
+    reason: text("reason", { enum: ["bounce", "complaint"] }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    unique("suppressed_emails_org_id_email_unique").on(table.orgId, table.email),
   ],
 )
 

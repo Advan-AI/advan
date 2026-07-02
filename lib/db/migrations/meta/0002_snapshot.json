@@ -352,13 +352,13 @@
           "name": "org_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "conversation_id": {
           "name": "conversation_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "message_id": {
           "name": "message_id",

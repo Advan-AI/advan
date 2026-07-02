@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { eq, and, desc, inArray } from "drizzle-orm"
+import { eq, and, desc, inArray, isNull, isNotNull, sql } from "drizzle-orm"
 import { TRPCError } from "@trpc/server"
 import { protectedProcedure, router } from "../trpc"
 import { conversations, messages, tickets, customers } from "@/lib/db/schema"
@@ -7,6 +7,20 @@ import { db } from "@/lib/db"
 import { notificationQueue } from "@/lib/queue/queues"
 
 type MessageMetadata = NonNullable<typeof messages.$inferInsert.metadata>
+type EmailDeliveryStatus = NonNullable<MessageMetadata["email"]>["deliveryStatus"]
+
+const customerEmailSchema = z.string().trim().email()
+
+function emailTicketValidationError(message: string) {
+  return new TRPCError({
+    code: "BAD_REQUEST",
+    message,
+    cause: {
+      field: "customerId",
+      validationCode: "EMAIL_TICKET_CUSTOMER_EMAIL_REQUIRED",
+    },
+  })
+}
 
 function mergeEmailMetadata(
   base: MessageMetadata | undefined,
@@ -21,7 +35,147 @@ function mergeEmailMetadata(
   }
 }
 
+async function enqueueAgentReplyEmail(input: {
+  orgId: string
+  conversationId: string
+  messageId: string
+  jobId?: string
+}) {
+  await notificationQueue.add(
+    "agent_reply",
+    {
+      type: "agent_reply",
+      orgId: input.orgId,
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+    },
+    { jobId: input.jobId ?? input.messageId },
+  )
+}
+
+function canRetryDelivery(status: EmailDeliveryStatus | undefined): boolean {
+  return status === "failed"
+}
+
+const TAG_SCHEMA = z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/)
+
+function normalizeTags(tags: string[] | undefined): string[] {
+  if (!tags) return []
+  const seen = new Set<string>()
+  for (const tag of tags) {
+    const value = tag.trim().replace(/\s+/g, " ")
+    if (value) seen.add(value)
+  }
+  return [...seen].slice(0, 8)
+}
+
+async function getWorkbenchConversation(orgId: string, id: string) {
+  const [row] = await db
+    .select({
+      id: conversations.id,
+      orgId: conversations.orgId,
+      ticketId: conversations.ticketId,
+      channel: conversations.channel,
+      customerId: conversations.customerId,
+      title: conversations.title,
+      pinnedAt: conversations.pinnedAt,
+      archivedAt: conversations.archivedAt,
+      unreadCount: conversations.unreadCount,
+      tags: conversations.tags,
+      createdAt: conversations.createdAt,
+      updatedAt: conversations.updatedAt,
+      ticketSubject: tickets.subject,
+      ticketStatus: tickets.status,
+      ticketPriority: tickets.priority,
+      customerName: customers.name,
+      customerEmail: customers.email,
+      customerTier: customers.tier,
+    })
+    .from(conversations)
+    .leftJoin(tickets, eq(conversations.ticketId, tickets.id))
+    .leftJoin(customers, eq(conversations.customerId, customers.id))
+    .where(and(eq(conversations.id, id), eq(conversations.orgId, orgId)))
+    .limit(1)
+
+  return row ?? null
+}
+
 export const conversationsRouter = router({
+  listWorkbench: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(10).max(50).default(30),
+        offset: z.number().min(0).default(0),
+        archived: z.boolean().default(false),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const rows = await db
+        .select({
+          id: conversations.id,
+          orgId: conversations.orgId,
+          ticketId: conversations.ticketId,
+          channel: conversations.channel,
+          customerId: conversations.customerId,
+          title: conversations.title,
+          pinnedAt: conversations.pinnedAt,
+          archivedAt: conversations.archivedAt,
+          unreadCount: conversations.unreadCount,
+          tags: conversations.tags,
+          createdAt: conversations.createdAt,
+          updatedAt: conversations.updatedAt,
+          ticketSubject: tickets.subject,
+          ticketStatus: tickets.status,
+          ticketPriority: tickets.priority,
+          customerName: customers.name,
+          customerEmail: customers.email,
+          customerTier: customers.tier,
+        })
+        .from(conversations)
+        .leftJoin(tickets, eq(conversations.ticketId, tickets.id))
+        .leftJoin(customers, eq(conversations.customerId, customers.id))
+        .where(
+          and(
+            eq(conversations.orgId, ctx.user.orgId),
+            input.archived ? isNotNull(conversations.archivedAt) : isNull(conversations.archivedAt),
+          )
+        )
+        .orderBy(
+          sql`${conversations.pinnedAt} desc nulls last`,
+          desc(conversations.updatedAt),
+          desc(conversations.createdAt)
+        )
+        .limit(input.limit + 1)
+        .offset(input.offset)
+
+      const page = rows.slice(0, input.limit)
+      const convIds = page.map((r) => r.id)
+      const allMsgs = convIds.length
+        ? await db
+            .select({
+              id: messages.id,
+              conversationId: messages.conversationId,
+              content: messages.content,
+              role: messages.role,
+              metadata: messages.metadata,
+              createdAt: messages.createdAt,
+            })
+            .from(messages)
+            .where(inArray(messages.conversationId, convIds))
+            .orderBy(desc(messages.createdAt))
+        : []
+
+      const lastMsgMap = new Map<string, (typeof allMsgs)[0]>()
+      for (const msg of allMsgs) {
+        if (!lastMsgMap.has(msg.conversationId)) lastMsgMap.set(msg.conversationId, msg)
+      }
+
+      return {
+        items: page.map((r) => ({ ...r, lastMessage: lastMsgMap.get(r.id) ?? null })),
+        nextOffset: rows.length > input.limit ? input.offset + input.limit : null,
+      }
+    }),
+
   /**
    * List conversations enriched with ticket + customer context and last message preview.
    * Replaces the bare `select()` with a LEFT JOIN so the UI can render rich list items
@@ -266,25 +420,264 @@ export const conversationsRouter = router({
             })
             .returning()
 
+          await tx
+            .update(conversations)
+            .set({
+              updatedAt: new Date(),
+              ...(input.role === "user"
+                ? { unreadCount: sql`${conversations.unreadCount} + 1` }
+                : {}),
+            })
+            .where(eq(conversations.id, input.conversationId))
+
           const shouldEnqueue = shouldSendEmail && Boolean(row.customerEmail?.trim())
 
           return { msg, shouldEnqueue }
         })
 
       if (enqueueEmail.shouldEnqueue) {
-        await notificationQueue.add(
-          "agent_reply",
-          {
-            type: "agent_reply",
-            orgId: ctx.user.orgId,
-            conversationId: input.conversationId,
-            messageId: enqueueEmail.msg.id,
-          },
-          { jobId: enqueueEmail.msg.id },
-        )
+        await enqueueAgentReplyEmail({
+          orgId: ctx.user.orgId,
+          conversationId: input.conversationId,
+          messageId: enqueueEmail.msg.id,
+        })
       }
 
       return enqueueEmail.msg
+    }),
+
+  createSupportThread: protectedProcedure
+    .input(
+      z.object({
+        title: z.string().trim().min(1).max(180),
+        initialMessage: z.string().trim().max(10_000).optional(),
+        channel: z.enum(["email", "chat", "voice", "slack", "portal"]).default("portal"),
+        customerId: z.string().uuid().optional(),
+        priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+        tags: z.array(TAG_SCHEMA).max(8).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.customerId) {
+        const customer = await db.query.customers.findFirst({
+          where: and(eq(customers.id, input.customerId), eq(customers.orgId, ctx.user.orgId)),
+        })
+        if (!customer) throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found" })
+        if (input.channel === "email" && !customerEmailSchema.safeParse(customer.email).success) {
+          throw emailTicketValidationError("Email conversations require a customer with a valid email address.")
+        }
+      } else if (input.channel === "email") {
+        throw emailTicketValidationError("Email conversations require a customer with a valid email address.")
+      }
+
+      const now = new Date()
+      const convId = await db.transaction(async (tx) => {
+        const [ticket] = await tx
+          .insert(tickets)
+          .values({
+            orgId: ctx.user.orgId,
+            subject: input.title,
+            customerId: input.customerId,
+            priority: input.priority,
+            channel: input.channel,
+          })
+          .returning()
+
+        const [conv] = await tx
+          .insert(conversations)
+          .values({
+            orgId: ctx.user.orgId,
+            ticketId: ticket.id,
+            channel: input.channel,
+            customerId: input.customerId,
+            title: input.title,
+            tags: normalizeTags(input.tags),
+            unreadCount: input.initialMessage ? 1 : 0,
+            updatedAt: now,
+          })
+          .returning()
+
+        if (input.initialMessage) {
+          await tx.insert(messages).values({
+            conversationId: conv.id,
+            role: "user",
+            content: input.initialMessage,
+            createdAt: now,
+          })
+        }
+
+        return conv.id
+      })
+
+      const created = await getWorkbenchConversation(ctx.user.orgId, convId)
+      if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Conversation was not created" })
+      const [lastMessage] = await db
+        .select({
+          id: messages.id,
+          conversationId: messages.conversationId,
+          content: messages.content,
+          role: messages.role,
+          metadata: messages.metadata,
+          createdAt: messages.createdAt,
+        })
+        .from(messages)
+        .where(eq(messages.conversationId, convId))
+        .orderBy(desc(messages.createdAt))
+        .limit(1)
+      return { ...created, lastMessage: lastMessage ?? null }
+    }),
+
+  rename: protectedProcedure
+    .input(z.object({ id: z.string().uuid(), title: z.string().trim().min(1).max(180) }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await getWorkbenchConversation(ctx.user.orgId, input.id)
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" })
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(conversations)
+          .set({ title: input.title, updatedAt: new Date() })
+          .where(and(eq(conversations.id, input.id), eq(conversations.orgId, ctx.user.orgId)))
+        await tx
+          .update(tickets)
+          .set({ subject: input.title, updatedAt: new Date() })
+          .where(and(eq(tickets.id, existing.ticketId), eq(tickets.orgId, ctx.user.orgId)))
+      })
+
+      const updated = await getWorkbenchConversation(ctx.user.orgId, input.id)
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" })
+      return updated
+    }),
+
+  setPinned: protectedProcedure
+    .input(z.object({ id: z.string().uuid(), pinned: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await db
+        .update(conversations)
+        .set({ pinnedAt: input.pinned ? new Date() : null, updatedAt: new Date() })
+        .where(and(eq(conversations.id, input.id), eq(conversations.orgId, ctx.user.orgId)))
+        .returning({ id: conversations.id })
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" })
+      return getWorkbenchConversation(ctx.user.orgId, input.id)
+    }),
+
+  setArchived: protectedProcedure
+    .input(z.object({ ids: z.array(z.string().uuid()).min(1).max(100), archived: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const rows = await db
+        .update(conversations)
+        .set({ archivedAt: input.archived ? new Date() : null, updatedAt: new Date() })
+        .where(and(inArray(conversations.id, input.ids), eq(conversations.orgId, ctx.user.orgId)))
+        .returning({ id: conversations.id })
+      return { ids: rows.map((r) => r.id), archived: input.archived }
+    }),
+
+  setTags: protectedProcedure
+    .input(z.object({ ids: z.array(z.string().uuid()).min(1).max(100), tags: z.array(TAG_SCHEMA).max(8) }))
+    .mutation(async ({ ctx, input }) => {
+      const rows = await db
+        .update(conversations)
+        .set({ tags: normalizeTags(input.tags), updatedAt: new Date() })
+        .where(and(inArray(conversations.id, input.ids), eq(conversations.orgId, ctx.user.orgId)))
+        .returning({ id: conversations.id })
+      return { ids: rows.map((r) => r.id), tags: normalizeTags(input.tags) }
+    }),
+
+  markRead: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await db
+        .update(conversations)
+        .set({ unreadCount: 0 })
+        .where(and(eq(conversations.id, input.id), eq(conversations.orgId, ctx.user.orgId)))
+        .returning({ id: conversations.id })
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" })
+      return { id: input.id }
+    }),
+
+  deleteMany: protectedProcedure
+    .input(z.object({ ids: z.array(z.string().uuid()).min(1).max(100) }))
+    .mutation(async ({ ctx, input }) => {
+      const rows = await db
+        .delete(conversations)
+        .where(and(inArray(conversations.id, input.ids), eq(conversations.orgId, ctx.user.orgId)))
+        .returning({ id: conversations.id })
+      return { ids: rows.map((r) => r.id) }
+    }),
+
+  retryAgentReply: protectedProcedure
+    .input(z.object({ messageId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const rows = await db
+        .select({
+          message: messages,
+          conversationId: conversations.id,
+          channel: conversations.channel,
+          customerEmail: customers.email,
+        })
+        .from(messages)
+        .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+        .leftJoin(customers, eq(conversations.customerId, customers.id))
+        .where(
+          and(
+            eq(messages.id, input.messageId),
+            eq(conversations.orgId, ctx.user.orgId),
+          ),
+        )
+        .limit(1)
+
+      const row = rows[0]
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Message not found" })
+      }
+
+      if (
+        row.channel !== "email" ||
+        row.message.role !== "agent" ||
+        row.message.metadata?.isInternal
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only customer-facing email replies can be retried.",
+        })
+      }
+
+      if (!canRetryDelivery(row.message.metadata?.email?.deliveryStatus)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only failed email replies can be retried.",
+        })
+      }
+
+      if (!row.customerEmail?.trim()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot retry because the customer has no email address.",
+        })
+      }
+
+      const { error: _oldError, ...currentEmail } = row.message.metadata?.email ?? {}
+      await db
+        .update(messages)
+        .set({
+          metadata: {
+            ...(row.message.metadata ?? {}),
+            email: {
+              ...currentEmail,
+              deliveryStatus: "queued",
+            },
+          },
+        })
+        .where(eq(messages.id, input.messageId))
+
+      await enqueueAgentReplyEmail({
+        orgId: ctx.user.orgId,
+        conversationId: row.conversationId,
+        messageId: input.messageId,
+        jobId: `${input.messageId}:retry:${Date.now()}`,
+      })
+
+      return { ok: true }
     }),
 
   /**

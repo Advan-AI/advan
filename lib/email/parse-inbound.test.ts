@@ -86,27 +86,46 @@ describe("parse-inbound", () => {
         text: "Hello support",
         html: "<p>Hello support</p>",
         headers: { "message-id": "<inbound-msg@resend.dev>" },
+        recipientAddresses: [`reply+${CONV_ID}@${DOMAIN}`],
+        inboundMessageId: "<inbound-msg@resend.dev>",
         providerId: PROVIDER_ID,
       })
     })
 
-    it("throws when conversation cannot be resolved from to addresses", () => {
-      expect(() =>
-        parseInboundEmail({
-          webhookEvent: {
-            ...fixtureWebhook(),
-            data: {
-              ...fixtureWebhook().data,
-              to: ["support@other.com"],
-              received_for: [],
-            },
-          },
-          receivedEmail: fixtureReceivedEmail({
+    it("keeps payload parseable when conversation cannot be resolved from to addresses", () => {
+      const parsed = parseInboundEmail({
+        webhookEvent: {
+          ...fixtureWebhook(),
+          data: {
+            ...fixtureWebhook().data,
             to: ["support@other.com"],
             received_for: [],
-          }),
+          },
+        },
+        receivedEmail: fixtureReceivedEmail({
+          to: ["support@other.com"],
+          received_for: [],
         }),
-      ).toThrow(InboundParseError)
+      })
+
+      expect(parsed.conversationId).toBeNull()
+      expect(parsed.recipientAddresses).toEqual(["support@other.com"])
+    })
+
+    it("strips quoted reply history with the reply parser", () => {
+      const parsed = parseInboundEmail({
+        webhookEvent: fixtureWebhook(),
+        receivedEmail: fixtureReceivedEmail({
+          text: `Thanks, this fixes it.
+
+On Dec 16, 2024, at 12:47 PM, Support <support@example.com> wrote:
+
+> Previous support reply`,
+        }),
+      })
+
+      expect(parsed.text).toBe("Thanks, this fixes it.")
+      expect(parsed.text).not.toContain("Previous support reply")
     })
   })
 

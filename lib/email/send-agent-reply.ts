@@ -3,8 +3,10 @@ import { requireEmailConfig } from "./config"
 import { getResendClient } from "./resend-client"
 import { buildThreadingHeaders, type PriorMessageEmailMeta } from "./threading"
 import { renderAgentReplyEmail } from "./templates/agent-reply"
+import { findSuppressedEmail } from "./suppression"
 
 export interface SendAgentReplyInput {
+  orgId: string
   conversationId: string
   to: string
   ticketSubject: string
@@ -97,6 +99,15 @@ function subjectLine(ticketSubject: string): string {
 export async function sendAgentReply(
   input: SendAgentReplyInput,
 ): Promise<SendAgentReplyResult> {
+  const suppressed = await findSuppressedEmail(input.orgId, input.to)
+  if (suppressed) {
+    throw new EmailSendError("Recipient suppressed", {
+      code: "recipient_suppressed",
+      retryable: false,
+      statusCode: null,
+    })
+  }
+
   const resend = getResendClient()
   const threading = buildThreadingHeaders(
     input.conversationId,

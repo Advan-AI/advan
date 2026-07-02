@@ -1,17 +1,20 @@
 import type { IOptions } from "sanitize-html"
 import sanitizeHtml from "sanitize-html"
+import EmailReplyParser from "email-reply-parser"
 import type { EmailReceivedEvent, GetReceivingEmailResponseSuccess } from "resend"
 import { requireEmailConfig } from "./config"
 import { extractConversationIdFromAddresses } from "./threading"
 
 /** Normalized inbound email ready for storage in messages / email_events. */
 export interface ParsedInboundEmail {
-  conversationId: string
+  conversationId: string | null
   from: string
   subject: string
   text: string
   html: string
   headers: Record<string, string>
+  recipientAddresses: string[]
+  inboundMessageId: string | null
   /** Resend `email_id` — idempotency key for inbound webhook retries. */
   providerId: string
 }
@@ -76,6 +79,20 @@ export function sanitizeInboundText(dirty: string | null | undefined): string {
   return stripped.trim()
 }
 
+export function stripQuotedReplyHistory(text: string): string {
+  if (!text.trim()) return ""
+
+  try {
+    const parsed = new EmailReplyParser().parseReply(text)
+    return parsed.trim() || text.trim()
+  } catch (err) {
+    console.warn("[InboundEmail] Failed to strip quoted reply history", {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return text.trim()
+  }
+}
+
 export interface ParseInboundInput {
   /** `email.received` webhook event from Resend. */
   webhookEvent: EmailReceivedEvent
@@ -108,11 +125,6 @@ export function parseInboundEmail(input: ParseInboundInput): ParsedInboundEmail 
 
   const { inboundDomain } = requireEmailConfig()
   const conversationId = extractConversationIdFromAddresses(toAddresses, inboundDomain)
-  if (!conversationId) {
-    throw new InboundParseError(
-      `Could not resolve conversationId from to addresses: ${toAddresses.join(", ")}`,
-    )
-  }
 
   const from = (receivedEmail.from || data.from || "").trim()
   if (!from) {
@@ -121,8 +133,10 @@ export function parseInboundEmail(input: ParseInboundInput): ParsedInboundEmail 
 
   const subject = (receivedEmail.subject ?? data.subject ?? "").trim()
   const html = sanitizeInboundHtml(receivedEmail.html)
-  const text = sanitizeInboundText(receivedEmail.text ?? stripHtmlToText(receivedEmail.html))
-  const headers = receivedEmail.headers ?? {}
+  const rawText = receivedEmail.text ?? stripHtmlToText(receivedEmail.html)
+  const text = sanitizeInboundText(stripQuotedReplyHistory(rawText))
+  const headers = normalizeHeaders(receivedEmail.headers ?? {})
+  const inboundMessageId = (receivedEmail.message_id || data.message_id || headers["message-id"] || "").trim()
 
   return {
     conversationId,
@@ -131,6 +145,8 @@ export function parseInboundEmail(input: ParseInboundInput): ParsedInboundEmail 
     text,
     html,
     headers,
+    recipientAddresses: uniqueLowercase(toAddresses),
+    inboundMessageId: inboundMessageId || null,
     providerId,
   }
 }
@@ -138,4 +154,20 @@ export function parseInboundEmail(input: ParseInboundInput): ParsedInboundEmail 
 function stripHtmlToText(html: string | null | undefined): string {
   if (!html?.trim()) return ""
   return sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} }).trim()
+}
+
+function normalizeHeaders(headers: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value]),
+  )
+}
+
+function uniqueLowercase(values: string[]): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  )
 }

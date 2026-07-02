@@ -14,7 +14,7 @@ import {
   type XYPosition,
 } from "@xyflow/react"
 import { nodeRegistry } from "./registry"
-import { wouldCreateCycle } from "./topology"
+import { validatePipelineConnection } from "./connection-validation"
 import type { Pipeline } from "./schema"
 import "./nodes" // side-effect: populate the registry
 
@@ -29,6 +29,8 @@ export interface PipelineStore {
   onEdgesChange: (changes: EdgeChange[]) => void
   onConnect: (conn: Connection) => void
   addNode: (type: string, position: XYPosition) => void
+  duplicateNode: (id: string) => void
+  deleteNode: (id: string) => void
   updateNodeConfig: (id: string, data: Record<string, unknown>) => void
   select: (id: string | null) => void
   loadPipeline: (p: Pipeline) => void
@@ -52,8 +54,16 @@ export const usePipelineStore = create<PipelineStore>()(
 
       onConnect: (conn) => {
         if (!conn.source || !conn.target) return
-        if (wouldCreateCycle(get().edges as { source: string; target: string }[], conn.source, conn.target)) {
-          set({ lastConnectionError: "That connection would create a cycle — pipelines must be acyclic." })
+        const validation = validatePipelineConnection({
+          nodes: get().nodes.map((node) => ({ id: node.id, type: node.type ?? "unknown" })),
+          edges: get().edges as never,
+          source: conn.source,
+          target: conn.target,
+          sourceHandle: conn.sourceHandle,
+          targetHandle: conn.targetHandle,
+        })
+        if (!validation.ok) {
+          set({ lastConnectionError: validation.reason })
           return
         }
         set({ edges: addEdge({ ...conn, id: crypto.randomUUID() }, get().edges), dirty: true, lastConnectionError: null })
@@ -68,6 +78,28 @@ export const usePipelineStore = create<PipelineStore>()(
           data: { ...def.defaults },
         }
         set({ nodes: [...get().nodes, node], dirty: true, selectedId: node.id })
+      },
+
+      duplicateNode: (id) => {
+        const node = get().nodes.find((item) => item.id === id)
+        if (!node) return
+        const copy: Node = {
+          ...node,
+          id: crypto.randomUUID(),
+          position: { x: node.position.x + 36, y: node.position.y + 36 },
+          selected: false,
+          data: { ...(node.data ?? {}) },
+        }
+        set({ nodes: [...get().nodes, copy], dirty: true, selectedId: copy.id })
+      },
+
+      deleteNode: (id) => {
+        set({
+          nodes: get().nodes.filter((node) => node.id !== id),
+          edges: get().edges.filter((edge) => edge.source !== id && edge.target !== id),
+          selectedId: get().selectedId === id ? null : get().selectedId,
+          dirty: true,
+        })
       },
 
       updateNodeConfig: (id, data) =>

@@ -1,7 +1,7 @@
 CREATE TABLE "email_events" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"org_id" uuid NOT NULL,
-	"conversation_id" uuid NOT NULL,
+	"org_id" uuid,
+	"conversation_id" uuid,
 	"message_id" uuid,
 	"direction" text NOT NULL,
 	"provider_id" text NOT NULL,

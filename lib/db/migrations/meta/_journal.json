@@ -22,6 +22,27 @@
       "when": 1782938195052,
       "tag": "0002_email_integration",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782994200000,
+      "tag": "0003_email_events_unresolved_nullable",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782995600000,
+      "tag": "0004_suppressed_emails",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782996200000,
+      "tag": "0005_conversation_workbench",
+      "breakpoints": true
     }
   ]
 }

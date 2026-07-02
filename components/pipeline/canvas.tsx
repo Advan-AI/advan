@@ -14,7 +14,7 @@ import "@xyflow/react/dist/style.css"
 import { usePipelineStore } from "@/lib/pipeline/use-pipeline-store"
 import { usePipelineExecution } from "@/lib/pipeline/execution-store"
 import { nodeRegistry } from "@/lib/pipeline/registry"
-import { wouldCreateCycle } from "@/lib/pipeline/topology"
+import { validatePipelineConnection } from "@/lib/pipeline/connection-validation"
 import { PipelineNodeView } from "./pipeline-node"
 
 const NODE_DRAG_MIME = "application/advan-node-type"
@@ -60,8 +60,16 @@ export function PipelineCanvas() {
   )
 
   const isValidConnection = useCallback<IsValidConnection>(
-    (c) => !!c.source && !!c.target && !wouldCreateCycle(edges as { source: string; target: string }[], c.source, c.target),
-    [edges]
+    (c) =>
+      validatePipelineConnection({
+        nodes: nodes.map((node) => ({ id: node.id, type: node.type ?? "unknown" })),
+        edges: baseEdges as never,
+        source: c.source,
+        target: c.target,
+        sourceHandle: c.sourceHandle,
+        targetHandle: c.targetHandle,
+      }).ok,
+    [baseEdges, nodes]
   )
 
   const onDrop = useCallback(

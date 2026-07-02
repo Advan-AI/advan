@@ -1,8 +1,22 @@
 import { z } from "zod"
 import { eq, and, desc, count, inArray } from "drizzle-orm"
+import { TRPCError } from "@trpc/server"
 import { protectedProcedure, router } from "../trpc"
 import { tickets, customers, users, conversations } from "@/lib/db/schema"
 import { db } from "@/lib/db"
+
+const customerEmailSchema = z.string().trim().email()
+
+function emailTicketValidationError(message: string) {
+  return new TRPCError({
+    code: "BAD_REQUEST",
+    message,
+    cause: {
+      field: "customerId",
+      validationCode: "EMAIL_TICKET_CUSTOMER_EMAIL_REQUIRED",
+    },
+  })
+}
 
 export const ticketsRouter = router({
   list: protectedProcedure
@@ -64,20 +78,43 @@ export const ticketsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const [ticket] = await db
-        .insert(tickets)
-        .values({ ...input, orgId: ctx.user.orgId })
-        .returning()
+      if (input.channel === "email") {
+        if (!input.customerId) {
+          throw emailTicketValidationError(
+            "Email tickets require a customer with a valid email address.",
+          )
+        }
 
-      // Every ticket gets an inbox thread so "View" from the queue always resolves.
-      await db.insert(conversations).values({
-        orgId: ctx.user.orgId,
-        ticketId: ticket.id,
-        channel: input.channel,
-        customerId: input.customerId,
+        const customer = await db.query.customers.findFirst({
+          where: and(
+            eq(customers.id, input.customerId),
+            eq(customers.orgId, ctx.user.orgId),
+          ),
+        })
+
+        if (!customer || !customerEmailSchema.safeParse(customer.email).success) {
+          throw emailTicketValidationError(
+            "Email tickets require a customer with a valid email address.",
+          )
+        }
+      }
+
+      return db.transaction(async (tx) => {
+        const [ticket] = await tx
+          .insert(tickets)
+          .values({ ...input, orgId: ctx.user.orgId })
+          .returning()
+
+        // Every ticket gets an inbox thread so "View" from the queue always resolves.
+        await tx.insert(conversations).values({
+          orgId: ctx.user.orgId,
+          ticketId: ticket.id,
+          channel: input.channel,
+          customerId: input.customerId,
+        })
+
+        return ticket
       })
-
-      return ticket
     }),
 
   updateStatus: protectedProcedure

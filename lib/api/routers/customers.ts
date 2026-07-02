@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { eq, and, desc, ilike } from "drizzle-orm"
+import { eq, and, desc, ilike, or } from "drizzle-orm"
 import { protectedProcedure, router } from "../trpc"
 import { customers, tickets } from "@/lib/db/schema"
 import { db } from "@/lib/db"
@@ -19,7 +19,11 @@ export const customersRouter = router({
       if (input.tier) conditions.push(eq(customers.tier, input.tier))
       if (input.search) {
         conditions.push(
-          ilike(customers.name, `%${input.search}%`)
+          or(
+            ilike(customers.name, `%${input.search}%`),
+            ilike(customers.email, `%${input.search}%`),
+            ilike(customers.company, `%${input.search}%`)
+          )!
         )
       }
 

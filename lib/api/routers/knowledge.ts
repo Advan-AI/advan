@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { eq, and, desc } from "drizzle-orm"
+import { eq, and, desc, ilike, or } from "drizzle-orm"
 import { TRPCError } from "@trpc/server"
 import { protectedProcedure, router } from "../trpc"
 import { knowledgeSources } from "@/lib/db/schema"
@@ -15,6 +15,7 @@ export const knowledgeRouter = router({
         embeddingStatus: z
           .enum(["pending", "processing", "completed", "failed"])
           .optional(),
+        search: z.string().optional(),
         limit: z.number().min(1).max(100).default(25),
         offset: z.number().default(0),
       })
@@ -24,6 +25,15 @@ export const knowledgeRouter = router({
       if (input.sourceType) conditions.push(eq(knowledgeSources.sourceType, input.sourceType))
       if (input.embeddingStatus)
         conditions.push(eq(knowledgeSources.embeddingStatus, input.embeddingStatus))
+      if (input.search) {
+        conditions.push(
+          or(
+            ilike(knowledgeSources.title, `%${input.search}%`),
+            ilike(knowledgeSources.url, `%${input.search}%`),
+            ilike(knowledgeSources.content, `%${input.search}%`)
+          )!
+        )
+      }
 
       const rows = await db
         .select({
@@ -42,6 +52,32 @@ export const knowledgeRouter = router({
         .offset(input.offset)
 
       return rows
+    }),
+
+  getById: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const source = await db.query.knowledgeSources.findFirst({
+        where: and(
+          eq(knowledgeSources.id, input.id),
+          eq(knowledgeSources.orgId, ctx.user.orgId)
+        ),
+      })
+
+      if (!source) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Knowledge source not found" })
+      }
+
+      return {
+        id: source.id,
+        title: source.title,
+        content: source.content,
+        url: source.url,
+        s3Key: source.s3Key,
+        sourceType: source.sourceType,
+        embeddingStatus: source.embeddingStatus,
+        createdAt: source.createdAt,
+      }
     }),
 
   add: protectedProcedure
