@@ -14,6 +14,7 @@
 #
 # Optional env (skip a service if you do not need it):
 #   DEV_ALL_SKIP_EMBEDDING=1   — skip BullMQ embedding worker
+#   DEV_ALL_SKIP_NOTIFICATION=1 — skip BullMQ notification (email) worker
 #   DEV_ALL_SKIP_TEMPORAL=1    — skip Temporal worker daemon
 #   DEV_ALL_SKIP_SOCKET=1      — skip Socket.IO HITL server
 #
@@ -75,6 +76,14 @@ if [[ "${DEV_ALL_SKIP_EMBEDDING:-}" != "1" ]]; then
     echo "[dev-all] WARN: REDIS_URL unset — skipping embedding worker (set DEV_ALL_SKIP_EMBEDDING=1 to silence)."
   else
     start_bg "embedding-worker" npx tsx lib/queue/workers/embedding-worker.ts
+  fi
+fi
+
+if [[ "${DEV_ALL_SKIP_NOTIFICATION:-}" != "1" ]]; then
+  if [[ -z "${REDIS_URL:-}" || -z "${RESEND_API_KEY:-}" ]]; then
+    echo "[dev-all] WARN: REDIS_URL and/or RESEND_API_KEY unset — skipping notification worker (set DEV_ALL_SKIP_NOTIFICATION=1 to silence)."
+  else
+    start_bg "notification-worker" npx tsx lib/queue/workers/notification-worker.ts
   fi
 fi
 

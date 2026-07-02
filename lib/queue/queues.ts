@@ -30,11 +30,20 @@ export type EmbedDocumentJob = {
   orgId: string
 }
 
-export type NotificationJob = {
+export type AgentReplyEmailJob = {
+  type: "agent_reply"
+  orgId: string
+  conversationId: string
+  messageId: string
+}
+
+export type LegacyNotificationJob = {
   type: "ticket_resolved" | "csat_follow_up"
   recipientEmail: string
   payload: Record<string, unknown>
 }
+
+export type NotificationJob = AgentReplyEmailJob | LegacyNotificationJob
 
 /**
  * Queue for generating pgvector embeddings (Ollama) when a KB document is added.

@@ -1,7 +1,7 @@
 import { z } from "zod"
-import { eq, and, desc, count, sql } from "drizzle-orm"
+import { eq, and, desc, count, inArray } from "drizzle-orm"
 import { protectedProcedure, router } from "../trpc"
-import { tickets, customers, users } from "@/lib/db/schema"
+import { tickets, customers, users, conversations } from "@/lib/db/schema"
 import { db } from "@/lib/db"
 
 export const ticketsRouter = router({
@@ -68,6 +68,15 @@ export const ticketsRouter = router({
         .insert(tickets)
         .values({ ...input, orgId: ctx.user.orgId })
         .returning()
+
+      // Every ticket gets an inbox thread so "View" from the queue always resolves.
+      await db.insert(conversations).values({
+        orgId: ctx.user.orgId,
+        ticketId: ticket.id,
+        channel: input.channel,
+        customerId: input.customerId,
+      })
+
       return ticket
     }),
 
@@ -101,6 +110,27 @@ export const ticketsRouter = router({
         .where(and(eq(tickets.id, input.id), eq(tickets.orgId, ctx.user.orgId)))
         .returning()
       return ticket
+    }),
+
+  bulkUpdateStatus: protectedProcedure
+    .input(
+      z.object({
+        ids: z.array(z.string().uuid()).min(1).max(100),
+        status: z.enum(["open", "pending", "resolved", "closed"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updated = await db
+        .update(tickets)
+        .set({ status: input.status, updatedAt: new Date() })
+        .where(
+          and(
+            inArray(tickets.id, input.ids),
+            eq(tickets.orgId, ctx.user.orgId)
+          )
+        )
+        .returning()
+      return updated
     }),
 
   kpis: protectedProcedure.query(async ({ ctx }) => {

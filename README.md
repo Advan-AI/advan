@@ -128,6 +128,15 @@ NextAuth uses **`{NEXTAUTH_URL}/api/auth/callback/google`** (not `/auth/...`). I
 
 Match **localhost vs 127.0.0.1** to whatever you use in the browser. Do not put a trailing slash on `NEXTAUTH_URL`.
 
+Google sign-in only works for emails already in the `users` table (admin-provisioned). After `npx drizzle-kit migrate` and `npx tsx lib/db/seed.ts`, seeded accounts include `admin@acme.co` / `agent@acme.co`. Add your Google email with:
+
+```sql
+INSERT INTO users (org_id, email, name, role)
+SELECT id, 'you@gmail.com', 'Your Name', 'admin'
+FROM organizations WHERE slug = 'acme'
+ON CONFLICT (email) DO NOTHING;
+```
+
 ## v0
 
 [Continue working on v0 →](https://v0.app/chat/projects/prj_kRYjsXfTMn91nI78Qq4WYgQ08uZd)

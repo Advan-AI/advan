@@ -26,10 +26,19 @@ const credentialsSchema = z.object({
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Skip OIDC discovery fetch — avoids `TypeError: fetch failed` → error=Configuration
+      authorization: {
+        url: "https://accounts.google.com/o/oauth2/v2/auth",
+        params: { scope: "openid profile email", response_type: "code" },
+      },
+      token: "https://oauth2.googleapis.com/token",
+      userinfo: "https://openidconnect.googleapis.com/v1/userinfo",
     }),
     Credentials({
       credentials: {
@@ -87,7 +96,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user.email) return false
 
         const existing = await db.query.users.findFirst({
-          where: eq(users.email, user.email),
+          where: eq(users.email, user.email.toLowerCase()),
         })
 
         if (!existing) {

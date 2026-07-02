@@ -7,6 +7,8 @@ import {
   integer,
   boolean,
   customType,
+  index,
+  unique,
 } from "drizzle-orm/pg-core"
 
 // ─── pgvector custom type ─────────────────────────────────────────────────────
@@ -99,22 +101,30 @@ export const tickets = pgTable("tickets", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 })
 
-export const conversations = pgTable("conversations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  orgId: uuid("org_id")
-    .references(() => organizations.id, { onDelete: "cascade" })
-    .notNull(),
-  ticketId: uuid("ticket_id")
-    .references(() => tickets.id, { onDelete: "cascade" })
-    .notNull(),
-  channel: text("channel", {
-    enum: ["email", "chat", "voice", "slack", "portal"],
-  })
-    .default("chat")
-    .notNull(),
-  customerId: uuid("customer_id").references(() => customers.id),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    ticketId: uuid("ticket_id")
+      .references(() => tickets.id, { onDelete: "cascade" })
+      .notNull(),
+    channel: text("channel", {
+      enum: ["email", "chat", "voice", "slack", "portal"],
+    })
+      .default("chat")
+      .notNull(),
+    customerId: uuid("customer_id").references(() => customers.id),
+    emailRootMessageId: text("email_root_message_id"),
+    emailReplyToAddress: text("email_reply_to_address"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("conversations_email_reply_to_address_idx").on(table.emailReplyToAddress),
+  ],
+)
 
 export const messages = pgTable("messages", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -129,9 +139,44 @@ export const messages = pgTable("messages", {
     policyChecks?: Array<{ rule: string; passed: boolean }>
     latencyMs?: number
     model?: string
+    isInternal?: boolean
+    email?: {
+      messageId?: string
+      inReplyTo?: string
+      resendId?: string
+      deliveryStatus?: "queued" | "sent" | "delivered" | "failed" | "bounced"
+      error?: string
+    }
   }>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
+
+// ─── Email integration ────────────────────────────────────────────────────────
+
+export const emailEvents = pgTable(
+  "email_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    conversationId: uuid("conversation_id")
+      .references(() => conversations.id, { onDelete: "cascade" })
+      .notNull(),
+    messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
+    direction: text("direction", { enum: ["outbound", "inbound"] }).notNull(),
+    providerId: text("provider_id").notNull(),
+    status: text("status"),
+    payload: jsonb("payload"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    unique("email_events_direction_provider_id_unique").on(
+      table.direction,
+      table.providerId,
+    ),
+  ],
+)
 
 // ─── AI / Orchestration tables ────────────────────────────────────────────────
 

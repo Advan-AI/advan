@@ -3,6 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
+import { useMemo } from "react"
 import {
   MessageSquare,
   Ticket,
@@ -18,19 +19,25 @@ import {
   ChevronDown,
   Crown,
 } from "lucide-react"
+import { api } from "@/lib/api/trpc-client"
+import { formatCount } from "@/lib/dashboard/format"
+
+type NavCountKey = "conversations" | "tickets"
 
 interface NavItem {
   href: string
   label: string
   icon: React.ElementType
-  count?: number
+  count?: number | null
+  countKey?: NavCountKey
+  countLoading?: boolean
   tag?: string
 }
 
 const PRIMARY: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/dashboard/conversations", label: "Conversations", icon: MessageSquare, count: 12 },
-  { href: "/dashboard/tickets", label: "Tickets", icon: Ticket, count: 248 },
+  { href: "/dashboard/conversations", label: "Conversations", icon: MessageSquare, countKey: "conversations" },
+  { href: "/dashboard/tickets", label: "Tickets", icon: Ticket, countKey: "tickets" },
   { href: "/dashboard/customers", label: "Customers", icon: Users },
   { href: "/dashboard/knowledge-base", label: "Knowledge Base", icon: BookOpen },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
@@ -60,15 +67,24 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
     >
       <Icon className={`w-[17px] h-[17px] shrink-0 ${active ? "opacity-100" : "opacity-80"}`} />
       <span className="truncate">{item.label}</span>
-      {item.count !== undefined && (
+      {item.countKey != null && (
         <span
-          className={`ml-auto text-[11px] font-semibold rounded-md px-1.5 py-px ${
+          className={`ml-auto min-w-[1.25rem] text-center text-[11px] font-semibold rounded-md px-1.5 py-px ${
             active
               ? "bg-[rgba(107,92,214,0.18)] text-[var(--dash-accent-deep)]"
               : "bg-black/[0.06] text-[var(--dash-ink-soft)]"
           }`}
+          aria-label={
+            item.countLoading
+              ? `Loading ${item.label.toLowerCase()} count`
+              : `${item.count ?? 0} ${item.label.toLowerCase()}`
+          }
         >
-          {item.count}
+          {item.countLoading ? (
+            <span className="inline-block w-4 h-2.5 rounded skeleton align-middle" />
+          ) : (
+            formatCount(item.count ?? 0)
+          )}
         </span>
       )}
       {item.tag && (
@@ -91,6 +107,36 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 export function DashboardSidebar() {
   const pathname = usePathname() || ""
 
+  const { data: overview, isLoading: countsLoading } = api.analytics.overview.useQuery(
+    undefined,
+    {
+      staleTime: 30_000,
+      refetchInterval: 60_000,
+      refetchOnWindowFocus: true,
+    }
+  )
+
+  const navCounts = useMemo(
+    () => ({
+      conversations: overview?.metrics.openConversations ?? 0,
+      tickets: overview?.queue.total ?? 0,
+    }),
+    [overview]
+  )
+
+  const primaryNav = useMemo<NavItem[]>(
+    () =>
+      PRIMARY.map((item) => {
+        if (!item.countKey) return item
+        return {
+          ...item,
+          count: navCounts[item.countKey],
+          countLoading: countsLoading,
+        }
+      }),
+    [navCounts, countsLoading]
+  )
+
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard"
     return pathname === href || pathname.startsWith(`${href}/`)
@@ -112,7 +158,7 @@ export function DashboardSidebar() {
       </Link>
 
       <nav className="flex flex-col gap-1">
-        {PRIMARY.map((i) => (
+        {primaryNav.map((i) => (
           <NavLink key={i.href} item={i} active={isActive(i.href)} />
         ))}
 

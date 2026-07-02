@@ -15,6 +15,13 @@
       "when": 1780812416421,
       "tag": "0001_pipeline_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782938195052,
+      "tag": "0002_email_integration",
+      "breakpoints": true
     }
   ]
 }

@@ -88,3 +88,7 @@ S31 Privacy page white-to-black text conversion + Terms page background fix — 
 
 Access 1286k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
+
+<codex-project-knowledge>
+Before broad repo exploration, read `PROJECT_KNOWLEDGE.md` for the compact project map, durable decisions, commands, routes, and current architecture notes. For future tasks, use that file to narrow what source files need inspection, and update it after meaningful features, fixes, migrations, command changes, or design decisions.
+</codex-project-knowledge>

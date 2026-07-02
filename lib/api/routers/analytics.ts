@@ -1,44 +1,23 @@
 import { z } from "zod"
-import { eq, and, desc, avg, count, sql } from "drizzle-orm"
+import { eq, and, desc } from "drizzle-orm"
 import { protectedProcedure, router } from "../trpc"
-import { auditLogs, tickets } from "@/lib/db/schema"
+import { auditLogs } from "@/lib/db/schema"
 import { db } from "@/lib/db"
+import { getOrgOverview } from "@/lib/analytics/org-overview"
 
 export const analyticsRouter = router({
+  overview: protectedProcedure.query(async ({ ctx }) => {
+    return getOrgOverview(ctx.user.orgId)
+  }),
+
   summary: protectedProcedure.query(async ({ ctx }) => {
-    const orgId = ctx.user.orgId
-
-    const [totalTickets] = await db
-      .select({ value: count() })
-      .from(tickets)
-      .where(eq(tickets.orgId, orgId))
-
-    const [resolvedCount] = await db
-      .select({ value: count() })
-      .from(tickets)
-      .where(and(eq(tickets.orgId, orgId), eq(tickets.status, "resolved")))
-
-    const [aiResolvedCount] = await db
-      .select({ value: count() })
-      .from(tickets)
-      .where(and(eq(tickets.orgId, orgId), eq(tickets.aiResolved, true)))
-
-    const [avgConfidence] = await db
-      .select({ value: avg(auditLogs.id) }) // placeholder — use JSON field in production
-      .from(auditLogs)
-      .where(eq(auditLogs.orgId, orgId))
-
-    const total = Number(totalTickets.value)
-    const resolved = Number(resolvedCount.value)
-    const aiResolved = Number(aiResolvedCount.value)
-    const aiResolutionRate = total > 0 ? Math.round((aiResolved / total) * 100) : 0
-
+    const data = await getOrgOverview(ctx.user.orgId)
     return {
-      totalTickets: total,
-      resolvedTickets: resolved,
-      aiResolutionRate,
-      avgConfidence: 94, // Will be real once audit logs are populated
-      csat: 4.86,
+      totalTickets: data.queue.total,
+      resolvedTickets: data.metrics.resolved,
+      aiResolutionRate: data.metrics.aiResolutionRate,
+      avgConfidence: data.copilot.avgConfidence ?? 0,
+      csat: data.metrics.csat ?? 0,
     }
   }),
 
