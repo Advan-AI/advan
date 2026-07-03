@@ -48,24 +48,20 @@ export const orchestrationRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const analysis = analyzeWorkflowDefinition(input.definition)
-      if (analysis.errors > 0) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: analysis.issues.find((issue) => issue.severity === "error")?.message ?? "Invalid workflow definition",
-        })
-      }
+      const nextIsActive = input.isActive === undefined ? undefined : input.isActive && analysis.deployable
 
       if (input.id) {
+        const updates = {
+          name: input.name,
+          description: input.description,
+          definition: input.definition,
+          version: sql`${workflows.version} + 1`,
+          updatedAt: new Date(),
+          ...(nextIsActive === undefined ? {} : { isActive: nextIsActive }),
+        }
         const [row] = await db
           .update(workflows)
-          .set({
-            name: input.name,
-            description: input.description,
-            definition: input.definition,
-            isActive: input.isActive,
-            version: sql`${workflows.version} + 1`,
-            updatedAt: new Date(),
-          })
+          .set(updates)
           .where(and(eq(workflows.id, input.id), eq(workflows.orgId, ctx.user.orgId)))
           .returning()
         if (!row) {
@@ -81,7 +77,7 @@ export const orchestrationRouter = router({
           description: input.description,
           orgId: ctx.user.orgId,
           definition: input.definition,
-          isActive: input.isActive ?? false,
+          isActive: nextIsActive ?? false,
         })
         .returning()
       return row

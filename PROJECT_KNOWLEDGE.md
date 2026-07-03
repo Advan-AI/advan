@@ -1,12 +1,14 @@
 # v0-advan Project Knowledge
 
-Last updated: 2026-07-02
+Last updated: 2026-07-03
 
 Use this file as the first stop for future Codex work in this repo. Keep it concise and update it after meaningful features, fixes, architecture changes, migrations, or command changes.
 
 ## Product
 
 Advan AI is a customer-support trust infrastructure app. It combines a marketing site with a signed-in dashboard for tickets, conversations, customers, knowledge base, analytics, copilot, Tap Box, workflows, orchestration, and integrations.
+
+User may refer to this project as "Kimko"; the codebase, routes, metadata, assets, and docs are currently branded as Advan / `v0-advan`. Treat "Kimko/current project" as this repo unless the product rename is implemented in source.
 
 Core product themes:
 
@@ -85,7 +87,9 @@ Security notes:
 - `app/page.tsx`: marketing homepage composition.
 - `app/layout.tsx`: global metadata, dark html class, `Providers`, Vercel Analytics in production.
 - `app/globals.css`: global theme tokens and marketing/dashboard utility classes.
+- `app/providers.tsx`: client provider boundary. Wraps dashboard/signin routes with `SessionProvider`; all routes get TanStack Query + tRPC client using `/api/trpc`.
 - `app/dashboard/layout.tsx`: wraps dashboard pages in `DashboardShell`.
+- `proxy.ts`: Next.js 16 proxy, matches only `/dashboard` and `/dashboard/:path*` for NextAuth session enforcement.
 - `components/header.tsx`, `components/footer.tsx`: marketing frame.
 - `components/*-section.tsx`: marketing homepage sections.
 - `components/dashboard/*`: dashboard shell, sidebar, topbar, overview, page primitives.
@@ -103,6 +107,29 @@ Security notes:
 - `lib/copilot/*`: copilot decision/suggestion/service logic and stream hook.
 - `lib/orchestration/*`: LangGraph/workflow engine.
 - `lib/pipeline/*`: pipeline builder schema, compiler, registry, execution store.
+
+## Future Work Starting Points
+
+Use this map before broad exploration:
+
+- Marketing/homepage changes: start with `app/page.tsx`, then the specific `components/*-section.tsx`, plus `app/globals.css` for theme tokens.
+- Legal/about/sign-in pages: `app/privacy/page.tsx`, `app/terms/page.tsx`, `app/about/page.tsx`, `app/signin/page.tsx`, `app/signin/forgot/page.tsx`.
+- Dashboard frame/nav/counts: `components/dashboard/dashboard-shell.tsx`, `components/dashboard/sidebar.tsx`, `components/dashboard/topbar.tsx`, `components/dashboard/overview.tsx`.
+- tRPC API shape: `lib/api/root.ts`, `lib/api/trpc.ts`, `app/api/trpc/[trpc]/route.ts`.
+- Auth/session issues: root `auth.ts`, `auth.config.ts`, `lib/auth-server.ts`, `proxy.ts`, `types/next-auth.d.ts`. `lib/auth.ts` is an older localStorage demo helper; do not confuse it with real NextAuth.
+- Database/model changes: `lib/db/schema.ts`, matching `lib/db/migrations/*`, and `lib/db/seed.ts`.
+- Tickets: `app/dashboard/tickets/page.tsx` and `lib/api/routers/tickets.ts`.
+- Conversations/email workbench: `app/dashboard/conversations/page.tsx`, `lib/api/routers/conversations.ts`, `lib/email/*`, Resend webhook routes.
+- Copilot drafting: `app/dashboard/copilot/page.tsx`, `app/api/copilot/stream/route.ts`, `lib/copilot/*`, `lib/governance/*`, `lib/vector/*`.
+- Tap Box/audit review: `app/dashboard/tap-box/page.tsx`, `lib/api/routers/analytics.ts`, `lib/copilot/decision-service.ts`, `auditLogs` and `hitlQueue`.
+- Customers: `app/dashboard/customers/page.tsx`, `lib/api/routers/customers.ts`.
+- Knowledge base: `app/dashboard/knowledge-base/page.tsx`, `lib/api/routers/knowledge.ts`, `lib/queue/workers/embedding-worker.ts`, `lib/vector/*`, `lib/storage/s3-client.ts`.
+- Analytics: `app/dashboard/analytics/page.tsx`, `lib/api/routers/analytics.ts`, `lib/analytics/org-overview.ts`.
+- Workflow registry/control plane: `app/dashboard/workflows/page.tsx`, `lib/api/routers/orchestration.ts`, `lib/workflows/analyzer.ts`, `lib/workflows/lifecycle.ts`.
+- Visual pipeline builder: `app/dashboard/orchestration/page.tsx`, `components/pipeline/*`, `lib/pipeline/*`.
+- Durable pipeline execution: `lib/api/routers/orchestration.ts`, `lib/pipeline/compiler.ts`, `lib/temporal/workflows/pipeline-execution.ts`, `lib/temporal/activities/pipeline-activities.ts`, `lib/pipeline/executors/index.ts`.
+- Realtime pipeline/HITL updates: `lib/realtime/socket-server.ts`, `lib/realtime/event-bus.ts`, `lib/pipeline/use-pipeline-realtime.ts`, `app/api/hitl/route.ts`.
+- Workers/dev services: `scripts/dev-all.sh`, `lib/queue/workers/*`, `lib/temporal/worker.ts`, `lib/temporal/workers/daemon.worker.ts`, `lib/mcp/http-server.ts`.
 
 ## Marketing Site Notes
 
@@ -195,6 +222,15 @@ Workflows dashboard:
 - `orchestration.getWorkflows` returns each workflow with analysis. Router lifecycle procedures now include `validateWorkflow`, `setWorkflowActive`, `duplicateWorkflow`, `deleteWorkflow`, `preflightPipeline`, and guarded `runPipeline`.
 - Dashboard "Run preflight" compiles and validates without Temporal. "Start durable run" uses Temporal and now returns a clear `SERVICE_UNAVAILABLE` message if the durable runner is offline.
 
+Orchestration builder:
+
+- `/dashboard/orchestration` is now hardened around workflow lifecycle: workflow selector, URL `workflowId` handoff, editable name/description, active toggle, autosave/manual save, preflight-first execution, explicit durable-run button with Temporal tooltip, inline validation summary, and visible connection errors.
+- Builder node inspector supports copy/delete for selected nodes.
+- Canvas/store connection validation now uses `lib/pipeline/connection-validation.ts`, covering self-connections, cycles, missing nodes/types, invalid handles, incompatible port data types, and duplicate edges.
+- Wire editing supports edge selection, detach, endpoint drag-reconnect, selected-wire body drag-to-block reconnect, inspector dropdown reassignment for source/target blocks, and select-wire-then-click-target-block reassignment. Knowledge Retrieval intentionally accepts `any` input so users can wire either raw message context or detected intent into retrieval.
+- `orchestration.saveWorkflow` saves invalid in-progress graphs as inactive drafts instead of returning 400; activation/run paths remain guarded by deployability checks.
+- Focused tests cover connection validation plus workflow analyzer/lifecycle policy.
+
 ## API and Data Model
 
 tRPC root routers in `lib/api/root.ts`:
@@ -209,6 +245,8 @@ tRPC root routers in `lib/api/root.ts`:
 - `analytics`
 
 `protectedProcedure` in `lib/api/trpc.ts` requires `ctx.user.orgId`, so feature routers should always scope DB reads/writes by org.
+
+`app/api/trpc/[trpc]/route.ts` builds tRPC context from `auth()`, optionally applies Upstash REST rate limiting at 60 requests / 60 seconds, and returns only `{ id, orgId, role }` into router context.
 
 Main Drizzle tables:
 
@@ -229,6 +267,46 @@ Important data model details:
 - `messages.metadata.email` tracks `messageId`, `inReplyTo`, `resendId`, delivery status, and errors.
 - `tickets.create` also creates a conversation so queue "View" actions resolve.
 - `tickets.create` rejects `channel=email` unless the selected customer belongs to the org and has a syntactically valid email address; dashboard ticket creation mirrors this with a customer picker.
+
+Feature router procedure map:
+
+- `tickets`: `list`, `getById`, `create`, `updateStatus`, `assignTo`, `bulkUpdateStatus`, `kpis`.
+- `conversations`: workbench list/detail, ticket lookup, add message, create support thread, rename, pin/archive/tag/read/delete, retry agent reply, legacy create.
+- `customers`: list/search/filter, detail, history, create.
+- `knowledge`: list/search/filter, detail with source content, add and queue embedding, delete and S3 cleanup.
+- `analytics`: overview, summary, report, audit logs, latest audit log.
+- `orchestration`: workflow list/save/validate/activate/duplicate/delete, legacy LangGraph run, pipeline preflight, durable Temporal run.
+- `copilot`: applies accept/reject/modify decisions through `CopilotDecisionService`.
+
+## Frontend Data Flow
+
+- Dashboard pages are client components and use the generated `api` client from `lib/api/trpc-client.ts`.
+- Query caching defaults live in `app/providers.tsx`: `staleTime` 30s and `retry` 1.
+- Sidebar badges call `api.analytics.overview` every 60s and format counts through `lib/dashboard/format.ts`.
+- Most dashboard screens keep table/filter/sort/modal state locally and rely on tRPC invalidation/refetch after mutations.
+- Use existing `DashPageHeader`, dashboard CSS classes (`dash-card`, `dash-border`, `dash-bg-*`), local shadcn UI primitives, and `lucide-react` icons for new dashboard UI.
+
+## Pipeline and Orchestration Internals
+
+- Pipeline JSON contract is `PipelineSchema` in `lib/pipeline/schema.ts`: `schemaVersion: 1`, React Flow-like `nodes`, `edges`, optional `viewport`.
+- Pipeline node metadata is registry-driven in `lib/pipeline/registry.ts`; built-in nodes are side-effect registered in `lib/pipeline/nodes/index.ts`.
+- Built-in node types: `trigger.message`, `ai.intent`, `kb.retrieve`, `ai.compose`, `human.approval`, `action.crm`, `action.escalate`.
+- Adding a node type normally requires metadata registration plus a matching server executor in `lib/pipeline/executors/index.ts`; canvas/inspector/compiler should remain registry-driven.
+- `components/pipeline/pipeline-builder.tsx` owns workflow selection, URL `workflowId`, autosave, active toggle, preflight, undo/redo, and loading the Advan Copilot preset.
+- `lib/pipeline/use-pipeline-store.ts` is the Zustand + zundo graph store. It owns nodes, edges, selected node/edge, dirty state, connection errors, serialization, and reconnect helpers.
+- `lib/pipeline/connection-validation.ts` is the shared connection guard for canvas/store/tests. Keep new validation behavior covered by `lib/pipeline/connection-validation.test.ts`.
+- `PipelineCompiler.compile()` validates schema and emits Temporal-safe execution data: topological `waves`, `nodes`, and per-node `incoming` handles.
+- Durable runs start in `orchestration.runPipeline`, compile the graph, then start Temporal workflow `pipelineExecutionWorkflow` on task queue `TEMPORAL_TASK_QUEUE` or `advan-agents`.
+- `pipelineExecutionWorkflow` runs nodes in parallel by wave, records each step, honors per-node `failurePolicy`, pauses `human.approval` with HITL signal `hitl-decision`, and writes `pipelineRuns` / `pipelineRunSteps`.
+- Pipeline activities are Node-side and publish realtime events through `lib/realtime/event-bus.ts`; the workflow itself must stay deterministic and import only Temporal-safe code.
+
+## Copilot and AI Flow
+
+- `app/api/copilot/stream/route.ts` is the production Copilot SSE endpoint. It is `POST`, Node runtime, authenticated with `auth()`, emits typed SSE frames plus heartbeats, and avoids putting prompts in query strings.
+- `lib/copilot/suggestion-service.ts` composes policy precheck, retrieval, streaming composition, grounding, confidence scoring, post-policy checks, audit persistence, and optional HITL enqueue.
+- `buildSuggestionService()` wires concrete adapters from `lib/copilot/adapters.ts`: pgvector retrieval, streaming LLM composer, governance grounding, OPA/inline policy, Drizzle audit, Drizzle HITL.
+- `CopilotDecisionService.apply()` records decisions on `auditLogs.metadata.decision`, updates output for accepted/modified decisions, resolves HITL rows, signals Temporal when a workflow is waiting, and broadcasts HITL resolution.
+- Legacy `orchestration.runWorkflow` still exists for fallback LangGraph execution via `WorkflowExecutor`, but newer dashboard drafting uses Copilot SSE plus real conversation/ticket context.
 
 ## Email Integration
 

@@ -61,7 +61,10 @@ export const PipelineNodeView = memo(function PipelineNodeView({ id, type, selec
           id={p.id}
           type="target"
           position={Position.Left}
-          style={{ top: portTop(i, def.inputs.length), background: tone.fg, width: 9, height: 9, border: "none" }}
+          isConnectable
+          isConnectableStart={false}
+          isConnectableEnd
+          style={{ top: portTop(i, def.inputs.length), background: tone.fg, width: 14, height: 14, border: "2px solid white" }}
         />
       ))}
 
@@ -82,7 +85,10 @@ export const PipelineNodeView = memo(function PipelineNodeView({ id, type, selec
           id={p.id}
           type="source"
           position={Position.Right}
-          style={{ top: portTop(i, def.outputs.length), background: tone.fg, width: 9, height: 9, border: "none" }}
+          isConnectable
+          isConnectableStart
+          isConnectableEnd={false}
+          style={{ top: portTop(i, def.outputs.length), background: tone.fg, width: 14, height: 14, border: "2px solid white" }}
         />
       ))}
     </motion.div>

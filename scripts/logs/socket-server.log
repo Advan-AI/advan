@@ -37,3 +37,58 @@
 [Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (pnbu_5iAixDj9pTAAAAC)
 [Socket] Client disconnected (pnbu_5iAixDj9pTAAAAC)
 [Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (Bt92kfN4M0Yh4ChCAAAF)
+[Socket] Client disconnected (Bt92kfN4M0Yh4ChCAAAF)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (Z601Ty_hHF16JBX7AAAN)
+[Socket] Client disconnected (Z601Ty_hHF16JBX7AAAN)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (zkoXt0D1ulJBggT0AAAP)
+[Socket] Client disconnected (zkoXt0D1ulJBggT0AAAP)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (NpVj8xdQVFQ_KXN0AAAR)
+[Socket] Client disconnected (NpVj8xdQVFQ_KXN0AAAR)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (YGhtLxM6WfM7FjltAAAU)
+[Socket] Client disconnected (YGhtLxM6WfM7FjltAAAU)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (9a3ICDKONYLiQdVIAAAX)
+[Socket] Client disconnected (9a3ICDKONYLiQdVIAAAX)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (4YrNrANUnlWKWV4gAAAa)
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (W5b6hg8aGilboubbAAAB)
+[Socket] Subscribed to realtime event bus
+[Socket] Client disconnected (W5b6hg8aGilboubbAAAB)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (SmVKcLM0AACGVzt0AAAE)
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (_8g6SZjSfU7sObjEAAAB)
+[Socket] Client disconnected (_8g6SZjSfU7sObjEAAAB)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (1pMSsK3uzuEndwUhAAAE)
+[Socket] Client disconnected (1pMSsK3uzuEndwUhAAAE)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (KKZVJQZ21xfHgd6MAAAH)
+[Socket] Client disconnected (KKZVJQZ21xfHgd6MAAAH)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (xDrO_T9TtVMAofVGAAAK)
+[Socket] Client disconnected (xDrO_T9TtVMAofVGAAAK)
+[Socket] Client connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (XmWtiaKdWoduGLWDAAAN)
+[Socket] Client disconnected (XmWtiaKdWoduGLWDAAAN)
+node:events:486
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::3002
+    at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+    at listenInCluster (node:net:2005:12)
+    at Server.listen (node:net:2110:7)
+    at SocketIOServer (/home/arslan/Documents/Remote/v0-advan/lib/realtime/socket-server.ts:147:12)
+    at Object.<anonymous> (/home/arslan/Documents/Remote/v0-advan/lib/realtime/socket-server.ts:149:2)
+    at Module._compile (node:internal/modules/cjs/loader:1812:14)
+    at Object.transformer (/home/arslan/Documents/Remote/v0-advan/node_modules/tsx/dist/register-BOkp8V6j.cjs:9:3176)
+    at Module.load (node:internal/modules/cjs/loader:1533:32)
+    at Module._load (node:internal/modules/cjs/loader:1335:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1984:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3002
+}
+
+Node.js v24.14.0

@@ -6,6 +6,7 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
+  reconnectEdge as xyReconnectEdge,
   type Node,
   type Edge,
   type Connection,
@@ -22,17 +23,22 @@ export interface PipelineStore {
   nodes: Node[]
   edges: Edge[]
   selectedId: string | null
+  selectedEdgeId: string | null
   dirty: boolean
   lastConnectionError: string | null
 
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
   onConnect: (conn: Connection) => void
+  onReconnect: (edge: Edge, conn: Connection) => void
+  reconnectEdgeToNode: (edgeId: string, endpoint: "source" | "target", nodeId: string) => void
   addNode: (type: string, position: XYPosition) => void
   duplicateNode: (id: string) => void
   deleteNode: (id: string) => void
+  deleteEdge: (id: string) => void
   updateNodeConfig: (id: string, data: Record<string, unknown>) => void
   select: (id: string | null) => void
+  selectEdge: (id: string | null) => void
   loadPipeline: (p: Pipeline) => void
   toPipeline: () => Pipeline
   clearError: () => void
@@ -45,6 +51,7 @@ export const usePipelineStore = create<PipelineStore>()(
       nodes: [],
       edges: [],
       selectedId: null,
+      selectedEdgeId: null,
       dirty: false,
       lastConnectionError: null,
 
@@ -69,6 +76,76 @@ export const usePipelineStore = create<PipelineStore>()(
         set({ edges: addEdge({ ...conn, id: crypto.randomUUID() }, get().edges), dirty: true, lastConnectionError: null })
       },
 
+      onReconnect: (edge, conn) => {
+        if (!conn.source || !conn.target) return
+        const remainingEdges = get().edges.filter((item) => item.id !== edge.id)
+        const validation = validatePipelineConnection({
+          nodes: get().nodes.map((node) => ({ id: node.id, type: node.type ?? "unknown" })),
+          edges: remainingEdges as never,
+          source: conn.source,
+          target: conn.target,
+          sourceHandle: conn.sourceHandle,
+          targetHandle: conn.targetHandle,
+        })
+        if (!validation.ok) {
+          set({ lastConnectionError: validation.reason })
+          return
+        }
+        set({
+          edges: xyReconnectEdge(edge, conn, get().edges),
+          dirty: true,
+          selectedEdgeId: edge.id,
+          selectedId: null,
+          lastConnectionError: null,
+        })
+      },
+
+      reconnectEdgeToNode: (edgeId, endpoint, nodeId) => {
+        const edge = get().edges.find((item) => item.id === edgeId)
+        const nextNode = get().nodes.find((item) => item.id === nodeId)
+        if (!edge || !nextNode?.type || !nodeRegistry.has(nextNode.type)) return
+
+        const source = endpoint === "source" ? nodeId : edge.source
+        const target = endpoint === "target" ? nodeId : edge.target
+        const sourceNode = get().nodes.find((item) => item.id === source)
+        const targetNode = get().nodes.find((item) => item.id === target)
+        if (!sourceNode?.type || !targetNode?.type || !nodeRegistry.has(sourceNode.type) || !nodeRegistry.has(targetNode.type)) return
+
+        const sourcePorts = nodeRegistry.get(sourceNode.type).outputs
+        const targetPorts = nodeRegistry.get(targetNode.type).inputs
+        const remainingEdges = get().edges.filter((item) => item.id !== edgeId)
+
+        for (const sourcePort of sourcePorts) {
+          for (const targetPort of targetPorts) {
+            const validation = validatePipelineConnection({
+              nodes: get().nodes.map((node) => ({ id: node.id, type: node.type ?? "unknown" })),
+              edges: remainingEdges as never,
+              source,
+              target,
+              sourceHandle: sourcePort.id,
+              targetHandle: targetPort.id,
+            })
+
+            if (!validation.ok) continue
+
+            set({
+              edges: get().edges.map((item) =>
+                item.id === edgeId
+                  ? { ...item, source, target, sourceHandle: sourcePort.id, targetHandle: targetPort.id }
+                  : item,
+              ),
+              dirty: true,
+              selectedEdgeId: edgeId,
+              selectedId: null,
+              lastConnectionError: null,
+            })
+            return
+          }
+        }
+
+        set({ lastConnectionError: "No compatible port was found between those two blocks." })
+      },
+
       addNode: (type, position) => {
         const def = nodeRegistry.get(type)
         const node: Node = {
@@ -77,7 +154,7 @@ export const usePipelineStore = create<PipelineStore>()(
           position,
           data: { ...def.defaults },
         }
-        set({ nodes: [...get().nodes, node], dirty: true, selectedId: node.id })
+        set({ nodes: [...get().nodes, node], dirty: true, selectedId: node.id, selectedEdgeId: null })
       },
 
       duplicateNode: (id) => {
@@ -90,7 +167,7 @@ export const usePipelineStore = create<PipelineStore>()(
           selected: false,
           data: { ...(node.data ?? {}) },
         }
-        set({ nodes: [...get().nodes, copy], dirty: true, selectedId: copy.id })
+        set({ nodes: [...get().nodes, copy], dirty: true, selectedId: copy.id, selectedEdgeId: null })
       },
 
       deleteNode: (id) => {
@@ -98,6 +175,15 @@ export const usePipelineStore = create<PipelineStore>()(
           nodes: get().nodes.filter((node) => node.id !== id),
           edges: get().edges.filter((edge) => edge.source !== id && edge.target !== id),
           selectedId: get().selectedId === id ? null : get().selectedId,
+          selectedEdgeId: null,
+          dirty: true,
+        })
+      },
+
+      deleteEdge: (id) => {
+        set({
+          edges: get().edges.filter((edge) => edge.id !== id),
+          selectedEdgeId: get().selectedEdgeId === id ? null : get().selectedEdgeId,
           dirty: true,
         })
       },
@@ -105,7 +191,9 @@ export const usePipelineStore = create<PipelineStore>()(
       updateNodeConfig: (id, data) =>
         set({ nodes: get().nodes.map((n) => (n.id === id ? { ...n, data } : n)), dirty: true }),
 
-      select: (selectedId) => set({ selectedId }),
+      select: (selectedId) => set({ selectedId, selectedEdgeId: null }),
+
+      selectEdge: (selectedEdgeId) => set({ selectedEdgeId, selectedId: null }),
 
       loadPipeline: (p) =>
         set({
@@ -119,6 +207,7 @@ export const usePipelineStore = create<PipelineStore>()(
           })),
           dirty: false,
           selectedId: null,
+          selectedEdgeId: null,
         }),
 
       toPipeline: () => ({
