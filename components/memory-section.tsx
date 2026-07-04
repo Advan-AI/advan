@@ -321,13 +321,14 @@ function StatusPip({ status }: { status: "active" | "synced" | "queued" }) {
 function MemoryCore({ stage }: { stage: Stage }) {
   // visible context = grows with stage
   const visible = CONTEXT_GROWTH.filter((c) => c.stage <= stage)
+  // Packet animation: only emit while a channel exists for this stage (0..2)
+  const packetChannel = CHANNELS.at(stage)
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-[460px]">
-      {/* Packet animation: only emit when stage <= channels (i.e., 0..2) */}
-      {stage < CHANNELS.length && (
+      {packetChannel && (
         <AnimatePresence>
-          <Packet key={stage} color={CHANNELS[stage].color} />
+          <Packet key={stage} color={packetChannel.color} />
         </AnimatePresence>
       )}
 

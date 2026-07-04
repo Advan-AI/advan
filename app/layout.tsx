@@ -24,6 +24,13 @@ export const metadata: Metadata = {
       'Explainable and governable AI support with source-cited answers, policy gates, and human-in-the-loop review.',
     type: 'website',
     url: 'https://advan.ai',
+    siteName: 'Advan AI',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Advan AI - Trust Infrastructure for AI Customer Support',
+    description:
+      'Explainable and governable AI support with source-cited answers, policy gates, and human-in-the-loop review.',
   },
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
