@@ -1,32 +1,32 @@
 "use client"
 
+import Link from "next/link"
 import { motion } from "framer-motion"
 import {
   ArrowRight,
   CheckCircle2,
-  ChevronDown,
   DatabaseZap,
   FileCheck2,
-  GitBranch,
   LockKeyhole,
   ShieldCheck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { TapBoxSimulator } from "@/components/tap-box-simulator"
+import { CountUp } from "@/components/count-up"
+import { TrustEngineDemo } from "@/components/trust-engine-demo"
 
 const BOOKING_URL = "https://cal.com/day-nguyen"
 
 const OUTCOMES = [
-  { value: "42%", label: "Faster Resolution", note: "p95 response time down" },
-  { value: "78%", label: "Fewer Escalations", note: "for approved intents" },
-  { value: "92%", label: "Source-Cited Responses", note: "with visible citations" },
-  { value: "50%", label: "Fewer Repeated Explanations", note: "across channels" },
+  { value: 42, label: "Faster Resolution", note: "p95 response time down" },
+  { value: 78, label: "Fewer Escalations", note: "for approved intents" },
+  { value: 92, label: "Source-Cited Responses", note: "with visible citations" },
+  { value: 50, label: "Fewer Repeated Explanations", note: "across channels" },
 ]
 
 const TRUST_SIGNALS = [
-  { icon: DatabaseZap, label: "Approved knowledge only" },
-  { icon: FileCheck2, label: "Policy validated" },
-  { icon: LockKeyhole, label: "Audit trail created" },
+  { icon: DatabaseZap, label: "Answers only from approved, versioned knowledge" },
+  { icon: FileCheck2, label: "Every claim cited, every reply confidence-scored" },
+  { icon: LockKeyhole, label: "Immutable audit trail on every interaction" },
 ]
 
 export function HeroSection() {
@@ -39,7 +39,7 @@ export function HeroSection() {
       <HeroBackdrop />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-[0.86fr_1.14fr] lg:gap-12 xl:gap-16 items-center">
+        <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12 xl:gap-16 items-center">
           <HeroCopy />
           <motion.div
             initial={{ opacity: 0, y: 26, scale: 0.98 }}
@@ -51,7 +51,7 @@ export function HeroSection() {
               aria-hidden
               className="absolute -inset-5 -z-10 rounded-[2rem] bg-[radial-gradient(circle_at_30%_20%,rgba(107,92,214,0.20),transparent_34%),radial-gradient(circle_at_90%_30%,rgba(25,120,105,0.16),transparent_32%),radial-gradient(circle_at_55%_90%,rgba(197,136,60,0.16),transparent_35%)] blur-2xl"
             />
-            <TapBoxSimulator />
+            <TrustEngineDemo />
           </motion.div>
         </div>
 
@@ -69,9 +69,11 @@ export function HeroSection() {
               }`}
             >
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#19201d]">
-                  {outcome.value}
-                </span>
+                <CountUp
+                  value={outcome.value}
+                  suffix="%"
+                  className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#19201d]"
+                />
                 <CheckCircle2 className="h-4 w-4 text-[#197869]" aria-hidden />
               </div>
               <div className="mt-1 text-[12px] font-bold uppercase tracking-[0.13em] text-[#29332f]/70">
@@ -103,10 +105,10 @@ function HeroCopy() {
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.65 }}
-        className="inline-flex items-center gap-2 rounded-full border border-[#197869]/20 bg-[#eef8f4] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#146457]"
+        className="inline-flex items-center gap-2 rounded-full border border-[#197869]/20 bg-[#eef8f4] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#146457] whitespace-nowrap"
       >
         <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-        Trust Engine live in every response
+        Trust engine live on every answer
       </motion.div>
 
       <motion.h1
@@ -115,7 +117,16 @@ function HeroCopy() {
         transition={{ duration: 0.75, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
         className="mt-6 max-w-2xl text-[40px] font-semibold leading-[1.04] tracking-tight text-[#171a17] sm:text-5xl lg:text-[54px] xl:text-[60px]"
       >
-        The Trust Infrastructure Layer for AI Customer Support
+        AI customer support that{" "}
+        <span
+          className="bg-clip-text text-transparent"
+          style={{
+            backgroundImage:
+              "linear-gradient(135deg, #4E3FB6 0%, #6B5CD6 55%, #197869 110%)",
+          }}
+        >
+          shows its work
+        </span>
       </motion.h1>
 
       <motion.p
@@ -124,9 +135,9 @@ function HeroCopy() {
         transition={{ duration: 0.7, delay: 0.18 }}
         className="mt-6 max-w-xl text-base leading-8 text-foreground/68 sm:text-lg"
       >
-        Advan AI turns every support answer into a governed workflow: approved
-        retrieval, source-cited drafting, confidence scoring, policy validation,
-        human approval when needed, and a complete audit trail.
+        Advan answers customers from your approved knowledge only — every reply
+        cited, confidence-scored, policy-checked, and logged. When the AI
+        isn&apos;t sure, a human is.
       </motion.p>
 
       <motion.div
@@ -138,30 +149,38 @@ function HeroCopy() {
         <Button
           size="lg"
           asChild
-          className="group h-12 rounded-full bg-[#171a17] px-6 text-[15px] font-semibold text-white shadow-[0_14px_34px_-18px_rgba(23,26,23,0.55)] transition-all hover:-translate-y-px hover:bg-[#29332f]"
+          className="group h-12 rounded-full bg-[#171a17] px-6 text-[15px] font-semibold text-white shadow-[0_14px_34px_-18px_rgba(23,26,23,0.55)] transition-all hover:-translate-y-px hover:bg-[#29332f] whitespace-nowrap"
         >
-          <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
-            Book a demo
+          <Link href="/signin">
+            Start free trial
             <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </a>
+          </Link>
         </Button>
         <Button
           size="lg"
           variant="outline"
           asChild
-          className="h-12 rounded-full border-black/10 bg-white/70 px-6 text-[15px] font-semibold text-foreground backdrop-blur transition-all hover:bg-white"
+          className="h-12 rounded-full border-black/10 bg-white/70 px-6 text-[15px] font-semibold text-foreground backdrop-blur transition-all hover:bg-white whitespace-nowrap"
         >
-          <a href="#workflow">
-            Watch the workflow
-            <ChevronDown className="ml-2 h-4 w-4" />
+          <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
+            Book a demo
           </a>
         </Button>
       </motion.div>
 
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.36 }}
+        className="mt-3 text-[12.5px] text-foreground/50"
+      >
+        14 days free · No credit card · Live in under 2 weeks
+      </motion.p>
+
       <motion.ul
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, delay: 0.38 }}
+        transition={{ duration: 0.7, delay: 0.42 }}
         className="mt-8 grid gap-3 sm:max-w-xl"
       >
         {TRUST_SIGNALS.map((item) => {
@@ -186,13 +205,16 @@ function HeroCopy() {
 function HeroBackdrop() {
   return (
     <>
-      <div className="absolute inset-0 -z-20 bg-[#f5f6f1]" />
+      <div
+        className="absolute inset-0 -z-20"
+        style={{ background: "linear-gradient(180deg, #F0EADC 0%, #EDE7DA 100%)" }}
+      />
       <div
         aria-hidden
         className="absolute inset-0 -z-10 opacity-90"
         style={{
           background:
-            "radial-gradient(760px 420px at 12% 18%, rgba(25,120,105,0.16), transparent 62%), radial-gradient(820px 520px at 88% 12%, rgba(107,92,214,0.18), transparent 58%), linear-gradient(180deg, rgba(255,255,255,0.35), rgba(245,246,241,0.94))",
+            "radial-gradient(760px 420px at 12% 18%, rgba(25,120,105,0.14), transparent 62%), radial-gradient(820px 520px at 88% 12%, rgba(107,92,214,0.16), transparent 58%)",
         }}
       />
       <div

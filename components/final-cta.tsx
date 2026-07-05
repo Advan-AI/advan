@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { motion } from "framer-motion"
 import { ArrowRight, Sparkles, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -46,7 +47,7 @@ export function FinalCTA() {
 
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#E1D8FA] mb-7 border border-white/10">
             <Sparkles className="w-3 h-3 text-[#C8BEFF]" />
-            Ship in 2 weeks
+            Live in under 2 weeks
           </div>
 
           <h2 className="text-4xl lg:text-[56px] font-bold tracking-[-0.02em] leading-[1.05] text-white max-w-3xl mx-auto">
@@ -63,28 +64,30 @@ export function FinalCTA() {
           </h2>
 
           <p className="mt-5 text-base lg:text-lg text-white/70 max-w-xl mx-auto leading-relaxed">
-            Book a 25-minute call. We&apos;ll walk through your real tickets and show
-            the reasoning behind every answer.
+            Start free on your own tickets today, or book a 25-minute call and
+            we&apos;ll walk through the reasoning behind every answer.
           </p>
 
           <div className="mt-9 flex flex-col sm:flex-row gap-3 justify-center">
             <Button
               asChild
               size="lg"
-              className="group rounded-full bg-white text-[#1c1814] hover:bg-white/95 hover:-translate-y-px h-12 px-7 text-[15px] font-semibold shadow-[0_18px_42px_-14px_rgba(0,0,0,0.55)] transition-all"
+              className="group rounded-full bg-white text-[#1c1814] hover:bg-white/95 hover:-translate-y-px h-12 px-7 text-[15px] font-semibold shadow-[0_18px_42px_-14px_rgba(0,0,0,0.55)] transition-all whitespace-nowrap"
             >
-              <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
-                Book a demo
+              <Link href="/signin">
+                Start free trial
                 <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-              </a>
+              </Link>
             </Button>
             <Button
               asChild
               variant="outline"
               size="lg"
-              className="rounded-full h-12 px-7 text-[15px] font-semibold border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-white hover:text-white backdrop-blur transition-all"
+              className="rounded-full h-12 px-7 text-[15px] font-semibold border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-white hover:text-white backdrop-blur transition-all whitespace-nowrap"
             >
-              <a href="mailto:hello@advan.ai?subject=Talk%20to%20Advan%20sales">Talk to sales</a>
+              <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
+                Book a demo
+              </a>
             </Button>
           </div>
 

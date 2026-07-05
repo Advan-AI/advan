@@ -7,9 +7,9 @@ import { Linkedin, Youtube } from "lucide-react"
 
 const footerLinks = {
   Product: [
-    { label: "Workflow", href: "/#workflow" },
-    { label: "Copilot", href: "/#copilot" },
-    { label: "Cross-channel memory", href: "/#memory" },
+    { label: "How it works", href: "/#how" },
+    { label: "Every answer has receipts", href: "/#receipts" },
+    { label: "Why Advan", href: "/#why" },
   ],
   Company: [
     { label: "About", href: "/about" },
@@ -17,7 +17,7 @@ const footerLinks = {
     { label: "Book a demo", href: "https://cal.com/day-nguyen", external: true },
   ],
   Trust: [
-    { label: "Enterprise trust", href: "/#trust" },
+    { label: "Enterprise trust", href: "/#why" },
     { label: "Privacy", href: "/privacy" },
     { label: "Terms", href: "/terms" },
   ],

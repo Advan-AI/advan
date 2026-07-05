@@ -8,13 +8,11 @@ import { Menu, X, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 
-const BOOKING_URL = "https://cal.com/day-nguyen"
-
 const navLinks = [
-  { href: "#workflow", label: "Workflow" },
-  { href: "#copilot", label: "Copilot" },
-  { href: "#trust", label: "Trust" },
-  { href: "/about", label: "About" },
+  { href: "#how", label: "How it works" },
+  { href: "#receipts", label: "Product" },
+  { href: "#why", label: "Why Advan" },
+  { href: "#faq", label: "FAQ" },
 ]
 
 function scrollToHash(hash: string) {
@@ -96,7 +94,7 @@ export function Header() {
           <nav className="hidden lg:flex items-center gap-1 rounded-full glass px-1.5 py-1.5">
             {navLinks.map((link) => {
               const isActive = pathname === link.href || (pathname === "/" && activeHash === link.href)
-              const cls = `relative px-3.5 py-1.5 text-sm font-medium rounded-full transition-colors ${
+              const cls = `relative px-3.5 py-1.5 text-sm font-medium rounded-full transition-colors whitespace-nowrap ${
                 isActive ? "text-foreground" : "text-foreground/65 hover:text-foreground"
               }`
               const indicator = isActive ? (
@@ -129,12 +127,12 @@ export function Header() {
             </Link>
             <Button
               asChild
-              className="group rounded-full h-9 px-4 text-sm font-semibold bg-[#6B5CD6] hover:bg-[#4E3FB6] text-white shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] hover:-translate-y-px transition-all"
+              className="group rounded-full h-9 px-4 text-sm font-semibold bg-[#6B5CD6] hover:bg-[#4E3FB6] text-white shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] hover:-translate-y-px transition-all whitespace-nowrap"
             >
-              <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
-                Book a demo
+              <Link href="/signin">
+                Start free trial
                 <ArrowRight className="ml-1.5 w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-              </a>
+              </Link>
             </Button>
           </div>
 
@@ -191,9 +189,9 @@ export function Header() {
                     asChild
                     className="w-full rounded-full bg-[#6B5CD6] hover:bg-[#4E3FB6] text-white"
                   >
-                    <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
-                      Book a demo
-                    </a>
+                    <Link href="/signin" onClick={() => setIsMobileMenuOpen(false)}>
+                      Start free trial
+                    </Link>
                   </Button>
                 </div>
               </nav>

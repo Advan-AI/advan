@@ -147,7 +147,7 @@ export function DashboardSidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[12.5px] font-bold leading-tight text-[var(--dash-ink)]">Acme Inc.</div>
-            <div className="text-[10.5px] text-[var(--dash-ink-faint)]">Enterprise Plan</div>
+            <div className="text-[10.5px] font-semibold text-[var(--dash-accent-deep)]">Trial · 12 days left</div>
           </div>
           <ChevronDown className="w-3.5 h-3.5 text-[var(--dash-ink-faint)]" />
         </button>

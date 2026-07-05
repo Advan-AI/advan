@@ -16,16 +16,14 @@ interface ComparisonRow {
 const ROWS: ComparisonRow[] = [
   { feature: "Source-cited answers", legacy: false, basic: "partial", advan: true },
   { feature: "Live confidence scoring", legacy: false, basic: false, advan: true },
-  { feature: "Cross-channel memory", legacy: false, basic: "partial", advan: true },
-  { feature: "Full reasoning audit log", legacy: false, basic: false, advan: true },
   { feature: "Human-in-loop policy gates", legacy: "partial", basic: "partial", advan: true },
-  { feature: "Tenant-isolated training", legacy: false, basic: false, advan: true },
-  { feature: "p95 resolution < 4s", legacy: false, basic: false, advan: true },
+  { feature: "Full reasoning audit log", legacy: false, basic: false, advan: true },
+  { feature: "Cross-channel customer memory", legacy: false, basic: "partial", advan: true },
 ]
 
 export function ComparisonSection() {
   return (
-    <section id="comparison" className="relative py-14 lg:py-20">
+    <section id="why" className="relative py-14 lg:py-[88px] border-t border-black/[0.05]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
           eyebrow="Why Advan"
