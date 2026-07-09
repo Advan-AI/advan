@@ -10,11 +10,13 @@ import {
   LayoutGrid,
   LogOut,
   Menu,
+  MessageCircle,
   Search,
   Settings,
   User,
 } from "lucide-react"
 import type { Session } from "next-auth"
+import { api } from "@/lib/api/trpc-client"
 
 type SessionUser = Session["user"] | null
 
@@ -26,6 +28,23 @@ interface TopbarProps {
 export function DashboardTopbar({ user, onOpenSidebar }: TopbarProps) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  // ── Chat availability toggle ───────────────────────────────────────────────
+  const { data: chatStatusData } = api.conversations.getAgentChatStatus.useQuery(undefined, {
+    staleTime: 60_000,
+  })
+  const chatAvailable = chatStatusData?.chatAvailable ?? true
+
+  const setChatAvailable = api.conversations.setAgentChatAvailable.useMutation({
+    // Optimistic local state — feels instant even without refetch.
+    onMutate: async () => {
+      await utils.conversations.getAgentChatStatus.cancel()
+    },
+    onSettled: () => {
+      void utils.conversations.getAgentChatStatus.invalidate()
+    },
+  })
+  const utils = api.useUtils()
 
   async function handleSignOut() {
     await signOut({ redirect: false })
@@ -66,6 +85,41 @@ export function DashboardTopbar({ user, onOpenSidebar }: TopbarProps) {
         <span className="w-[7px] h-[7px] rounded-full bg-[var(--dash-sage)] dash-pulse-dot" />
         Online
       </span>
+
+      {/* Chat availability toggle */}
+      <button
+        type="button"
+        title={chatAvailable ? "Click to go offline for chat" : "Click to accept live chat"}
+        onClick={() => setChatAvailable.mutate({ available: !chatAvailable })}
+        disabled={setChatAvailable.isPending}
+        className={[
+          "hidden md:inline-flex items-center gap-1.5 text-[11.5px] font-semibold rounded-full px-2.5 py-0.5 transition-colors",
+          chatAvailable
+            ? "text-[#166534] bg-[#DCFCE7] hover:bg-[#BBF7D0]"
+            : "text-[var(--dash-ink-faint)] bg-[var(--dash-bg-deep)] hover:bg-[var(--dash-bg-deep)]/80",
+          setChatAvailable.isPending ? "opacity-60 cursor-not-allowed" : "cursor-pointer",
+        ].join(" ")}
+        aria-label={chatAvailable ? "Available for live chat — click to go offline" : "Offline for live chat — click to go online"}
+        aria-pressed={chatAvailable}
+      >
+        <MessageCircle className="w-[13px] h-[13px]" />
+        <span>{chatAvailable ? "Chat on" : "Chat off"}</span>
+        {/* Visual pill toggle */}
+        <span
+          className={[
+            "relative inline-flex w-7 h-4 rounded-full transition-colors duration-200",
+            chatAvailable ? "bg-[#22c55e]" : "bg-[var(--dash-ink-faint)]/30",
+          ].join(" ")}
+          aria-hidden
+        >
+          <span
+            className={[
+              "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform duration-200",
+              chatAvailable ? "translate-x-3.5" : "translate-x-0.5",
+            ].join(" ")}
+          />
+        </span>
+      </button>
 
       <div className="hidden md:flex flex-1 max-w-[440px] items-center gap-2.5 dash-bg-card border dash-border rounded-[10px] px-3 py-2 text-[13px] text-[var(--dash-ink-faint)] focus-within:border-[var(--dash-accent)] focus-within:ring-2 focus-within:ring-[var(--dash-accent-wash)] transition">
         <Search className="w-4 h-4 shrink-0" />

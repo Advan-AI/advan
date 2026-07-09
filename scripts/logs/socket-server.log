@@ -92,3 +92,93 @@ Emitted 'error' event on Server instance at:
 }
 
 Node.js v24.14.0
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] /chat-widget namespace registered
+[Socket] Agent connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (9aIEhduRkBtTbcufAAAB)
+[Socket] Agent disconnected (9aIEhduRkBtTbcufAAAB)
+[Socket] Agent connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (kbsF9J7cwmJxM2_hAAAE)
+[Socket] Agent disconnected (kbsF9J7cwmJxM2_hAAAE)
+[Socket] Agent connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (lc0wYVer20irLOdDAAAH)
+[Socket] Agent disconnected (lc0wYVer20irLOdDAAAH)
+[Socket] Agent connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (gNnjomJ6fQy8m2mVAAAM)
+[Socket] Agent disconnected (gNnjomJ6fQy8m2mVAAAM)
+[Socket] Agent connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (r2wS6LI_DwS1_qJlAAAR)
+[Socket] Agent disconnected (r2wS6LI_DwS1_qJlAAAR)
+[Socket] Agent connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (azFKvSCMiWefdAwYAAAU)
+[Socket] Agent disconnected (azFKvSCMiWefdAwYAAAU)
+[Socket] Agent connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (1x6tdeZL5XnxCdFhAAAX)
+[Socket] Agent disconnected (1x6tdeZL5XnxCdFhAAAX)
+[ChatWidget] Visitor disconnected (ATX2h6Mikja7szJDAAAK) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:5e698630-6195-4e04-a011-0c6d223b84ba
+[Socket] Agent connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (Hh3hHThoxTmweWFtAAAb)
+[Socket] Agent disconnected (Hh3hHThoxTmweWFtAAAb)
+[ChatWidget] Visitor disconnected (MYirDB02L_BoImgvAAAP) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:4976145e-29c3-41ef-87e6-3b5507bb2940
+[ChatWidget] Visitor disconnected (yjG3g285d1zt6hxSAAAZ) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:546bd56b-8a51-4055-8fb6-277d3feae42c
+[ChatWidget] Visitor disconnected (jYbSOLQ3mWHfnWZpAAAd) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:3d8501da-ed76-45fe-8c1a-324a71c1df6a
+[Socket] Agent connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (Mzp7xhfYgpD92wYuAAAf)
+[Socket] Agent disconnected (Mzp7xhfYgpD92wYuAAAf)
+[ChatWidget] Visitor disconnected (G8GoqV1J6jUbTR3SAAAh) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:f893d50e-cf71-4945-9927-9745cb411270
+[ChatWidget] Visitor disconnected (TPin-i3n9i03h8RjAABU) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:ac127252-866f-446c-a371-7df71a0eb437
+[ChatWidget] Visitor disconnected (8uXiNbJ0Fl5uwl4ZAABY) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:58157343-2fc4-49ba-94a3-ece4a9943dec
+[ChatWidget] Visitor disconnected (OEPdx8qXb94ZBlizAABV) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:dfa673e7-c0ba-441c-b392-4a5c20c46795
+[ChatWidget] Visitor disconnected (tHYPP2sc6cqdelQDAABX) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:a603189f-a9b2-4166-88b6-ff85876b6d44
+[ChatWidget] Visitor disconnected (wszQT18HAVljVbv-AABf) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:faf08836-7a14-4a25-b32f-593a6b8a479a
+[ChatWidget] Visitor disconnected (6ER8LFbxFJiJRVBZAABh) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:6d9c4ef3-09b0-4221-b89d-638451ceadd4
+[ChatWidget] Visitor disconnected (dGTWynFNKRHjr_aaAABW) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:9387605a-5f26-484c-aab8-93467bc7d187
+[ChatWidget] Visitor disconnected (J4alP-CA84pdip9_AABg) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:24f43c24-5914-42f5-a8e0-5b278b1eeab7
+[ChatWidget] Visitor disconnected (f0_NJrpYZlI47bwMAABj) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:73dac644-fccf-4821-b827-e5b3e66de131
+[ChatWidget] Visitor disconnected (kIsmF9JtTl3DDtqaAABi) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:da5c7405-b222-4097-92ba-4b0cd6bcd3a7
+[ChatWidget] Visitor disconnected (diBgiNOyb2L0dK7kAABl) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:c31f2f7c-56c1-451c-9f23-56026b2bdd85
+[ChatWidget] Visitor disconnected (YxNizK-0kJb0LAQKAABk) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:2133c798-abcf-426e-a79c-21f0db54d6fb
+[ChatWidget] Visitor disconnected (Ow-BI4fSWsRw-b6dAABo) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:2582b9f7-e1d5-4af7-9826-4952e577f275
+[ChatWidget] Visitor disconnected (JNRRZHWToJ3dWhf9AABp) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:06d43fbf-13a1-40ec-a4d2-fc2ead9831e0
+[ChatWidget] Visitor disconnected (Nep0whr_C_VKVwolAABm) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:1085f760-a98d-419f-a665-50920885ec70
+[ChatWidget] Visitor disconnected (iCveRhKv2cdSRfbtAABn) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:16a80d76-4d90-47e0-9cec-3c1faedd17ee
+[ChatWidget] Visitor disconnected (XiQlpsgUZVMr2obHAABc) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:233ee672-4c2d-436e-8534-764dd6b12632
+[ChatWidget] Visitor disconnected (IvrmdCI6AtgZ_XwnAABa) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:9094d07c-17c3-4360-823d-b8e216855f5c
+[ChatWidget] Visitor disconnected (3Cy2viCswndXH0vHAABd) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:79889ae0-523d-4988-abd0-5cb9dc6c588e
+[ChatWidget] Visitor disconnected (the_MoD163SaQvjSAABe) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:7bdb845f-f548-4cbb-aea0-e934c24764c3
+[ChatWidget] Visitor disconnected (PZen1mp7fz1-eUPeAABb) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:9bad6b3b-ceab-46e5-91d9-84288b4589ba
+[ChatWidget] Visitor disconnected (nFBy9_VwjHkfZsHUAABq) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:15a46b9b-03bc-44c7-9b91-ccb9a8ca1899
+[ChatWidget] Visitor disconnected (Uoe5ZzAZLKXDpaPgAABr) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:9284de91-e49d-4b41-ae2e-4e695a5f5414
+[ChatWidget] Visitor disconnected (c9uwBGhG0JIwpup5AABs) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:8e0e491f-8a71-4cde-8053-38204200bd1e
+[ChatWidget] Visitor disconnected (A3oP9OfT7rrMwRIXAABt) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:ae3f5ac0-60a1-497f-8eee-0e046be5ce1f
+[ChatWidget] Visitor disconnected (4-sXGRa-Xt5gU9uaAABZ) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:048b538f-20de-4eca-be97-5f63916cfb39
+[ChatWidget] Visitor disconnected (tb8LKw_7zcIt7JlAAABu) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:4a137b56-b641-43dd-9cee-21c39c60a8a0
+[ChatWidget] Visitor disconnected (lbfvqCfqqJY3MgIaAABw) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:1cf88819-e950-4ef7-883e-2270c4cbea22
+[ChatWidget] Visitor disconnected (s_kIwHbzNgrs5R7MAABv) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:de1d6593-9d90-4012-ac36-d11d57e13a88
+[ChatWidget] Visitor disconnected (Sd91MPc6Dt2WvfO3AABx) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:ff8179cd-da44-40c6-9df0-c71df674da8b
+[ChatWidget] Visitor disconnected (MhIFNce8UNwz9A9TAABy) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:a5b46f97-a6c6-4f4b-a91d-7037e0cbe9a6
+[ChatWidget] Visitor disconnected (Z1BlQ5ZplSq-yGdmAABz) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:80e791f2-f6ff-458e-a092-693287e0e71d
+[ChatWidget] Visitor disconnected (69ezkLjkq_Lmq0nBAAB0) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:d52616a5-0277-438c-867b-84ab555de33c
+[ChatWidget] Visitor disconnected (afndmTO0c8YbRIXuAAB1) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:653336e5-d206-499f-931a-eb2b2fa1f659
+[ChatWidget] Visitor disconnected (jFih4OK4r-P4roF7AAB3) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:f7cfa36e-07c5-4b98-9478-b0f851174ad0
+[ChatWidget] Visitor disconnected (I-1txql2-IF9VhJ4AAB4) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:29d87731-6935-47de-8bfe-db6a47e10531
+[ChatWidget] Visitor disconnected (Qh9SWP-qlBWZaWeXAAB2) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:e38bda48-03ca-4a68-bc7f-4d94df131569
+[ChatWidget] Visitor disconnected (qZtgiNtBn4Kk_PnnAAB5) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:afde21da-a9fe-40f0-a637-443083a82cc0
+[ChatWidget] Visitor disconnected (hH9AUfYvI6jzG-NOAAB6) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:3aa9e520-2d8f-4616-8312-d3aabf961ab1
+[ChatWidget] Visitor disconnected (p6Q8pwlwXEQJyh4hAAB7) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:aef076b1-11b1-4516-9f00-d8404f318fd3
+[ChatWidget] Visitor disconnected (Cq7LYUc5WFDT-sUNAAB8) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:a3ce5d94-6bf9-444f-b59c-4c673cd17302
+[ChatWidget] Visitor disconnected (f2odeXR2VKULT6S3AAB9) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:baf95712-a4be-46e5-bdf4-86ddb88c7cf1
+[ChatWidget] Visitor disconnected (1OGEyBNYLHvdFl91AAB-) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:6a7fa261-799c-4c49-af77-d33e517cd475
+[ChatWidget] Visitor disconnected (mvCysKa72LoeF98nAAB_) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:cd152d65-653c-4ed1-ba51-db4ba267b4c4
+[ChatWidget] Visitor disconnected (qvxBVwBWfigV9IngAACA) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:f30ad4ca-39fa-4474-a4ba-b17c9272c847
+[ChatWidget] Visitor disconnected (h7vNK5SOJQeuLCjjAACB) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:8842909f-aba6-4075-80be-4435b1be4f59
+[ChatWidget] Visitor disconnected (eJ0uL8nD2OAhKMYsAACC) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:f85a74f3-cdfe-442c-83ff-d98deefa5676
+[ChatWidget] Visitor disconnected (dBH9xccC6vP-_IjqAACD) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:2a11d17e-9ab5-4925-828e-04c31a687d69
+[ChatWidget] Visitor disconnected (yzr7FNQ_rLOsXUROAACE) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:0ee4541e-2954-4f7d-82ea-de0e3bb764a8
+[ChatWidget] Visitor disconnected (FBf1s2vmPzLz9SzHAACF) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:84d90f21-0df9-4062-bec2-bec45c8c5d5f
+[Socket] Agent connected to org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 (CZ-Di3H5mRNUg2PwAACH)
+[Socket] Agent disconnected (CZ-Di3H5mRNUg2PwAACH)
+[ChatWidget] Visitor disconnected (M65OvHBN6-93Glz5AACJ) org:b1196b42-ab67-41c8-8ccb-b24ab6d44308 session:774ae578-6ea4-44cc-82e5-cc1e48f5e9d3

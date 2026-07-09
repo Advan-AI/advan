@@ -4,12 +4,24 @@ import { Webhook } from "svix"
 import { resetEmailConfigCache } from "@/lib/email/config"
 import type { InboundRouteDeps } from "./route"
 
+// The route imports `auto-intake` at the module level, which in turn imports
+// the BullMQ Queue constructor from `lib/queue/queues`.  The Queue constructor
+// connects to Redis immediately and throws when REDIS_URL is absent.
+// Since the test stubs `resolveOrCreateIntake` via InboundRouteDeps anyway,
+// we only need to prevent the initialization error — the mock doesn't need to
+// be callable.  This mock is hoisted before any dynamic import() calls so it
+// takes effect even after vi.resetModules().
+vi.mock("@/lib/queue/queues", () => ({
+  copilotTriageQueue: { add: vi.fn().mockResolvedValue({ id: "mock" }) },
+  notificationQueue: { add: vi.fn().mockResolvedValue({ id: "mock" }) },
+  embeddingQueue: { add: vi.fn() },
+}))
+
 const SECRET = `whsec_${Buffer.from("test-secret-for-svix-signing").toString("base64")}`
 const DOMAIN = "mail.example.com"
 const CONVERSATION_ID = "2d527dc9-828b-442d-9f8c-405287878169"
 const ORG_ID = "90c871c9-828b-442d-9f8c-405287878169"
 const TICKET_ID = "a37d9a59-828b-442d-9f8c-405287878169"
-const CUSTOMER_ID = "63a10d85-828b-442d-9f8c-405287878169"
 const PROVIDER_ID = "inb_abc123"
 
 function seedEnv() {
@@ -78,20 +90,6 @@ function receivedEmailFixture(
   }
 }
 
-function resolvedConversation(overrides = {}) {
-  return {
-    conversationId: CONVERSATION_ID,
-    orgId: ORG_ID,
-    ticketId: TICKET_ID,
-    ticketOrgId: ORG_ID,
-    ticketStatus: "pending" as const,
-    customerId: CUSTOMER_ID,
-    customerOrgId: ORG_ID,
-    customerEmail: "customer@startup.io",
-    ...overrides,
-  }
-}
-
 function signedRequest(event: EmailReceivedEvent, bodyOverride?: string): Request {
   const body = JSON.stringify(event)
   const timestamp = new Date()
@@ -123,10 +121,16 @@ async function makeDeps(
     verifyWebhook: route.productionDeps.verifyWebhook,
     fetchReceivedEmail: vi.fn(async () => receivedEmailFixture()),
     findExistingInboundEvent: vi.fn(async () => null),
-    resolveByReplyAddress: vi.fn(async () => resolvedConversation()),
-    resolveByStoredMessageIds: vi.fn(async () => null),
+    resolveOrgByReplyAddress: vi.fn(async () => ORG_ID),
+    resolveOrgByStoredMessageIds: vi.fn(async () => null),
+    resolveOrgByInboundDomain: vi.fn(async () => null),
     logEmailEvent: vi.fn(async () => undefined),
-    insertInboundMessage: vi.fn(async () => undefined),
+    resolveOrCreateIntake: vi.fn(async () => ({
+      ticketId: TICKET_ID,
+      conversationId: CONVERSATION_ID,
+      messageId: "bd9d98cc-828b-442d-9f8c-405287878169",
+      isNewTicket: false,
+    })),
     rateLimit: vi.fn(async () => null),
     ...overrides,
   }
@@ -151,7 +155,7 @@ describe("Resend inbound webhook route", () => {
 
     expect(res.status).toBe(401)
     expect(deps.fetchReceivedEmail).not.toHaveBeenCalled()
-    expect(deps.insertInboundMessage).not.toHaveBeenCalled()
+    expect(deps.resolveOrCreateIntake).not.toHaveBeenCalled()
   })
 
   it("treats duplicate inbound providerId as a no-op", async () => {
@@ -164,51 +168,70 @@ describe("Resend inbound webhook route", () => {
 
     expect(res.status).toBe(200)
     expect(deps.fetchReceivedEmail).not.toHaveBeenCalled()
-    expect(deps.insertInboundMessage).not.toHaveBeenCalled()
+    expect(deps.resolveOrCreateIntake).not.toHaveBeenCalled()
     expect(deps.logEmailEvent).not.toHaveBeenCalled()
   })
 
-  it("blocks sender mismatches without inserting a customer message", async () => {
+  it("creates an intake message and logs the inbound email event", async () => {
     const route = await loadRoute()
-    const deps = await makeDeps({
-      resolveByReplyAddress: vi.fn(async () =>
-        resolvedConversation({ customerEmail: "actual-customer@startup.io" }),
-      ),
-    })
+    const deps = await makeDeps()
 
     const res = await route.handleInboundRequest(signedRequest(webhookFixture()), deps)
 
     expect(res.status).toBe(200)
-    expect(deps.insertInboundMessage).not.toHaveBeenCalled()
+    expect(deps.resolveOrCreateIntake).toHaveBeenCalledWith({
+      orgId: ORG_ID,
+      parsed: expect.objectContaining({
+        providerId: PROVIDER_ID,
+        from: "customer@startup.io",
+      }),
+    })
     expect(deps.logEmailEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         providerId: PROVIDER_ID,
-        status: "sender_mismatch",
+        status: "received",
         orgId: ORG_ID,
         conversationId: CONVERSATION_ID,
+        messageId: "bd9d98cc-828b-442d-9f8c-405287878169",
       }),
     )
   })
 
-  it("blocks org-scoping mismatches before writing messages", async () => {
+  it("logs unresolved inbound email when no org can be resolved", async () => {
     const route = await loadRoute()
     const deps = await makeDeps({
-      resolveByReplyAddress: vi.fn(async () =>
-        resolvedConversation({ ticketOrgId: "aaaaaaaa-828b-442d-9f8c-405287878169" }),
-      ),
+      resolveOrgByReplyAddress: vi.fn(async () => null),
+      resolveOrgByStoredMessageIds: vi.fn(async () => null),
     })
 
     const res = await route.handleInboundRequest(signedRequest(webhookFixture()), deps)
 
     expect(res.status).toBe(200)
-    expect(deps.insertInboundMessage).not.toHaveBeenCalled()
+    expect(deps.resolveOrCreateIntake).not.toHaveBeenCalled()
     expect(deps.logEmailEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         providerId: PROVIDER_ID,
-        status: "org_scope_mismatch",
-        orgId: ORG_ID,
-        conversationId: CONVERSATION_ID,
+        status: "unresolved",
+        orgId: null,
+        conversationId: null,
       }),
+    )
+  })
+
+  it("routes first-contact email via resolveOrgByInboundDomain when reply-to and message-id fail", async () => {
+    const route = await loadRoute()
+    const deps = await makeDeps({
+      resolveOrgByReplyAddress: vi.fn(async () => null),
+      resolveOrgByStoredMessageIds: vi.fn(async () => null),
+      resolveOrgByInboundDomain: vi.fn(async () => ORG_ID),
+    })
+
+    const res = await route.handleInboundRequest(signedRequest(webhookFixture()), deps)
+
+    expect(res.status).toBe(200)
+    expect(deps.resolveOrgByInboundDomain).toHaveBeenCalled()
+    expect(deps.resolveOrCreateIntake).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId: ORG_ID }),
     )
   })
 

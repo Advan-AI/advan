@@ -47,9 +47,17 @@ type MessageMeta = {
   latencyMs?: number
   model?: string
   isInternal?: boolean
+  isAutoTriaged?: boolean
   email?: {
     deliveryStatus?: "queued" | "sent" | "delivered" | "failed" | "bounced" | "suppressed"
     error?: string
+  }
+  triage?: {
+    decision: "auto_send" | "hitl_complaint" | "hitl_low_confidence"
+    confidence: number
+    isComplaint: boolean
+    auditLogId: string
+    classifiedAt: string
   }
 }
 
@@ -658,12 +666,16 @@ function ConversationContext({
                           <Clock className="ml-auto h-3 w-3 shrink-0" />
                           <span className="shrink-0">{relativeTime(conversation.updatedAt)}</span>
                         </span>
-                        <span className="mt-2 flex items-center gap-1.5">
+                        <span className="mt-2 flex flex-wrap items-center gap-1.5">
                           <MetaPill tone="blue">{channelLabel(conversation.channel)}</MetaPill>
                           {conversation.ticketPriority && (
                             <MetaPill tone={priorityTone(conversation.ticketPriority)}>{conversation.ticketPriority}</MetaPill>
                           )}
                           {conversation.customerTier && <MetaPill>{conversation.customerTier}</MetaPill>}
+                          {(() => {
+                            const ts = getTriageStatus(conversation.lastMessage)
+                            return ts ? <MetaPill tone={ts.tone}>{ts.label}</MetaPill> : null
+                          })()}
                         </span>
                       </button>
                     </li>
@@ -801,12 +813,40 @@ function ConversationContext({
   )
 }
 
-function MetaPill({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "blue" | "amber" | "rose" }) {
+/**
+ * Derive a scannable triage status from a conversation's last message.
+ *
+ * Logic:
+ * - Last msg is user + triage.decision=hitl_complaint   → "Complaint — Review" (rose)
+ * - Last msg is user + triage.decision=hitl_low_confidence → "Pending Review" (amber)
+ * - Last msg is agent + isAutoTriaged=true              → "AI Auto-Replied" (sage)
+ * - Last msg is agent (human)                           → "Agent Replied" (muted)
+ * - Otherwise                                            → null (no pill)
+ */
+function getTriageStatus(lastMessage: ThreadMessage | null): {
+  label: string
+  tone: "rose" | "amber" | "sage" | "muted"
+} | null {
+  if (!lastMessage) return null
+  const meta = lastMessage.metadata
+  if (lastMessage.role === "user" && meta?.triage) {
+    if (meta.triage.decision === "hitl_complaint") return { label: "Complaint — Review", tone: "rose" }
+    if (meta.triage.decision === "hitl_low_confidence") return { label: "Pending Review", tone: "amber" }
+  }
+  if (lastMessage.role === "agent") {
+    if (meta?.isAutoTriaged) return { label: "AI Auto-Replied", tone: "sage" }
+    return { label: "Agent Replied", tone: "muted" }
+  }
+  return null
+}
+
+function MetaPill({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "blue" | "amber" | "rose" | "sage" }) {
   const styles = {
     muted: "bg-[var(--dash-bg)] text-[var(--dash-ink-soft)] border-[var(--dash-line-soft)]",
     blue: "dash-bg-blue-wash text-[var(--dash-blue)] border-[#C7D4E8]",
-    amber: "dash-bg-amber-wash text-[var(--dash-amber)] border-[#E5D2A8]",
-    rose: "dash-bg-rose-wash text-[var(--dash-rose)] border-[#E5C5C3]",
+    amber: "bg-[var(--dash-amber-wash)] text-[var(--dash-amber)] border-[#E5D2A8]",
+    rose: "bg-[var(--dash-rose-wash)] text-[var(--dash-rose)] border-[#E5C5C3]",
+    sage: "bg-[var(--dash-sage-wash)] text-[var(--dash-sage)] border-[#CBE0CF]",
   }
 
   return (
@@ -951,7 +991,7 @@ function EditPanel({ onDecision }: { onDecision: (a: "accept" | "reject" | "modi
         >
           {decision === "none" && <><Send className="w-4 h-4" /> Send Reply <Kbd className="ml-0.5">⌘↵</Kbd></>}
           {decision === "sending" && <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>}
-          {decision === "accepted" && <><CheckCircle2 className="w-4 h-4" /> Sent</>}
+          {decision === "accepted" && <><CheckCircle2 className="w-4 h-4" /></>}
           {decision === "rejected" && <><Pencil className="w-4 h-4" /> Rejected</>}
         </button>
       </div>

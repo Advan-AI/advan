@@ -87,6 +87,14 @@ if [[ "${DEV_ALL_SKIP_NOTIFICATION:-}" != "1" ]]; then
   fi
 fi
 
+if [[ "${DEV_ALL_SKIP_TRIAGE:-}" != "1" ]]; then
+  if [[ -z "${REDIS_URL:-}" ]]; then
+    echo "[dev-all] WARN: REDIS_URL unset — skipping copilot triage worker (set DEV_ALL_SKIP_TRIAGE=1 to silence)."
+  else
+    start_bg "copilot-triage-worker" npx tsx lib/queue/workers/copilot-triage-worker.ts
+  fi
+fi
+
 if [[ "${DEV_ALL_SKIP_TEMPORAL:-}" != "1" ]]; then
   start_bg "temporal-worker" npm run temporal:worker
 fi

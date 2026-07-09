@@ -23,7 +23,9 @@ const nextConfig = {
    */
   async headers() {
     const isDev = process.env.NODE_ENV === "development"
-    const cspDirectives = [
+
+    // Default CSP — all app routes except the widget iframe.
+    const cspDefault = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live",
       "style-src 'self' 'unsafe-inline'",
@@ -35,34 +37,66 @@ const nextConfig = {
       "form-action 'self'",
     ].join("; ")
 
+    // Widget frame CSP — allows:
+    //   • frame-ancestors *  (any embedding site may show this iframe)
+    //   • connect-src includes the socket server port so socket.io works
+    //   • wss: covers WebSocket upgrades in production
+    const socketOrigins = [
+      "'self'",
+      "https://*.upstash.io",
+      "ws://localhost:3002",
+      "http://localhost:3002",
+      "wss:",
+      "ws:",
+    ].join(" ")
+
+    const cspWidget = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      `connect-src ${socketOrigins}`,
+      // Permit embedding from any origin — the allowedOrigins whitelist is
+      // enforced at the API/socket layer, not at the HTTP header level.
+      "frame-ancestors *",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ")
+
+    const sharedHeaders = [
+      { key: "X-Content-Type-Options",  value: "nosniff" },
+      { key: "Referrer-Policy",          value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy",       value: "camera=(), microphone=(), geolocation=()" },
+      { key: "Strict-Transport-Security",value: "max-age=63072000; includeSubDomains; preload" },
+    ]
+
     return [
+      // ── Widget iframe route ───────────────────────────────────────────────
+      // Must come BEFORE the catch-all so Next.js picks the more specific match.
+      {
+        source: "/chat-widget-frame",
+        headers: [
+          {
+            key: isDev ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy",
+            value: cspWidget,
+          },
+          // Do NOT set X-Frame-Options here — it would override frame-ancestors.
+          // Omitting X-Frame-Options means only the CSP frame-ancestors directive
+          // controls embedding, which is what we want.
+          ...sharedHeaders,
+        ],
+      },
+      // ── All other routes ──────────────────────────────────────────────────
       {
         source: "/(.*)",
         headers: [
           {
             key: isDev ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy",
-            value: cspDirectives,
+            value: cspDefault,
           },
-          {
-            key: "X-Frame-Options",
-            value: "DENY",
-          },
-          {
-            key: "X-Content-Type-Options",
-            value: "nosniff",
-          },
-          {
-            key: "Referrer-Policy",
-            value: "strict-origin-when-cross-origin",
-          },
-          {
-            key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
-          },
-          {
-            key: "Strict-Transport-Security",
-            value: "max-age=63072000; includeSubDomains; preload",
-          },
+          { key: "X-Frame-Options", value: "DENY" },
+          ...sharedHeaders,
         ],
       },
     ]

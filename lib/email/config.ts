@@ -18,6 +18,18 @@ export interface EmailConfig {
   from: string
   inboundDomain: string
   webhookSecret: string
+  /**
+   * Public-facing address customers use for first contact, e.g.
+   * support@toliooldei.resend.app. Informational — used in outbound email
+   * footers and UI copy. Set EMAIL_INBOUND_SUPPORT_ADDRESS in .env.
+   */
+  supportAddress?: string
+  /**
+   * Org ID used as fallback when an inbound email cannot be matched to an
+   * existing conversation via reply-to address or message-id headers.
+   * Set EMAIL_INBOUND_DEFAULT_ORG_ID in .env to enable first-contact routing.
+   */
+  defaultOrgId?: string
 }
 
 export class EmailConfigError extends Error {
@@ -69,6 +81,8 @@ export function getEmailConfig(
     from: env.EMAIL_FROM!.trim(),
     inboundDomain: env.EMAIL_INBOUND_DOMAIN!.trim().toLowerCase(),
     webhookSecret: env.RESEND_WEBHOOK_SECRET!.trim(),
+    supportAddress: env.EMAIL_INBOUND_SUPPORT_ADDRESS?.trim() || undefined,
+    defaultOrgId: env.EMAIL_INBOUND_DEFAULT_ORG_ID?.trim() || undefined,
   }
 }
 

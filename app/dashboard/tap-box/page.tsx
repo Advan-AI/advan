@@ -11,22 +11,53 @@ import {
   CheckCircle2,
   ChevronDown,
   Clipboard,
+  Clock,
   Download,
   ExternalLink,
   FileJson,
   Filter,
   History,
+  Inbox,
+  Loader2,
   RefreshCw,
   Search,
+  Send,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  ThumbsDown,
   Ticket,
   XCircle,
 } from "lucide-react"
 import { DashCard, DashPageHeader } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
 import { cn } from "@/lib/utils"
+
+// ─── Review-queue types ────────────────────────────────────────────────────────
+
+type HitlPriority = "complaint" | "low_confidence" | "policy_fail" | "normal"
+type HitlSource = "auto_triage" | "manual" | "workflow"
+type HitlStatus = "pending" | "approved" | "rejected"
+type HitlItem = {
+  id: string
+  orgId: string
+  ticketId: string | null
+  conversationId: string | null
+  draftOutput: string
+  reason: string
+  status: HitlStatus
+  priority: HitlPriority
+  source: HitlSource
+  classificationMetadata: {
+    isComplaint?: boolean
+    severity?: "low" | "medium" | "high"
+    sentiment?: "positive" | "neutral" | "negative"
+    reasoning?: string
+    draftConfidence?: number
+    auditLogId?: string
+  } | null
+  createdAt: string | Date
+}
 
 type Citation = { source: string; content?: string; score?: number; url?: string }
 type PolicyCheck = { rule: string; passed: boolean; reason?: string }
@@ -39,6 +70,14 @@ type AuditMetadata = {
   model?: string
   hallucinationFlags?: string[]
   decision?: { action: DecisionAction; finalText?: string; by: string; at: string }
+  /** Set by the triage worker for background auto-triage decisions; absent for manual copilot drafts. */
+  source?: "manual" | "auto_triage"
+  complaintClassification?: {
+    isComplaint: boolean
+    severity?: "low" | "medium" | "high"
+    sentiment?: "positive" | "neutral" | "negative"
+    reasoning?: string
+  }
 }
 type AuditLog = {
   id: string
@@ -48,9 +87,12 @@ type AuditLog = {
   output: string
   metadata: AuditMetadata
   createdAt: string | Date
+  /** Ticket channel joined from tickets table; null when no ticket is linked. */
+  channel?: string | null
 }
 type RiskFilter = "all" | "autopass" | "review" | "blocked"
 type SourceFilter = "all" | "sourced" | "unsourced"
+type OriginFilter = "all" | "auto_triage" | "manual"
 
 const CONFIDENCE_GATE = 85
 
@@ -60,13 +102,40 @@ export default function TapBoxPage() {
   const [query, setQuery] = useState("")
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("all")
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all")
+  const [originFilter, setOriginFilter] = useState<OriginFilter>("all")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [ringValue, setRingValue] = useState(0)
+  const [editingHitl, setEditingHitl] = useState<Record<string, string>>({})
 
   const logsQuery = api.analytics.auditLogs.useQuery(
     { limit: 50, offset: 0 },
     { refetchInterval: 30_000, refetchIntervalInBackground: false },
   )
+
+  const hitlQuery = api.governance.pendingHitl.useQuery(
+    { status: "pending", limit: 40 },
+    { refetchInterval: 15_000, refetchIntervalInBackground: false },
+  )
+  const hitlItems = (hitlQuery.data ?? []) as HitlItem[]
+  const complaintCount = hitlItems.filter((h) => h.priority === "complaint").length
+
+  const approveHitl = api.governance.approveHitl.useMutation({
+    onSuccess: async (_, variables) => {
+      toast.success("Draft approved and reply sent")
+      setEditingHitl((prev) => { const next = { ...prev }; delete next[variables.hitlId]; return next })
+      await utils.governance.pendingHitl.invalidate()
+      await utils.analytics.auditLogs.invalidate()
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
+  const rejectHitl = api.governance.rejectHitl.useMutation({
+    onSuccess: async () => {
+      toast.success("Draft rejected")
+      await utils.governance.pendingHitl.invalidate()
+    },
+    onError: (err) => toast.error(err.message),
+  })
 
   const logs = useMemo(() => ((logsQuery.data ?? []) as AuditLog[]), [logsQuery.data])
 
@@ -87,6 +156,8 @@ export default function TapBoxPage() {
       if (riskFilter === "blocked" && !blocked) return false
       if (sourceFilter === "sourced" && citations.length === 0) return false
       if (sourceFilter === "unsourced" && citations.length > 0) return false
+      if (originFilter === "auto_triage" && metadata.source !== "auto_triage") return false
+      if (originFilter === "manual" && metadata.source === "auto_triage") return false
 
       if (!normalized) return true
       const haystack = [
@@ -106,7 +177,7 @@ export default function TapBoxPage() {
         .toLowerCase()
       return haystack.includes(normalized)
     })
-  }, [logs, query, riskFilter, sourceFilter])
+  }, [logs, query, riskFilter, sourceFilter, originFilter])
 
   const selectedLog = useMemo(() => {
     return filteredLogs.find((log) => log.id === selectedId) ?? filteredLogs[0] ?? null
@@ -215,6 +286,130 @@ export default function TapBoxPage() {
         <StatCard label="Blocked" value={stats.blocked} icon={<ShieldAlert className="h-4 w-4" />} tone={stats.blocked ? "rose" : "sage"} />
       </div>
 
+      {/* ── Review Queue ────────────────────────────────────────────────────── */}
+      <DashCard
+        title="Review queue"
+        icon={<Inbox className="h-[18px] w-[18px]" />}
+        className="mb-4"
+        right={
+          complaintCount > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--dash-rose-wash)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--dash-rose)]">
+              <AlertTriangle className="h-3 w-3" />
+              {complaintCount} complaint{complaintCount !== 1 ? "s" : ""}
+            </span>
+          ) : hitlItems.length > 0 ? (
+            <span className="rounded-full bg-[var(--dash-amber-wash)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--dash-amber)]">
+              {hitlItems.length} pending
+            </span>
+          ) : undefined
+        }
+        padded={false}
+      >
+        {hitlQuery.isLoading ? (
+          <div className="p-4 space-y-2">
+            {[1, 2, 3].map((i) => <div key={i} className="skeleton h-24 rounded-xl" />)}
+          </div>
+        ) : hitlItems.length === 0 ? (
+          <div className="flex min-h-[120px] flex-col items-center justify-center gap-2 p-6 text-center">
+            <CheckCircle2 className="h-8 w-8 text-[var(--dash-sage)] opacity-60" />
+            <div className="text-[13px] font-semibold text-[var(--dash-ink-soft)]">No items pending review</div>
+            <p className="text-[12px] text-[var(--dash-ink-faint)]">All AI-triage decisions have been resolved.</p>
+          </div>
+        ) : (
+          <div className="divide-y dash-border-soft">
+            {hitlItems.map((item) => {
+              const isComplaint = item.priority === "complaint"
+              const editedText = editingHitl[item.id] ?? item.draftOutput
+              const isPending = approveHitl.isPending || rejectHitl.isPending
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "p-4 transition",
+                    isComplaint
+                      ? "bg-[var(--dash-rose-wash)] border-l-4 border-[var(--dash-rose)]"
+                      : item.priority === "low_confidence"
+                      ? "bg-[var(--dash-amber-wash)] border-l-4 border-[var(--dash-amber)]"
+                      : "bg-white",
+                  )}
+                >
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    {isComplaint ? (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-[var(--dash-rose)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
+                        <AlertTriangle className="h-3 w-3" /> Complaint
+                      </span>
+                    ) : item.priority === "low_confidence" ? (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-[var(--dash-amber)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
+                        <ShieldAlert className="h-3 w-3" /> Low confidence
+                      </span>
+                    ) : null}
+                    {item.source === "auto_triage" && (
+                      <span className="rounded-md bg-[var(--dash-accent-wash)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--dash-accent-deep)]">
+                        AI triage
+                      </span>
+                    )}
+                    {item.classificationMetadata?.draftConfidence != null && (
+                      <span className={cn(
+                        "ml-auto rounded-md px-1.5 py-0.5 text-[10px] font-bold",
+                        (item.classificationMetadata.draftConfidence ?? 0) >= 85
+                          ? "bg-[var(--dash-sage-wash)] text-[var(--dash-sage)]"
+                          : "bg-[var(--dash-amber-wash)] text-[var(--dash-amber)]"
+                      )}>
+                        {item.classificationMetadata.draftConfidence}% conf
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1 text-[10.5px] text-[var(--dash-ink-faint)]">
+                      <Clock className="h-3 w-3" />
+                      {new Date(item.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </span>
+                  </div>
+
+                  {item.reason && (
+                    <p className="mb-2 text-[12px] italic text-[var(--dash-ink-soft)]">{item.reason}</p>
+                  )}
+
+                  {item.classificationMetadata?.reasoning && isComplaint && (
+                    <div className="mb-2 rounded-lg border border-[#F0CBCB] bg-white/60 px-3 py-2 text-[11.5px] leading-5 text-[#7a3535]">
+                      <span className="font-bold">Classifier reasoning:</span> {item.classificationMetadata.reasoning}
+                    </div>
+                  )}
+
+                  <div className="mb-3">
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Draft reply</div>
+                    <textarea
+                      value={editedText}
+                      onChange={(e) => setEditingHitl((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                      rows={4}
+                      className="w-full resize-none rounded-lg border dash-border bg-white px-3 py-2 text-[12.5px] leading-5 text-[var(--dash-ink)] outline-none transition focus:border-[var(--dash-accent)] focus:ring-2 focus:ring-[var(--dash-accent-wash)]"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => rejectHitl.mutate({ hitlId: item.id })}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border dash-border bg-white px-3 text-[12px] font-semibold text-[var(--dash-rose)] transition hover:dash-shadow-sm disabled:opacity-50"
+                    >
+                      <ThumbsDown className="h-3.5 w-3.5" /> Reject
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPending || !editedText.trim()}
+                      onClick={() => approveHitl.mutate({ hitlId: item.id, finalText: editedText })}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-3 text-[12px] font-semibold text-white shadow-[0_8px_20px_-10px_rgba(107,92,214,0.6)] transition hover:-translate-y-px disabled:translate-y-0 disabled:opacity-50"
+                    >
+                      {approveHitl.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                      Approve &amp; Send
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </DashCard>
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[390px_minmax(0,1fr)_320px]">
         <DashCard
           title="Decision queue"
@@ -237,7 +432,7 @@ export default function TapBoxPage() {
                 className="h-10 w-full rounded-lg border dash-border bg-white pl-9 pr-3 text-[13px] text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
               />
             </label>
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-3 gap-2">
               <FilterSelect label="Risk" value={riskFilter} onChange={(value) => setRiskFilter(value as RiskFilter)} options={[
                 ["all", "All risk"],
                 ["autopass", "Auto-pass"],
@@ -248,6 +443,11 @@ export default function TapBoxPage() {
                 ["all", "All sources"],
                 ["sourced", "Sourced"],
                 ["unsourced", "Unsourced"],
+              ]} />
+              <FilterSelect label="Origin" value={originFilter} onChange={(value) => setOriginFilter(value as OriginFilter)} options={[
+                ["all", "All origins"],
+                ["auto_triage", "Auto-triage"],
+                ["manual", "Manual"],
               ]} />
             </div>
           </div>
@@ -417,6 +617,8 @@ export default function TapBoxPage() {
                 <Row k="Confidence" v={`${confidence}%`} tone={confidence >= CONFIDENCE_GATE ? "sage" : "amber"} />
                 <Row k="Gate" v={`${CONFIDENCE_GATE}% minimum`} />
                 <Row k="Model" v={selectedMetadata.model ?? "Advan Trust Engine"} />
+                <Row k="Origin" v={selectedMetadata.source === "auto_triage" ? "Auto-triage" : "Manual"} />
+                <Row k="Channel" v={selectedLog.channel ? channelLabel(selectedLog.channel) : "—"} />
                 <Row k="Ticket" v={selectedLog.ticketId ? selectedLog.ticketId.slice(0, 8) : "none"} />
                 <Row k="Workflow" v={selectedLog.workflowId ? selectedLog.workflowId.slice(0, 8) : "none"} />
                 <Row k="Created" v={formatDate(selectedLog.createdAt)} />
@@ -472,6 +674,12 @@ function decisionLabel(action: DecisionAction | undefined) {
   if (action === "modify") return "Modified"
   if (action === "reject") return "Rejected"
   return "Pending"
+}
+
+function channelLabel(channel: string): string {
+  if (channel === "email") return "Email"
+  if (channel === "chat") return "Chat"
+  return channel.charAt(0).toUpperCase() + channel.slice(1)
 }
 
 function formatDate(value: string | Date) {
@@ -546,6 +754,7 @@ function DecisionListItem({ log, active, onSelect }: { log: AuditLog; active: bo
   const metadata = normalizeMetadata(log.metadata)
   const status = classifyLog(log)
   const citations = metadata.citations ?? []
+  const isAutoTriage = metadata.source === "auto_triage"
   return (
     <button
       type="button"
@@ -566,6 +775,23 @@ function DecisionListItem({ log, active, onSelect }: { log: AuditLog; active: bo
             <span>{formatDate(log.createdAt)}</span>
             <span>·</span>
             <span>{metadata.model ?? "Trust Engine"}</span>
+            {isAutoTriage && (
+              <span className="rounded-sm bg-[var(--dash-accent-wash)] px-1 py-0.5 text-[9px] font-bold text-[var(--dash-accent-deep)]">
+                auto
+              </span>
+            )}
+            {log.channel && (
+              <span className={cn(
+                "rounded-sm px-1 py-0.5 text-[9px] font-bold",
+                log.channel === "chat"
+                  ? "bg-blue-50 text-blue-700"
+                  : log.channel === "email"
+                  ? "bg-purple-50 text-purple-700"
+                  : "bg-[var(--dash-bg)] text-[var(--dash-ink-faint)]",
+              )}>
+                {channelLabel(log.channel)}
+              </span>
+            )}
           </div>
         </div>
         <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold", status.tone === "sage" && "bg-[var(--dash-sage-wash)] text-[var(--dash-sage)]", status.tone === "amber" && "bg-[var(--dash-amber-wash)] text-[var(--dash-amber)]", status.tone === "rose" && "bg-[var(--dash-rose-wash)] text-[var(--dash-rose)]")}>

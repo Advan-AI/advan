@@ -12,7 +12,6 @@ import {
   Clock,
   Download,
   Gauge,
-  Loader2,
   MessageSquare,
   RefreshCw,
   ShieldCheck,
@@ -20,6 +19,7 @@ import {
   Ticket,
   TrendingUp,
   Users,
+  Zap,
 } from "lucide-react"
 import {
   Area,
@@ -86,6 +86,11 @@ export default function AnalyticsPage() {
 
   const reportQuery = api.analytics.report.useQuery(
     { days },
+    { staleTime: 20_000, refetchInterval: 30_000, refetchIntervalInBackground: false },
+  )
+
+  const triageQuery = api.analytics.triageBreakdown.useQuery(
+    undefined,
     { staleTime: 20_000, refetchInterval: 30_000, refetchIntervalInBackground: false },
   )
 
@@ -389,6 +394,145 @@ export default function AnalyticsPage() {
               detail={totals.flags === 0 ? "No flags in the selected range." : `${totals.flags} flags detected in this range.`}
             />
           </div>
+        </DashCard>
+      </div>
+
+      {/* ── Auto-triage resolution breakdown ──────────────────────────────────── */}
+      <div className="mt-4">
+        <DashCard
+          title="Auto-triage resolution rate"
+          icon={<Zap className="h-[18px] w-[18px]" />}
+          right={
+            triageQuery.data && triageQuery.data.total > 0 ? (
+              <span className="rounded-md bg-[var(--dash-bg)] px-2 py-1 text-[10.5px] font-bold text-[var(--dash-ink-faint)]">
+                {triageQuery.data.total} triaged messages
+              </span>
+            ) : undefined
+          }
+        >
+          {triageQuery.isLoading ? (
+            <div className="grid gap-4 lg:grid-cols-[auto_1fr_1fr]">
+              <div className="skeleton h-32 w-36 rounded-xl" />
+              <div className="skeleton h-32 rounded-xl" />
+              <div className="skeleton h-32 rounded-xl" />
+            </div>
+          ) : !triageQuery.data || triageQuery.data.total === 0 ? (
+            <EmptyState
+              icon={<Zap className="h-5 w-5" />}
+              title="No triage data yet"
+              body="Auto-triage resolution metrics appear once inbound messages have been processed by the AI pipeline."
+            />
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-[auto_1fr_1fr]">
+              {/* ── KPI ring ───────────────────────────────────────────────── */}
+              <div className="flex flex-col items-center justify-center rounded-xl border dash-border-soft bg-white px-6 py-4 text-center">
+                <div className="text-[13px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Auto-resolved</div>
+                <div className={cn(
+                  "mt-1 text-[42px] font-extrabold leading-none tracking-tight",
+                  triageQuery.data.autoRate >= 60 ? "text-[var(--dash-sage)]" : triageQuery.data.autoRate >= 30 ? "text-[var(--dash-amber)]" : "text-[var(--dash-rose)]"
+                )}>
+                  {triageQuery.data.autoRate}%
+                </div>
+                <div className="mt-2 text-[11.5px] text-[var(--dash-ink-soft)]">
+                  {triageQuery.data.autoResolved}/{triageQuery.data.total} messages
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 w-full">
+                  <div className="rounded-lg bg-[var(--dash-sage-wash)] px-2 py-1.5 text-center">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Auto</div>
+                    <div className="text-[14px] font-bold text-[var(--dash-sage)]">{triageQuery.data.autoResolved}</div>
+                  </div>
+                  <div className="rounded-lg bg-[var(--dash-amber-wash)] px-2 py-1.5 text-center">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Escalated</div>
+                    <div className="text-[14px] font-bold text-[var(--dash-amber)]">{triageQuery.data.escalated}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── By channel ─────────────────────────────────────────────── */}
+              <div>
+                <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">By channel</div>
+                {triageQuery.data.byChannel.length === 0 ? (
+                  <EmptyState icon={<BarChart3 className="h-4 w-4" />} title="No channel data" body="" />
+                ) : (
+                  <div className="space-y-2">
+                    {triageQuery.data.byChannel.map((ch) => (
+                      <div key={ch.channel} className="rounded-lg border dash-border-soft bg-white p-3">
+                        <div className="mb-1.5 flex items-center justify-between text-[12px]">
+                          <span className="font-semibold capitalize text-[var(--dash-ink-soft)]">{ch.channel}</span>
+                          <div className="flex items-center gap-2 text-[10.5px]">
+                            <span className="text-[var(--dash-sage)] font-bold">{ch.autoResolved} auto</span>
+                            <span className="text-[var(--dash-ink-faint)]">·</span>
+                            <span className="text-[var(--dash-amber)] font-bold">{ch.escalated} escalated</span>
+                            <span className="text-[var(--dash-ink-faint)]">·</span>
+                            <span className="font-extrabold text-[var(--dash-ink)]">{ch.autoRate}%</span>
+                          </div>
+                        </div>
+                        <div className="flex h-2 overflow-hidden rounded-full bg-black/[0.06]">
+                          <div
+                            className="h-full rounded-l-full bg-[var(--dash-sage)] transition-all"
+                            style={{ width: `${ch.autoRate}%` }}
+                          />
+                          <div
+                            className="h-full rounded-r-full bg-[var(--dash-amber)] transition-all"
+                            style={{ width: `${100 - ch.autoRate}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ── By complaint type ──────────────────────────────────────── */}
+              <div>
+                <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">By message type</div>
+                <div className="space-y-2">
+                  {/* Non-complaint */}
+                  <div className="rounded-lg border dash-border-soft bg-white p-3">
+                    <div className="mb-1 flex items-center gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-[var(--dash-sage)]" />
+                      <span className="text-[12px] font-bold text-[var(--dash-ink)]">Non-complaint</span>
+                      <span className="ml-auto text-[11px] font-extrabold text-[var(--dash-ink-faint)]">{triageQuery.data.byType.nonComplaint.total} msgs</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      <div className="rounded-md bg-[var(--dash-sage-wash)] px-2 py-1 text-center">
+                        <div className="font-bold text-[var(--dash-sage)]">{triageQuery.data.byType.nonComplaint.autoResolved}</div>
+                        <div className="text-[9px] text-[var(--dash-ink-faint)]">auto-sent</div>
+                      </div>
+                      <div className="rounded-md bg-[var(--dash-amber-wash)] px-2 py-1 text-center">
+                        <div className="font-bold text-[var(--dash-amber)]">{triageQuery.data.byType.nonComplaint.escalated}</div>
+                        <div className="text-[9px] text-[var(--dash-ink-faint)]">escalated</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Complaint — must always show 0 auto-sent */}
+                  <div className="rounded-lg border border-[#F0CBCB] bg-[var(--dash-rose-wash)] p-3">
+                    <div className="mb-1 flex items-center gap-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-[var(--dash-rose)]" />
+                      <span className="text-[12px] font-bold text-[var(--dash-ink)]">Complaint</span>
+                      <span className="ml-auto text-[11px] font-extrabold text-[var(--dash-ink-faint)]">{triageQuery.data.byType.complaint.total} msgs</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      <div className="rounded-md bg-white/70 px-2 py-1 text-center">
+                        <div className={cn("font-bold", triageQuery.data.byType.complaint.autoResolved > 0 ? "text-[var(--dash-rose)]" : "text-[var(--dash-ink-faint)]")}>
+                          {triageQuery.data.byType.complaint.autoResolved}
+                        </div>
+                        <div className="text-[9px] text-[var(--dash-ink-faint)]">auto-sent</div>
+                      </div>
+                      <div className="rounded-md bg-[var(--dash-rose)] px-2 py-1 text-center">
+                        <div className="font-bold text-white">{triageQuery.data.byType.complaint.escalated}</div>
+                        <div className="text-[9px] text-white/70">escalated</div>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[10.5px] text-[#8a3e3e]">
+                      Complaints always require human review — never auto-sent.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </DashCard>
       </div>
 

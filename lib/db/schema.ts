@@ -49,28 +49,46 @@ export const users = pgTable("users", {
   role: text("role", { enum: ["admin", "member", "viewer"] })
     .default("member")
     .notNull(),
+  /**
+   * Per-agent "available for live chat" toggle.
+   * When false, this agent is excluded from the org availability check
+   * even while their socket session is connected. Defaults to true so
+   * existing agents remain available without any migration action.
+   */
+  chatAvailable: boolean("chat_available").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
 // ─── CRM tables ───────────────────────────────────────────────────────────────
 
-export const customers = pgTable("customers", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  orgId: uuid("org_id")
-    .references(() => organizations.id, { onDelete: "cascade" })
-    .notNull(),
-  email: text("email").notNull(),
-  name: text("name"),
-  company: text("company"),
-  tier: text("tier", { enum: ["free", "growth", "enterprise"] })
-    .default("free")
-    .notNull(),
-  csmId: uuid("csm_id").references(() => users.id),
-  stripeCustomerId: text("stripe_customer_id"),
-  totalTickets: integer("total_tickets").default(0).notNull(),
-  csatAvg: text("csat_avg"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+export const customers = pgTable(
+  "customers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    email: text("email").notNull(),
+    visitorSessionId: text("visitor_session_id"),
+    name: text("name"),
+    company: text("company"),
+    tier: text("tier", { enum: ["free", "growth", "enterprise"] })
+      .default("free")
+      .notNull(),
+    csmId: uuid("csm_id").references(() => users.id),
+    stripeCustomerId: text("stripe_customer_id"),
+    totalTickets: integer("total_tickets").default(0).notNull(),
+    csatAvg: text("csat_avg"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // Partial unique index enforced via migration 0009.
+    // Prevents duplicate anonymous customer rows for the same visitor session
+    // when rapid-fire messages race to create customers. NULL rows (email
+    // customers) are excluded so normal customer creation is unaffected.
+    index("customers_org_visitor_session_idx").on(table.orgId, table.visitorSessionId),
+  ],
+)
 
 export const tickets = pgTable("tickets", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -117,6 +135,12 @@ export const conversations = pgTable(
       .default("chat")
       .notNull(),
     customerId: uuid("customer_id").references(() => customers.id),
+    /**
+     * Ties a chat conversation to a browser visitor session, enabling
+     * reconnect. Parallel to how emailReplyToAddress ties email threads.
+     * Set by the chat widget on first message; carried in the session JWT.
+     */
+    visitorSessionId: text("visitor_session_id"),
     title: text("title"),
     pinnedAt: timestamp("pinned_at"),
     archivedAt: timestamp("archived_at"),
@@ -124,6 +148,15 @@ export const conversations = pgTable(
     tags: jsonb("tags").$type<string[]>().default([]).notNull(),
     emailRootMessageId: text("email_root_message_id"),
     emailReplyToAddress: text("email_reply_to_address"),
+    /**
+     * When true, agent replies on this chat conversation are delivered via
+     * email (notificationQueue) instead of Socket.IO — used when no agent
+     * was online at ticket-creation time and the visitor provided their
+     * email via the pre-chat form.
+     * Cleared to false when the visitor reconnects with an agent online,
+     * restoring live socket delivery for subsequent messages.
+     */
+    chatOfflineDelivery: boolean("chat_offline_delivery").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -131,6 +164,7 @@ export const conversations = pgTable(
     index("conversations_email_reply_to_address_idx").on(table.emailReplyToAddress),
     index("conversations_org_archived_updated_idx").on(table.orgId, table.archivedAt, table.updatedAt),
     index("conversations_org_pinned_idx").on(table.orgId, table.pinnedAt),
+    index("conversations_visitor_session_idx").on(table.visitorSessionId),
   ],
 )
 
@@ -155,6 +189,20 @@ export const messages = pgTable("messages", {
       deliveryStatus?: "queued" | "sent" | "delivered" | "failed" | "bounced" | "suppressed"
       error?: string
     }
+    /** Set by copilot-triage-worker after automated triage completes. */
+    triage?: {
+      decision: "auto_send" | "hitl_complaint" | "hitl_low_confidence"
+      confidence: number
+      isComplaint: boolean
+      auditLogId: string
+      classifiedAt: string
+    }
+    /**
+     * True when this agent-role message was inserted by the background
+     * triage worker (auto-send path). Lets the conversation list distinguish
+     * "AI auto-replied" from a human agent reply.
+     */
+    isAutoTriaged?: boolean
   }>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
@@ -233,6 +281,15 @@ export const auditLogs = pgTable("audit_logs", {
       model?: string
       hallucinationFlags?: string[]
       decision?: { action: "accept" | "reject" | "modify"; finalText?: string; by: string; at: string }
+      /** "auto_triage" for triage-worker decisions; absent or "manual" for human-initiated drafts. */
+      source?: "manual" | "auto_triage"
+      /** Populated by triage worker — the complaint classifier output. */
+      complaintClassification?: {
+        isComplaint: boolean
+        severity: "low" | "medium" | "high"
+        sentiment: "positive" | "neutral" | "negative"
+        reasoning: string
+      }
     }>()
     .notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -270,6 +327,8 @@ export const hitlQueue = pgTable("hitl_queue", {
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
   ticketId: uuid("ticket_id").references(() => tickets.id),
+  /** FK to the conversation the draft should be sent into when approved. */
+  conversationId: uuid("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
   workflowRunId: text("workflow_run_id"),
   temporalWorkflowId: text("temporal_workflow_id"),
   draftOutput: text("draft_output").notNull(),
@@ -277,6 +336,38 @@ export const hitlQueue = pgTable("hitl_queue", {
   status: text("status", { enum: ["pending", "approved", "rejected"] })
     .default("pending")
     .notNull(),
+  /**
+   * "complaint"      — triage classifier flagged isComplaint=true (highest urgency)
+   * "low_confidence" — confidence below gate or policy failed
+   * "policy_fail"    — policy check blocked auto-send
+   * "normal"         — manually enqueued or workflow gate
+   */
+  priority: text("priority", {
+    enum: ["complaint", "low_confidence", "policy_fail", "normal"],
+  })
+    .default("normal")
+    .notNull(),
+  /**
+   * "auto_triage" — enqueued by the background triage worker
+   * "manual"      — enqueued by a human from the copilot UI
+   * "workflow"    — enqueued by a Temporal pipeline node
+   */
+  source: text("source", { enum: ["auto_triage", "manual", "workflow"] })
+    .default("manual")
+    .notNull(),
+  /**
+   * Populated by auto_triage jobs. Carries the complaint classification
+   * result and the auditLogId so the approval path can close the loop.
+   */
+  classificationMetadata: jsonb("classification_metadata")
+    .$type<{
+      isComplaint?: boolean
+      severity?: "low" | "medium" | "high"
+      sentiment?: "positive" | "neutral" | "negative"
+      reasoning?: string
+      draftConfidence?: number
+      auditLogId?: string
+    }>(),
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   reviewNote: text("review_note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -335,3 +426,32 @@ export const jobs = pgTable("jobs", {
   nextRetryAt: timestamp("next_retry_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
+
+// ─── Chat widget ───────────────────────────────────────────────────────────────
+
+/**
+ * One row per embedded chat widget deployment.
+ * widgetKey is the public embed key included in the widget snippet; it is
+ * used by POST /api/chat/session to look up the org and validate origins.
+ */
+export const widgetConfigs = pgTable(
+  "widget_configs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    /** Public embed key placed in the widget <script> snippet. */
+    widgetKey: text("widget_key").notNull().unique(),
+    /**
+     * Exact-match origin allowlist (e.g. ["https://example.com"]).
+     * POST /api/chat/session rejects any origin not present in this list.
+     * Strict equality prevents bypass via subdomain-prefix tricks.
+     */
+    allowedOrigins: jsonb("allowed_origins").$type<string[]>().default([]).notNull(),
+    preChatFormEnabled: boolean("pre_chat_form_enabled").default(true).notNull(),
+    /** Optional branding overrides (colors, logo URL, etc.) */
+    brandingConfig: jsonb("branding_config").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+)

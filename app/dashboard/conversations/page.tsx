@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import {
   useCallback,
   useEffect,
@@ -26,16 +27,25 @@ import {
   Globe,
   Building2,
   Clock,
-  CheckCircle2,
   XCircle,
   RefreshCw,
   Star,
   AlertCircle,
   Inbox,
+  Radio,
   X,
 } from "lucide-react"
+import * as SocketIO from "socket.io-client"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
+
+// ─── Socket URL (mirrors use-pipeline-realtime.ts) ────────────────────────────
+const DASH_SOCKET_URL =
+  typeof process !== "undefined" && process.env.NEXT_PUBLIC_SOCKET_URL
+    ? (process.env.NEXT_PUBLIC_SOCKET_URL as string)
+    : typeof window !== "undefined"
+      ? `${window.location.protocol}//${window.location.hostname}:3002`
+      : "http://localhost:3002"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -52,12 +62,20 @@ type MsgMeta = {
   latencyMs?: number
   model?: string
   isInternal?: boolean
+  isAutoTriaged?: boolean
   email?: {
     messageId?: string
     inReplyTo?: string
     resendId?: string
     deliveryStatus?: "queued" | "sent" | "delivered" | "failed" | "bounced" | "suppressed"
     error?: string
+  }
+  triage?: {
+    decision: "auto_send" | "hitl_complaint" | "hitl_low_confidence"
+    confidence: number
+    isComplaint: boolean
+    auditLogId: string
+    classifiedAt: string
   }
 }
 
@@ -166,6 +184,7 @@ function threadToConvItem(thread: ThreadData): ConvItem {
           conversationId: thread.id,
           content: last.content,
           role: last.role,
+          metadata: last.metadata,
           createdAt:
             typeof last.createdAt === "string"
               ? last.createdAt
@@ -179,6 +198,9 @@ function threadToConvItem(thread: ThreadData): ConvItem {
 
 export default function ConversationsPage() {
   const router = useRouter()
+  const { data: session } = useSession()
+  const orgId = session?.user?.orgId
+
   const [tab, setTab] = useState<Tab>("All")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
@@ -188,10 +210,77 @@ export default function ConversationsPage() {
   const [ticketIdFromUrl, setTicketIdFromUrl] = useState<string | null>(null)
   const [deepLinkResolved, setDeepLinkResolved] = useState(false)
 
+  // ── Chat realtime: visitor presence + typing ───────────────────────────────
+  /** Set of conversationIds whose visitor widget is currently connected. */
+  const [visitorOnline, setVisitorOnline] = useState<Set<string>>(new Set())
+  /**
+   * conversationId → true when the visitor is actively typing.
+   * Driven by visitor:typing:start/stop events from the socket server.
+   */
+  const [visitorTyping, setVisitorTyping] = useState<Record<string, boolean>>({})
+
+  const dashSocketRef   = useRef<ReturnType<typeof SocketIO.connect> | null>(null)
+  const agentTypingRef  = useRef(false)
+  const agentTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const deepLinkCreateAttempted = useRef(false)
   const utils = api.useUtils()
+
+  // ── Agent socket connection ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!orgId) return
+
+    const sock = SocketIO.connect(DASH_SOCKET_URL, {
+      auth: { orgId },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 8,
+    })
+    dashSocketRef.current = sock
+
+    sock.on("visitor:online", (d: { conversationId: string }) => {
+      setVisitorOnline((prev) => {
+        const next = new Set(prev)
+        next.add(d.conversationId)
+        return next
+      })
+    })
+
+    sock.on("visitor:offline", (d: { conversationId: string }) => {
+      setVisitorOnline((prev) => {
+        const next = new Set(prev)
+        next.delete(d.conversationId)
+        return next
+      })
+      // Clear typing indicator when visitor disconnects.
+      setVisitorTyping((prev) => {
+        if (!prev[d.conversationId]) return prev
+        const next = { ...prev }
+        delete next[d.conversationId]
+        return next
+      })
+    })
+
+    sock.on("visitor:typing:start", (d: { conversationId: string }) => {
+      setVisitorTyping((prev) => ({ ...prev, [d.conversationId]: true }))
+    })
+
+    sock.on("visitor:typing:stop", (d: { conversationId: string }) => {
+      setVisitorTyping((prev) => {
+        if (!prev[d.conversationId]) return prev
+        const next = { ...prev }
+        delete next[d.conversationId]
+        return next
+      })
+    })
+
+    return () => {
+      sock.disconnect()
+      dashSocketRef.current = null
+    }
+  }, [orgId])
 
   // Deep-link from tickets queue: /dashboard/conversations?ticketId=<uuid>
   useEffect(() => {
@@ -450,6 +539,46 @@ export default function ConversationsPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [filteredMsgs.length])
 
+  // ── Agent typing signals (chat channel only) ──────────────────────────────
+
+  const emitAgentTypingStart = useCallback(() => {
+    if (!activeId || !dashSocketRef.current || thread?.channel !== "chat") return
+    if (!agentTypingRef.current) {
+      dashSocketRef.current.emit("agent:typing:start", { conversationId: activeId })
+      agentTypingRef.current = true
+    }
+    // Reset debounce timer.
+    if (agentTypingTimer.current) clearTimeout(agentTypingTimer.current)
+    agentTypingTimer.current = setTimeout(() => {
+      if (dashSocketRef.current && activeId) {
+        dashSocketRef.current.emit("agent:typing:stop", { conversationId: activeId })
+      }
+      agentTypingRef.current = false
+      agentTypingTimer.current = null
+    }, 1500)
+  }, [activeId, thread?.channel])
+
+  const emitAgentTypingStop = useCallback(() => {
+    if (!activeId || !dashSocketRef.current) return
+    if (agentTypingRef.current) {
+      dashSocketRef.current.emit("agent:typing:stop", { conversationId: activeId })
+      agentTypingRef.current = false
+    }
+    if (agentTypingTimer.current) {
+      clearTimeout(agentTypingTimer.current)
+      agentTypingTimer.current = null
+    }
+  }, [activeId])
+
+  // Reset typing state when the active conversation changes.
+  useEffect(() => {
+    agentTypingRef.current = false
+    if (agentTypingTimer.current) {
+      clearTimeout(agentTypingTimer.current)
+      agentTypingTimer.current = null
+    }
+  }, [activeId])
+
   // ── Compose handlers ───────────────────────────────────────────────────────
 
   const handleTextInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -458,11 +587,15 @@ export default function ConversationsPage() {
       textareaRef.current.style.height = "auto"
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`
     }
-  }, [])
+    // Emit typing signal for chat conversations.
+    emitAgentTypingStart()
+  }, [emitAgentTypingStart])
 
   const handleSend = useCallback(async () => {
     if (!text.trim() || !activeId || addMessage.isPending) return
     const content = text.trim()
+    // Stop typing signal before send (visitor should see the message, not dots).
+    emitAgentTypingStop()
     setText("")
     if (textareaRef.current) textareaRef.current.style.height = "auto"
 
@@ -472,7 +605,7 @@ export default function ConversationsPage() {
       content,
       metadata: composeMode === "note" ? { isInternal: true } : undefined,
     })
-  }, [text, activeId, addMessage, composeMode])
+  }, [text, activeId, addMessage, composeMode, emitAgentTypingStop])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -488,6 +621,13 @@ export default function ConversationsPage() {
 
   return (
     <div>
+      {/* Keyframes for typing dot animation */}
+      <style>{`
+        @keyframes dash-bounce {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+          40%            { transform: translateY(-4px); opacity: 1; }
+        }
+      `}</style>
       <DashPageHeader
         eyebrow="Inbox"
         title="Conversations"
@@ -527,9 +667,26 @@ export default function ConversationsPage() {
           }
           icon={<MessageSquare className="w-[18px] h-[18px]" />}
           right={
-            <span className="font-mono text-[11px] text-[var(--dash-ink-faint)]">
-              #{activeId?.slice(0, 8) ?? "—"}
-            </span>
+            <div className="flex items-center gap-2">
+              {/* Visitor online badge — only shown for chat conversations */}
+              {thread?.channel === "chat" && activeId && (
+                <span
+                  title={visitorOnline.has(activeId) ? "Visitor is online" : "Visitor is offline"}
+                  className={[
+                    "inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full",
+                    visitorOnline.has(activeId)
+                      ? "bg-[#DCFCE7] text-[#166534]"
+                      : "bg-[var(--dash-bg-deep)] text-[var(--dash-ink-faint)]",
+                  ].join(" ")}
+                >
+                  <Radio className="w-2.5 h-2.5" />
+                  {visitorOnline.has(activeId) ? "Visitor online" : "Visitor offline"}
+                </span>
+              )}
+              <span className="font-mono text-[11px] text-[var(--dash-ink-faint)]">
+                #{activeId?.slice(0, 8) ?? "—"}
+              </span>
+            </div>
           }
           padded={false}
         >
@@ -603,6 +760,30 @@ export default function ConversationsPage() {
                     ))}
                   </AnimatePresence>
                 )}
+
+                {/* Visitor typing indicator — shown only for chat conversations */}
+                <AnimatePresence>
+                  {thread?.channel === "chat" && activeId && visitorTyping[activeId] && (
+                    <motion.div
+                      key="visitor-typing"
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      transition={{ duration: 0.18 }}
+                      className="flex items-start gap-2"
+                    >
+                      <div className="w-[22px] h-[22px] rounded-full bg-[#FEE2E2] text-[#991B1B] flex items-center justify-center text-[9.5px] font-bold shrink-0">
+                        {initials(thread?.customerName ?? null)}
+                      </div>
+                      <div className="bg-[var(--dash-bg)] border dash-border rounded-xl rounded-tl-sm px-3 py-2.5 flex items-center gap-1">
+                        <TypingDot delay="0ms" />
+                        <TypingDot delay="180ms" />
+                        <TypingDot delay="360ms" />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div ref={bottomRef} />
               </div>
 
@@ -651,6 +832,8 @@ type ConvItem = {
     conversationId: string
     content: string
     role: "user" | "assistant" | "agent"
+    /** Included since prompt 6 — needed for triage badge rendering. */
+    metadata: MsgMeta | null | undefined
     createdAt: string
   } | null
 }
@@ -825,6 +1008,35 @@ function ConversationList({
                         {conv.ticketStatus}
                       </span>
                     )}
+                    {(() => {
+                      const lm = conv.lastMessage
+                      if (!lm) return null
+                      const meta = lm.metadata
+                      if (lm.role === "user" && meta?.triage?.decision === "hitl_complaint") {
+                        return (
+                          <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md text-[var(--dash-rose)] bg-[var(--dash-rose-wash)]">
+                            <AlertCircle className="h-2.5 w-2.5" />
+                            Complaint · Review
+                          </span>
+                        )
+                      }
+                      if (lm.role === "user" && meta?.triage?.decision === "hitl_low_confidence") {
+                        return (
+                          <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-md text-[#92400E] bg-[#FEF3C7]">
+                            Pending Review
+                          </span>
+                        )
+                      }
+                      if (lm.role === "agent" && meta?.isAutoTriaged) {
+                        return (
+                          <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md text-[#166534] bg-[#DCFCE7]">
+                            <Sparkles className="h-2.5 w-2.5" />
+                            AI Replied
+                          </span>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                 </div>
               </li>
@@ -972,60 +1184,48 @@ function DeliveryStatusPill({
   onRetry: () => void
   isRetrying: boolean
 }) {
-  const isFailure = status === "failed" || status === "bounced" || status === "suppressed"
+  // Success is the implied default — silence it so the thread stays clean.
+  if (status === "sent" || status === "delivered") return null
+
+  // In-flight: a single muted line beneath the bubble, no border/badge weight.
+  if (status === "queued") {
+    return (
+      <span className="flex items-center gap-1 text-[10px] text-[var(--dash-ink-faint)] select-none">
+        <Clock className="w-2.5 h-2.5 animate-pulse shrink-0" aria-hidden="true" />
+        Sending…
+      </span>
+    )
+  }
+
+  // Failure states — these are actionable and need to be visible.
   const canRetry = status === "failed"
   const label =
-    status === "queued"
-      ? "Sending…"
-      : status === "sent"
-      ? "Sent"
-      : status === "delivered"
-      ? "Delivered"
-      : status === "bounced"
-      ? "Bounced"
-      : status === "suppressed"
-      ? "Suppressed"
-      : "Failed"
-
-  const Icon =
-    status === "queued"
-      ? Clock
-      : status === "sent" || status === "delivered"
-      ? CheckCircle2
-      : XCircle
+    status === "bounced" ? "Bounced" : status === "suppressed" ? "Suppressed" : "Failed"
 
   return (
     <div
       className={`flex items-center gap-1.5 text-[10.5px] font-bold rounded-full border px-2 py-1 ${
-        isFailure
-          ? status === "suppressed"
-            ? "border-[#6B21A8] bg-[#FAF5FF] text-[#581C87] ring-1 ring-[#6B21A8]/20"
-            : "border-[#991B1B] bg-[#FEF2F2] text-[#7F1D1D] ring-1 ring-[#991B1B]/20"
-          : status === "queued"
-          ? "border-[#D97706] bg-[#FFFBEB] text-[#92400E]"
-          : "border-[#86EFAC] bg-[#F0FDF4] text-[#166534]"
+        status === "suppressed"
+          ? "border-[#6B21A8] bg-[#FAF5FF] text-[#581C87] ring-1 ring-[#6B21A8]/20"
+          : "border-[#991B1B] bg-[#FEF2F2] text-[#7F1D1D] ring-1 ring-[#991B1B]/20"
       }`}
       title={error}
     >
-      <Icon className="w-3 h-3 shrink-0" aria-hidden="true" />
+      <XCircle className="w-3 h-3 shrink-0" aria-hidden="true" />
       <span>{label}</span>
-      {isFailure && (
-        <>
-          <span className="text-[9px] uppercase tracking-wide px-1 py-px rounded bg-white/80 border border-current/20">
-            {canRetry ? "Action needed" : "Channel blocked"}
-          </span>
-          {canRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              disabled={isRetrying}
-              className="inline-flex items-center gap-1 ml-0.5 px-1.5 py-0.5 rounded-full bg-white border border-current/30 hover:bg-[#FEE2E2] disabled:opacity-60 disabled:cursor-not-allowed transition"
-            >
-              <RefreshCw className={`w-2.5 h-2.5 ${isRetrying ? "animate-spin" : ""}`} />
-              Retry
-            </button>
-          )}
-        </>
+      <span className="text-[9px] uppercase tracking-wide px-1 py-px rounded bg-white/80 border border-current/20">
+        {canRetry ? "Action needed" : "Channel blocked"}
+      </span>
+      {canRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={isRetrying}
+          className="inline-flex items-center gap-1 ml-0.5 px-1.5 py-0.5 rounded-full bg-white border border-current/30 hover:bg-[#FEE2E2] disabled:opacity-60 disabled:cursor-not-allowed transition"
+        >
+          <RefreshCw className={`w-2.5 h-2.5 ${isRetrying ? "animate-spin" : ""}`} />
+          Retry
+        </button>
       )}
     </div>
   )
@@ -1392,5 +1592,18 @@ function ThreadSkeleton() {
         </div>
       ))}
     </div>
+  )
+}
+
+/** Animated dot for the visitor-is-typing indicator in the agent dashboard. */
+function TypingDot({ delay }: { delay: string }) {
+  return (
+    <span
+      className="w-1.5 h-1.5 rounded-full bg-[var(--dash-ink-faint)]"
+      style={{
+        animation: "dash-bounce 1.2s infinite",
+        animationDelay: delay,
+      }}
+    />
   )
 }

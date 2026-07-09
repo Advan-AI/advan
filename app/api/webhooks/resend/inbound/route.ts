@@ -7,33 +7,20 @@ import { Webhook, type WebhookRequiredHeaders } from "svix"
 import { db } from "@/lib/db"
 import {
   conversations,
-  customers,
   emailEvents,
   messages,
-  tickets,
 } from "@/lib/db/schema"
+import { requireEmailConfig, type EmailConfig } from "@/lib/email/config"
 import { parseInboundEmail, type ParsedInboundEmail } from "@/lib/email/parse-inbound"
 import { getResendClient } from "@/lib/email/resend-client"
 import { PIIMasker } from "@/lib/governance/pii-masker"
+import { resolveOrCreateIntake } from "@/lib/tickets/auto-intake"
 
 export const runtime = "nodejs"
 
 type InboundEventStatus =
   | "received"
   | "unresolved"
-  | "sender_mismatch"
-  | "org_scope_mismatch"
-
-interface ResolvedConversation {
-  conversationId: string
-  orgId: string
-  ticketId: string
-  ticketOrgId: string
-  ticketStatus: "open" | "pending" | "resolved" | "closed"
-  customerId: string | null
-  customerOrgId: string | null
-  customerEmail: string | null
-}
 
 interface LogEmailEventInput {
   orgId: string | null
@@ -48,10 +35,19 @@ export interface InboundRouteDeps {
   verifyWebhook(payload: string, headers: WebhookRequiredHeaders): EmailReceivedEvent
   fetchReceivedEmail(providerId: string): Promise<GetReceivingEmailResponseSuccess>
   findExistingInboundEvent(providerId: string): Promise<unknown | null>
-  resolveByReplyAddress(addresses: string[]): Promise<ResolvedConversation | null>
-  resolveByStoredMessageIds(messageIds: string[]): Promise<ResolvedConversation | null>
+  resolveOrgByReplyAddress(addresses: string[]): Promise<string | null>
+  resolveOrgByStoredMessageIds(messageIds: string[]): Promise<string | null>
+  /**
+   * Last-resort resolver: if the recipient address is at the configured inbound
+   * domain, return the configured default org (EMAIL_INBOUND_DEFAULT_ORG_ID).
+   * This handles first-contact emails that are not replies to existing threads.
+   */
+  resolveOrgByInboundDomain(addresses: string[]): Promise<string | null>
   logEmailEvent(input: LogEmailEventInput): Promise<void>
-  insertInboundMessage(parsed: ParsedInboundEmail, resolved: ResolvedConversation): Promise<void>
+  resolveOrCreateIntake(input: {
+    orgId: string
+    parsed: ParsedInboundEmail
+  }): Promise<{ ticketId: string; conversationId: string; messageId: string; isNewTicket: boolean }>
   rateLimit(request: Request): Promise<Response | null>
 }
 
@@ -141,22 +137,8 @@ function headerMessageIds(parsed: ParsedInboundEmail): string[] {
   )
 }
 
-function allowUnverifiedSenderDev(): boolean {
-  const enabled = process.env.ALLOW_UNVERIFIED_SENDER_DEV === "true"
-  if (enabled && process.env.NODE_ENV === "production") {
-    throw new Error("ALLOW_UNVERIFIED_SENDER_DEV must never be true in production")
-  }
-  return enabled
-}
-
 export function scrubInboundStorageContent(text: string): string {
   return PIIMasker.mask(text)
-}
-
-function validateOrgScope(resolved: ResolvedConversation): boolean {
-  if (resolved.ticketOrgId !== resolved.orgId) return false
-  if (resolved.customerOrgId && resolved.customerOrgId !== resolved.orgId) return false
-  return true
 }
 
 async function defaultRateLimit(req: Request): Promise<Response | null> {
@@ -210,53 +192,54 @@ export const productionDeps: InboundRouteDeps = {
     })
   },
 
-  async resolveByReplyAddress(addresses) {
+  async resolveOrgByReplyAddress(addresses) {
     const normalized = addresses.map(normalizeAddress).filter(Boolean)
     if (normalized.length === 0) return null
 
     const [row] = await db
       .select({
-        conversationId: conversations.id,
         orgId: conversations.orgId,
-        ticketId: tickets.id,
-        ticketOrgId: tickets.orgId,
-        ticketStatus: tickets.status,
-        customerId: customers.id,
-        customerOrgId: customers.orgId,
-        customerEmail: customers.email,
       })
       .from(conversations)
-      .innerJoin(tickets, eq(conversations.ticketId, tickets.id))
-      .leftJoin(customers, eq(conversations.customerId, customers.id))
       .where(inArray(conversations.emailReplyToAddress, normalized))
       .limit(1)
 
-    return row ?? null
+    return row?.orgId ?? null
   },
 
-  async resolveByStoredMessageIds(messageIds) {
+  async resolveOrgByStoredMessageIds(messageIds) {
     const ids = messageIds.map(normalizeMessageId).filter(Boolean)
     if (ids.length === 0) return null
 
     const [row] = await db
       .select({
-        conversationId: conversations.id,
         orgId: conversations.orgId,
-        ticketId: tickets.id,
-        ticketOrgId: tickets.orgId,
-        ticketStatus: tickets.status,
-        customerId: customers.id,
-        customerOrgId: customers.orgId,
-        customerEmail: customers.email,
       })
       .from(messages)
       .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-      .innerJoin(tickets, eq(conversations.ticketId, tickets.id))
-      .leftJoin(customers, eq(conversations.customerId, customers.id))
       .where(inArray(sql<string>`${messages.metadata}->'email'->>'messageId'`, ids))
       .limit(1)
 
-    return row ?? null
+    return row?.orgId ?? null
+  },
+
+  resolveOrgByInboundDomain(addresses) {
+    let config: EmailConfig
+    try {
+      config = requireEmailConfig()
+    } catch {
+      return Promise.resolve(null)
+    }
+
+    if (!config.defaultOrgId) return Promise.resolve(null)
+
+    const matched = addresses.some((addr) => {
+      const normalized = addr.trim().toLowerCase()
+      const at = normalized.indexOf("@")
+      return at !== -1 && normalized.slice(at + 1) === config.inboundDomain
+    })
+
+    return Promise.resolve(matched ? config.defaultOrgId : null)
   },
 
   async logEmailEvent(input) {
@@ -274,55 +257,25 @@ export const productionDeps: InboundRouteDeps = {
       .onConflictDoNothing()
   },
 
-  async insertInboundMessage(parsed, resolved) {
+  async resolveOrCreateIntake({ orgId, parsed }) {
     const scrubbedContent = scrubInboundStorageContent(parsed.text)
+    const senderEmail = extractEmailAddress(parsed.from)
 
-    await db.transaction(async (tx) => {
-      const [message] = await tx
-        .insert(messages)
-        .values({
-          conversationId: resolved.conversationId,
-          role: "user",
-          content: scrubbedContent,
-          metadata: {
-            email: {
-              messageId: parsed.inboundMessageId ?? undefined,
-              deliveryStatus: "delivered",
-            },
-          },
-        })
-        .returning()
-
-      await tx.insert(emailEvents).values({
-        orgId: resolved.orgId,
-        conversationId: resolved.conversationId,
-        messageId: message.id,
-        direction: "inbound",
-        providerId: parsed.providerId,
-        status: "received",
-        payload: {
-          subject: parsed.subject,
-          from: parsed.from,
-          headers: parsed.headers,
-          inboundMessageId: parsed.inboundMessageId,
+    return resolveOrCreateIntake({
+      orgId,
+      channel: "email",
+      customerIdentifier: { email: senderEmail },
+      content: scrubbedContent,
+      subject: parsed.subject || undefined,
+      // Thread into the exact conversation the customer replied to.
+      // Derived from the reply+{conversationId}@ plus-address in the To header.
+      conversationId: parsed.conversationId ?? undefined,
+      metadata: {
+        email: {
+          messageId: parsed.inboundMessageId ?? undefined,
+          deliveryStatus: "delivered",
         },
-      })
-
-      await tx
-        .update(tickets)
-        .set({
-          updatedAt: new Date(),
-          status: resolved.ticketStatus === "pending" ? "open" : resolved.ticketStatus,
-        })
-        .where(and(eq(tickets.id, resolved.ticketId), eq(tickets.orgId, resolved.orgId)))
-
-      await tx
-        .update(conversations)
-        .set({
-          unreadCount: sql`${conversations.unreadCount} + 1`,
-          updatedAt: new Date(),
-        })
-        .where(eq(conversations.id, resolved.conversationId))
+      },
     })
   },
 
@@ -359,8 +312,6 @@ export async function handleInboundRequest(
     return jsonOk({ ignored: true })
   }
 
-  const allowUnverifiedSender = allowUnverifiedSenderDev()
-
   const providerId = event.data.email_id?.trim()
   if (!providerId) {
     console.warn("[ResendInboundWebhook] Missing email_id in email.received event")
@@ -375,11 +326,12 @@ export async function handleInboundRequest(
   const receivedEmail = await deps.fetchReceivedEmail(providerId)
   const parsed = parseInboundEmail({ webhookEvent: event, receivedEmail })
 
-  const resolved =
-    (await deps.resolveByReplyAddress(parsed.recipientAddresses)) ??
-    (await deps.resolveByStoredMessageIds(headerMessageIds(parsed)))
+  const orgId =
+    (await deps.resolveOrgByReplyAddress(parsed.recipientAddresses)) ??
+    (await deps.resolveOrgByStoredMessageIds(headerMessageIds(parsed))) ??
+    (await deps.resolveOrgByInboundDomain(parsed.recipientAddresses))
 
-  if (!resolved) {
+  if (!orgId) {
     console.warn("[ResendInboundWebhook] Could not resolve inbound conversation", {
       providerId,
       recipients: parsed.recipientAddresses,
@@ -395,53 +347,22 @@ export async function handleInboundRequest(
     return jsonOk({ unresolved: true })
   }
 
-  if (!validateOrgScope(resolved)) {
-    console.warn("[ResendInboundWebhook] Resolved conversation failed org scope check", {
-      providerId,
-      conversationId: resolved.conversationId,
-      orgId: resolved.orgId,
-      ticketOrgId: resolved.ticketOrgId,
-      customerOrgId: resolved.customerOrgId,
-    })
-    await deps.logEmailEvent({
-      orgId: resolved.orgId,
-      conversationId: resolved.conversationId,
-      providerId,
-      status: "org_scope_mismatch",
-      payload: { event, parsed, resolved },
-    })
-    return jsonOk({ orgScopeMismatch: true })
-  }
-
-  const actualSender = extractEmailAddress(parsed.from)
-  const expectedSender = extractEmailAddress(resolved.customerEmail)
-  if (!expectedSender || actualSender !== expectedSender) {
-    if (!allowUnverifiedSender) {
-      console.warn("[ResendInboundWebhook] Inbound sender mismatch", {
-        providerId,
-        conversationId: resolved.conversationId,
-        actualSender,
-        expectedSender,
-      })
-      await deps.logEmailEvent({
-        orgId: resolved.orgId,
-        conversationId: resolved.conversationId,
-        providerId,
-        status: "sender_mismatch",
-        payload: { event, parsed, expectedSender },
-      })
-      return jsonOk({ senderMismatch: true })
-    }
-
-    console.warn("[ResendInboundWebhook] Allowing unverified sender in dev", {
-      providerId,
-      conversationId: resolved.conversationId,
-      actualSender,
-      expectedSender,
-    })
-  }
-
-  await deps.insertInboundMessage(parsed, resolved)
+  const intake = await deps.resolveOrCreateIntake({ orgId, parsed })
+  await deps.logEmailEvent({
+    orgId,
+    conversationId: intake.conversationId,
+    messageId: intake.messageId,
+    providerId,
+    status: "received",
+    payload: {
+      subject: parsed.subject,
+      from: parsed.from,
+      headers: parsed.headers,
+      inboundMessageId: parsed.inboundMessageId,
+      ticketId: intake.ticketId,
+      isNewTicket: intake.isNewTicket,
+    },
+  })
   return jsonOk()
 }
 

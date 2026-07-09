@@ -1,7 +1,7 @@
 import { createServer } from "http"
 import { Server as SocketIOServer } from "socket.io"
 import { db } from "@/lib/db"
-import { hitlQueue } from "@/lib/db/schema"
+import { conversations, hitlQueue } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { signalHITLDecision } from "@/lib/temporal/client"
 import {
@@ -10,16 +10,39 @@ import {
   HITL_RESOLVED_CHANNEL,
   PIPELINE_STEP_CHANNEL,
   PIPELINE_RUN_FINISHED_CHANNEL,
+  CHAT_AGENT_REPLY_CHANNEL,
+  CHAT_TRIAGE_PENDING_CHANNEL,
+  trackAgentOnline,
+  trackAgentOffline,
 } from "@/lib/realtime/event-bus"
+import {
+  registerChatWidgetNamespace,
+  buildProductionChatWidgetDeps,
+  widgetRoom,
+  widgetOrgRoom,
+  CHAT_WIDGET_NAMESPACE,
+} from "@/lib/realtime/chat-widget-namespace"
 
 /**
- * Socket.IO server for real-time HITL queue updates.
+ * Socket.IO server for real-time HITL queue updates and chat visitor events.
  *
- * Events emitted to the client:
+ * Two connection modes:
+ *
+ *   Agent/reviewer:  handshake.auth = { orgId }
+ *     Joins room "org:{orgId}". Receives hitl:new, hitl:resolved,
+ *     pipeline:step, pipeline:run:finished.
+ *
+ *   Chat visitor:    handshake.auth = { conversationId, orgId }
+ *     The conversationId + orgId pair is verified against the DB before
+ *     admission. Joins room "conversation:{conversationId}". Receives:
+ *       chat:agent_reply    — { conversationId, messageId, content }
+ *       chat:triage_pending — { conversationId, priority }
+ *
+ * Events emitted to the agent room:
  *   hitl:new      — a new item appeared in the queue     { item }
  *   hitl:resolved — an item was approved/rejected        { id, action, editedOutput? }
  *
- * Events received from client:
+ * Events received from agent client:
  *   hitl:approve  — { id, editedOutput? }
  *   hitl:reject   — { id }
  *
@@ -34,23 +57,73 @@ const PORT = parseInt(process.env.SOCKET_PORT ?? "3002", 10)
 const httpServer = createServer()
 const io = new SocketIOServer(httpServer, {
   cors: {
+    // Default namespace (agents/dashboard): same-origin restriction.
+    // /chat-widget namespace has its own per-widgetKey origin allowlist
+    // enforced inside registerChatWidgetNamespace middleware.
     origin: process.env.NEXTAUTH_URL ?? "http://localhost:3000",
     methods: ["GET", "POST"],
     credentials: true,
   },
 })
 
-io.on("connection", (socket) => {
+// ── /chat-widget namespace ────────────────────────────────────────────────────
+// Mounted immediately — deps are async-loaded lazily inside the factory so the
+// server starts even if DB isn't ready yet (deps are called per-connection).
+let chatWidgetNs: ReturnType<typeof registerChatWidgetNamespace> | null = null
+
+buildProductionChatWidgetDeps().then((deps) => {
+  chatWidgetNs = registerChatWidgetNamespace(io, deps)
+  console.log(`[Socket] /chat-widget namespace registered`)
+}).catch((err) => {
+  console.error("[Socket] Failed to register /chat-widget namespace:", (err as Error).message)
+})
+
+io.on("connection", async (socket) => {
   const orgId = socket.handshake.auth?.orgId as string | undefined
+  const conversationId = socket.handshake.auth?.conversationId as string | undefined
 
   if (!orgId) {
     socket.disconnect(true)
     return
   }
 
+  // ── Chat visitor mode ────────────────────────────────────────────────────
+  // When a conversationId is supplied, verify ownership then admit the visitor
+  // into a conversation-scoped room. This keeps agent events out of visitor
+  // sockets and visitor rooms isolated per conversation (tenant-safe).
+  if (conversationId) {
+    const conv = await db.query.conversations.findFirst({
+      where: and(eq(conversations.id, conversationId), eq(conversations.orgId, orgId)),
+    }).catch(() => null)
+
+    if (!conv) {
+      console.warn(`[Socket] Visitor rejected — conversation ${conversationId} not found in org ${orgId}`)
+      socket.disconnect(true)
+      return
+    }
+
+    socket.join(`conversation:${conversationId}`)
+    console.log(`[Socket] Visitor joined conversation:${conversationId} (${socket.id})`)
+
+    socket.on("disconnect", () => {
+      console.log(`[Socket] Visitor disconnected from conversation:${conversationId} (${socket.id})`)
+    })
+    return
+  }
+
+  // ── Agent/reviewer mode ──────────────────────────────────────────────────
   // Join an org-scoped room so broadcasts are tenant-isolated
   socket.join(`org:${orgId}`)
-  console.log(`[Socket] Client connected to org:${orgId} (${socket.id})`)
+  console.log(`[Socket] Agent connected to org:${orgId} (${socket.id})`)
+
+  // Stamp presence in Redis so Next.js app can answer availability checks
+  // cross-process (GET /api/chat/availability reads this key).
+  trackAgentOnline(orgId, socket.id).catch(() => {/* non-fatal */})
+
+  // Notify visitors that an agent just came online.
+  if (chatWidgetNs) {
+    chatWidgetNs.to(widgetOrgRoom(orgId)).emit("presence:agent-online", { online: true })
+  }
 
   // ── hitl:approve ────────────────────────────────────────────────────────
   socket.on(
@@ -71,8 +144,28 @@ io.on("connection", (socket) => {
     io.to(`org:${orgId}`).emit("hitl:resolved", { id: data.id, action: "reject" })
   })
 
+  // ── agent typing → visitor ───────────────────────────────────────────────
+  // Dashboard agent emits these so the widget can show "Agent is typing…".
+  // Ephemeral — never persisted.
+  socket.on("agent:typing:start", (data: { conversationId: string }) => {
+    if (!data?.conversationId || !chatWidgetNs) return
+    chatWidgetNs.to(widgetRoom(data.conversationId)).emit("typing:start", { role: "agent" })
+  })
+
+  socket.on("agent:typing:stop", (data: { conversationId: string }) => {
+    if (!data?.conversationId || !chatWidgetNs) return
+    chatWidgetNs.to(widgetRoom(data.conversationId)).emit("typing:stop", { role: "agent" })
+  })
+
   socket.on("disconnect", () => {
-    console.log(`[Socket] Client disconnected (${socket.id})`)
+    console.log(`[Socket] Agent disconnected (${socket.id})`)
+    // Remove from Redis presence SET (non-fatal).
+    trackAgentOffline(orgId, socket.id).catch(() => {/* non-fatal */})
+    // Notify visitors if no agents remain online.
+    const agentRoomSize = io.sockets.adapter.rooms.get(`org:${orgId}`)?.size ?? 0
+    if (chatWidgetNs && agentRoomSize === 0) {
+      chatWidgetNs.to(widgetOrgRoom(orgId)).emit("presence:agent-online", { online: false })
+    }
   })
 })
 
@@ -123,19 +216,52 @@ if (subscriber) {
     HITL_RESOLVED_CHANNEL,
     PIPELINE_STEP_CHANNEL,
     PIPELINE_RUN_FINISHED_CHANNEL,
+    CHAT_AGENT_REPLY_CHANNEL,
+    CHAT_TRIAGE_PENDING_CHANNEL,
     (err) => {
     if (err) console.error("[Socket] Redis subscribe failed:", err.message)
     else console.log("[Socket] Subscribed to realtime event bus")
   })
   subscriber.on("message", (channel, raw) => {
     try {
-      const msg = JSON.parse(raw) as { orgId: string; [k: string]: unknown }
+      const msg = JSON.parse(raw) as { orgId: string; conversationId?: string; [k: string]: unknown }
       if (!msg.orgId) return
-      const room = `org:${msg.orgId}`
-      if (channel === HITL_NEW_CHANNEL) io.to(room).emit("hitl:new", { item: msg.item })
-      else if (channel === HITL_RESOLVED_CHANNEL) io.to(room).emit("hitl:resolved", msg)
-      else if (channel === PIPELINE_STEP_CHANNEL) io.to(room).emit("pipeline:step", msg)
-      else if (channel === PIPELINE_RUN_FINISHED_CHANNEL) io.to(room).emit("pipeline:run:finished", msg)
+
+      const orgRoom = `org:${msg.orgId}`
+
+      if (channel === HITL_NEW_CHANNEL) {
+        io.to(orgRoom).emit("hitl:new", { item: msg.item })
+      } else if (channel === HITL_RESOLVED_CHANNEL) {
+        io.to(orgRoom).emit("hitl:resolved", msg)
+      } else if (channel === PIPELINE_STEP_CHANNEL) {
+        io.to(orgRoom).emit("pipeline:step", msg)
+      } else if (channel === PIPELINE_RUN_FINISHED_CHANNEL) {
+        io.to(orgRoom).emit("pipeline:run:finished", msg)
+      } else if (channel === CHAT_AGENT_REPLY_CHANNEL && msg.conversationId) {
+        // Relay agent auto-reply to the legacy visitor conversation room (default ns).
+        io.to(`conversation:${msg.conversationId}`).emit("chat:agent_reply", {
+          conversationId: msg.conversationId,
+          messageId: msg.messageId,
+          content: msg.content,
+        })
+        // Also relay as agent:message to the /chat-widget namespace.
+        chatWidgetNs?.to(widgetRoom(msg.conversationId as string)).emit("agent:message", {
+          conversationId: msg.conversationId,
+          messageId: msg.messageId,
+          content: msg.content,
+        })
+      } else if (channel === CHAT_TRIAGE_PENDING_CHANNEL && msg.conversationId) {
+        // Relay "an agent will respond shortly" to the legacy visitor room (default ns).
+        io.to(`conversation:${msg.conversationId}`).emit("chat:triage_pending", {
+          conversationId: msg.conversationId,
+          priority: msg.priority,
+        })
+        // Also relay triage:pending to the /chat-widget namespace.
+        chatWidgetNs?.to(widgetRoom(msg.conversationId as string)).emit("triage:pending", {
+          conversationId: msg.conversationId,
+          priority: msg.priority,
+        })
+      }
     } catch {
       /* malformed payload — ignore */
     }

@@ -1,6 +1,6 @@
 # v0-advan Project Knowledge
 
-Last updated: 2026-07-03
+Last updated: 2026-07-08
 
 Use this file as the first stop for future Codex work in this repo. Keep it concise and update it after meaningful features, fixes, architecture changes, migrations, or command changes.
 
@@ -30,8 +30,9 @@ Core product themes:
 - Realtime: Socket.IO HITL server.
 - Email: Resend with threaded outbound agent replies.
 - Webhook verification: Resend webhooks use Svix `Webhook.verify()`; do not replace with generic HMAC code.
+- Inbound intake: `lib/tickets/auto-intake.ts` is the shared entry point for customer messages. It resolves/creates customer identity, reuses an open ticket+conversation for the same org/customer/channel, otherwise creates both, then inserts the user message and returns ids for triage.
 - Storage: AWS S3 for KB documents.
-- Governance: policy, PII masking, citations, hallucination detection under `lib/governance`.
+- Governance: policy, PII masking, citations, hallucination detection, and complaint classification under `lib/governance`.
 - Observability: Sentry, Vercel Analytics, OpenTelemetry in production.
 
 ## Commands
@@ -72,7 +73,6 @@ Often needed by specific systems:
 - Ollama embeddings/chat: `OLLAMA_BASE_URL`, embedding config in `lib/vector/embedding-config.ts`
 - Email: `RESEND_API_KEY` and email config in `lib/email/config.ts`
 - Resend inbound webhooks: `RESEND_WEBHOOK_SECRET`; route is `/api/webhooks/resend/inbound`
-- Dev-only inbound sender bypass: `ALLOW_UNVERIFIED_SENDER_DEV=false`; route asserts this is never true in production
 - AWS S3: storage config used by `lib/storage/s3-client.ts`
 
 Security notes:
@@ -105,6 +105,7 @@ Security notes:
 - `lib/vector/*`: embeddings and pgvector store.
 - `lib/governance/*`: policy, PII, citations, hallucination checks.
 - `lib/copilot/*`: copilot decision/suggestion/service logic and stream hook.
+- `lib/conversations/*`: shared DB helpers used by both tRPC routes and background workers (e.g. `insert-agent-message.ts`).
 - `lib/orchestration/*`: LangGraph/workflow engine.
 - `lib/pipeline/*`: pipeline builder schema, compiler, registry, execution store.
 
@@ -120,16 +121,79 @@ Use this map before broad exploration:
 - Database/model changes: `lib/db/schema.ts`, matching `lib/db/migrations/*`, and `lib/db/seed.ts`.
 - Tickets: `app/dashboard/tickets/page.tsx` and `lib/api/routers/tickets.ts`.
 - Conversations/email workbench: `app/dashboard/conversations/page.tsx`, `lib/api/routers/conversations.ts`, `lib/email/*`, Resend webhook routes.
+- Shared inbound customer-message intake: `lib/tickets/auto-intake.ts`; customer lookup helper lives in `lib/api/routers/customers.ts`. Email inbound resolves org from reply address/message headers, then calls this shared service.
 - Copilot drafting: `app/dashboard/copilot/page.tsx`, `app/api/copilot/stream/route.ts`, `lib/copilot/*`, `lib/governance/*`, `lib/vector/*`.
-- Tap Box/audit review: `app/dashboard/tap-box/page.tsx`, `lib/api/routers/analytics.ts`, `lib/copilot/decision-service.ts`, `auditLogs` and `hitlQueue`.
+- Complaint classification (copilot triage): `lib/governance/complaint-classifier.ts`; exports `classifyMessage()` and `parseClassification()`. Separate LLM call (see latency note in file). Tests: `lib/governance/complaint-classifier.test.ts`.
+- Auto-triage pipeline: `lib/queue/workers/copilot-triage-worker.ts` processes `copilotTriageQueue` jobs (one per inbound message). Runs classifier + draft generation in parallel (Promise.all), gates on isComplaint and 85% confidence threshold, uses `NoOpHitl` so the SuggestionService never double-enqueues. Auto-send path uses `lib/conversations/insert-agent-message.ts` shared helper. Enqueue happens in `lib/tickets/auto-intake.ts` after message insert (non-fatal try/catch). Tests: `lib/queue/workers/copilot-triage-worker.test.ts`, `lib/queue/workers/copilot-triage-worker.e2e.test.ts`. Dev: start with `DEV_ALL_SKIP_TRIAGE=1` to skip. Complaint HITL reason format: `[COMPLAINT] severity — reasoning` (the `[COMPLAINT]` prefix is required — test and code must match).
+- Tap Box/audit review: `app/dashboard/tap-box/page.tsx`, `lib/api/routers/analytics.ts`, `lib/copilot/decision-service.ts`, `auditLogs` and `hitlQueue`. Tap Box has three filters: Risk (auto-pass/review/blocked), Sources (sourced/unsourced KB citations), and Origin (auto-triage/manual). The Origin filter reads `auditLogs.metadata.source` which is set to `"auto_triage"` by the triage worker.
 - Customers: `app/dashboard/customers/page.tsx`, `lib/api/routers/customers.ts`.
 - Knowledge base: `app/dashboard/knowledge-base/page.tsx`, `lib/api/routers/knowledge.ts`, `lib/queue/workers/embedding-worker.ts`, `lib/vector/*`, `lib/storage/s3-client.ts`.
-- Analytics: `app/dashboard/analytics/page.tsx`, `lib/api/routers/analytics.ts`, `lib/analytics/org-overview.ts`.
+- Analytics: `app/dashboard/analytics/page.tsx`, `lib/api/routers/analytics.ts`, `lib/analytics/org-overview.ts`, `lib/analytics/triage-breakdown.ts`. The analytics dashboard now includes an "Auto-triage resolution rate" card showing % auto-resolved vs escalated, broken out by channel and by complaint vs non-complaint type. Backed by `analytics.triageBreakdown` tRPC procedure which reads from `messages.metadata.triage` (stamped by the triage worker) joined with `conversations` for channel. Tests: `lib/analytics/triage-breakdown.test.ts`.
 - Workflow registry/control plane: `app/dashboard/workflows/page.tsx`, `lib/api/routers/orchestration.ts`, `lib/workflows/analyzer.ts`, `lib/workflows/lifecycle.ts`.
 - Visual pipeline builder: `app/dashboard/orchestration/page.tsx`, `components/pipeline/*`, `lib/pipeline/*`.
 - Durable pipeline execution: `lib/api/routers/orchestration.ts`, `lib/pipeline/compiler.ts`, `lib/temporal/workflows/pipeline-execution.ts`, `lib/temporal/activities/pipeline-activities.ts`, `lib/pipeline/executors/index.ts`.
-- Realtime pipeline/HITL updates: `lib/realtime/socket-server.ts`, `lib/realtime/event-bus.ts`, `lib/pipeline/use-pipeline-realtime.ts`, `app/api/hitl/route.ts`.
+- Realtime pipeline/HITL updates: `lib/realtime/socket-server.ts`, `lib/realtime/event-bus.ts`, `lib/pipeline/use-pipeline-realtime.ts`, `app/api/hitl/route.ts`. Socket server supports two connection modes: agent (orgId only → joins `org:{orgId}`) and chat visitor (conversationId + orgId → DB-verified, joins `conversation:{conversationId}`). Chat visitor events: `chat:agent_reply` (AI auto-replied) and `chat:triage_pending` (escalated; show "agent will respond" state). Event bus has two new channels: `CHAT_AGENT_REPLY_CHANNEL` and `CHAT_TRIAGE_PENDING_CHANNEL`.
+- Chat widget namespace: `lib/realtime/chat-widget-namespace.ts` — `/chat-widget` Socket.IO namespace mounted on the existing server (no second process). Auth middleware verifies the 1-hour JWT from `POST /api/chat/session` AND re-checks the origin against `widget_configs.allowedOrigins` (separate trust boundary). Visitors join `widget:{conversationId}` + `widget-org:{orgId}` rooms. Server events to visitor: `session:ready`, `agent:message`, `triage:pending`, `typing:start`/`typing:stop` (with `role:"agent"`), `presence:agent-online`. Visitor events: `visitor:message`, `typing:start`/`typing:stop`. Reconnect: if no conversationId in auth, server looks up by visitorSessionId; client fetches missed messages via REST after receiving `session:ready`. Agent typing relayed from default-ns `agent:typing:start`/`agent:typing:stop` → widget room. Tests: `lib/realtime/chat-widget-namespace.test.ts`.
+- Chat session: `app/api/chat/session/route.ts` — public unauthenticated POST endpoint for the embedded widget. Accepts `{ widgetKey, origin, visitorSessionId? }`. Looks up `widget_configs` by widgetKey, enforces exact-match origin allowlist (rejects 403 on mismatch), mints or reuses a UUID visitorSessionId, signs a 1-hour HS256 JWT (`{ orgId, widgetKey, visitorSessionId }`, issuer `advan:chat-session`) using `AUTH_SECRET`/`NEXTAUTH_SECRET` via jose. Returns `{ token, visitorSessionId }`. Rate-limited 20/min per IP via Upstash (fails closed in production). Tests: `app/api/chat/session/route.test.ts`.
+- Chat intake: `app/api/chat/intake/route.ts` — public unauthenticated POST endpoint for widget messages. Accepts `{ orgId, content, visitorSessionId?, subject? }`. Calls `resolveOrCreateIntake` with `channel: "chat"`. Returns `{ conversationId, messageId, ticketId, isNewTicket, status: "received" }`. Rate-limited 30/min per IP.
 - Workers/dev services: `scripts/dev-all.sh`, `lib/queue/workers/*`, `lib/temporal/worker.ts`, `lib/temporal/workers/daemon.worker.ts`, `lib/mcp/http-server.ts`.
+
+## Chat Widget Verification and Hardening (Prompt 7)
+
+- **Critical fix (2026-07-08)**: BullMQ custom job IDs cannot contain `:`. `auto-intake.ts` used `triage:${messageId}` which caused every triage enqueue to fail silently (`[auto-intake] Failed to enqueue triage job: Custom Id cannot contain :`). Fixed to `triage-${messageId}` for both job name and `jobId`.
+- **Live verification script**: `scripts/verify-chat-prompt7.ts` — exercises routine auto-triage, complaint HITL, offline intake, and Tap Box channel labeling against a running `dev:all` stack. Requires `widget_configs` row (`wk_test_local`), `DATABASE_URL`, Redis, and **Ollama running with KB embeddings indexed** for scenario 1 auto-send (confidence ≥ 85%). Run: `npx tsx scripts/verify-chat-prompt7.ts`.
+- **Tap Box channel labeling**: `analytics.auditLogs` tRPC procedure LEFT JOINs `tickets` to return `channel` (email/chat/…) alongside each audit log. The Tap Box `DecisionListItem` shows a colored channel badge (blue for chat, purple for email) and the "Decision metadata" panel shows a "Channel" row using `channelLabel()`. Both source (auto_triage/manual) and channel are visible side by side. Verified in DB: chat-channel audit logs carry `source=auto_triage` + `channel=chat`.
+- **TODO/FIXME sweep**: Full grep of the chat code path — zero TODOs or FIXMEs found.
+- **Load test script**: `scripts/load-test-widget.ts` — hits 100 concurrent sessions against `POST /api/chat/session` and `GET /api/chat/availability`, optionally 50 concurrent socket connections (`LOAD_TEST_SOCKET=1`). Uses `forceNew: true` + `extraHeaders: { origin }` + polling transport for Node socket clients. Verified: 50/50 sessions ok, 50/50 sockets connected, no 5xx.
+- **Triage worker in dev**: Started by `scripts/dev-all.sh` (skip with `DEV_ALL_SKIP_TRIAGE=1`).
+- **Migrations 0008–0011**: `widget_configs`, `customers_org_visitor_session_unique`, `conversations.chat_offline_delivery`, `users.chat_available`. If `drizzle-kit migrate` stops at 0007, apply SQL manually and insert journal hashes (see `drizzle.__drizzle_migrations`).
+- **Live verification results (2026-07-08)**:
+  - ✅ Complaint chat → `triage:pending` with `priority=complaint`, HITL row with `[COMPLAINT]` prefix, no auto-send (~5s latency)
+  - ✅ Offline intake → `offlineMode=true`, `chatOfflineDelivery=true`, visitor email stored on customer
+  - ✅ Load test 50 concurrent sessions + 50 sockets, p99 < 600ms
+  - ✅ Unit/e2e: `chat-widget-namespace`, `session/route`, `chat-channel`, `copilot-triage-worker.e2e`, `offline-chat`, `triage-breakdown` — all pass
+  - ⚠ Scenario 1 live auto-send requires Ollama + indexed KB embeddings (without Ollama, triage runs but confidence ~44% → `hitl_low_confidence`)
+
+## Chat Dashboard Integration (Prompt 6 additions)
+
+- `users.chatAvailable` boolean column (migration `0011_agent_chat_available.sql`, default `true`). Controls whether the agent accepts live chat even when their socket session is connected. Surface via `conversations.getAgentChatStatus` (query) and `conversations.setAgentChatAvailable` (mutation).
+- Topbar (`components/dashboard/topbar.tsx`) shows a "Chat on / Chat off" toggle next to the Online badge. Reads `chatAvailable` from tRPC, toggles optimistically.
+- `isOrgChatAccepting(orgId)` in `lib/realtime/event-bus.ts` — combines Redis socket presence (fast path) AND `users.chatAvailable` DB check. Used by `GET /api/chat/availability` and `POST /api/chat/intake` instead of old `isAnyAgentOnline`.
+- `chat-widget-namespace.ts` now emits `visitor:online { conversationId }` / `visitor:offline { conversationId }` to `org:{orgId}` room when a widget visitor connects/disconnects.
+- Conversations page socket connection: agents join the default namespace with `auth: { orgId }`. Subscribes to `visitor:typing:start`, `visitor:typing:stop`, `visitor:online`, `visitor:offline`. Displays a visitor-online badge in the thread header (chat channel only) and an animated typing-dots bubble in the message list.
+- Agent typing emit: when the agent types in the composer for a chat conversation, emits `agent:typing:start { conversationId }` / `agent:typing:stop` to the socket server (which relays to the widget visitor). Stops automatically before send.
+- Single code path confirmed: `conversations.addMessage` (tRPC) → `insertAgentMessage` (shared helper) → email queue OR `publishChatAgentReply` Redis pub/sub → socket server → visitor widget. Auto-triage worker uses the same `insertAgentMessage`. No separate path for manual vs auto replies.
+- Conversation list triage badges (AI Replied / Complaint Review / Pending Review) now work for ALL channels: `messages.metadata` is included in the `conversations.list` query, `ConvItem.lastMessage.metadata` is typed, and `threadToConvItem` passes the metadata through. The `triage.*` and `isAutoTriaged` metadata fields are stamped by the copilot-triage-worker regardless of channel.
+
+## Chat Widget Embed
+
+- Embed loader: `public/widget.js` — vanilla JS, no framework, served as a static file.
+  Usage: `<script src="https://yourapp.com/widget.js" data-key="wk_xxx"></script>`
+  Creates a floating bubble (bottom-right) that expands to a panel on click. Bubble icon toggles open/close; Escape key also closes. postMessage accepts `{ type: 'advan:close' }` from the frame.
+
+- Widget iframe: `app/chat-widget-frame/page.tsx` — standalone Next.js page, `"use client"`, no nav/header/footer.
+  URL params: `key` (widgetKey) and `origin` (embedding page's origin, forwarded to session endpoint).
+  Flow: availability → session JWT → intake (first message) → socket connect → messages.
+  localStorage keys: `advan_widget_vsid` (visitorSessionId), `advan_widget_cid` (conversationId) for reconnect.
+  Socket: connects to `/chat-widget` namespace at `NEXT_PUBLIC_SOCKET_URL ?? :3002`. First message uses REST `/api/chat/intake`; subsequent messages use socket `visitor:message`. Reconnect re-uses stored conversationId.
+  postMessage to parent: `{ type: 'advan:ready' }` on mount, `{ type: 'advan:close' }` on X button.
+
+- Widget bare layout: `app/chat-widget-frame/layout.tsx` — no chrome, renders children directly.
+
+- iframe sandbox: `allow-scripts allow-forms allow-same-origin allow-popups` — same-origin needed for socket.io localStorage/cookies and app API calls.
+
+- Security headers for `/chat-widget-frame` in `next.config.mjs`: `frame-ancestors *` (any site may embed), no `X-Frame-Options` (omission = only CSP governs). All other routes keep `frame-ancestors 'none'` / `X-Frame-Options: DENY`.
+
+- Socket namespace origin: `lib/realtime/chat-widget-namespace.ts` allows the app's own URL (`AUTH_URL` / `NEXTAUTH_URL`) in addition to `widgetConfigs.allowedOrigins` — necessary because the iframe connects from the app's own origin, not the embedding site's origin.
+
+- Manual test page: `public/widget-test.html` — open at `http://localhost:3000/widget-test.html`. Requires a `widget_configs` row with `widgetKey: "wk_test_local"` and `allowedOrigins: ["http://localhost:3000"]`.
+
+- Widget test seed SQL:
+  ```sql
+  INSERT INTO widget_configs (id, org_id, widget_key, allowed_origins, pre_chat_form_enabled)
+  SELECT gen_random_uuid(), id, 'wk_test_local', '["http://localhost:3000"]'::jsonb, true
+  FROM organizations LIMIT 1;
+  ```
 
 ## Marketing Site Notes
 
@@ -258,12 +322,14 @@ Main Drizzle tables:
 - HITL: `hitlQueue`
 - Pipeline execution: `pipelineRuns`, `pipelineRunSteps`
 - Queue tracking: `jobs`
+- Chat widget: `widgetConfigs` (widgetKey, allowedOrigins jsonb array, preChatFormEnabled, brandingConfig jsonb)
 
 Important data model details:
 
 - `knowledgeSources.embedding` is `vector(768)` and must match `EMBEDDING_DIMENSION`.
 - `conversations` has email threading fields: `emailRootMessageId`, `emailReplyToAddress`.
 - `conversations` also has workbench metadata from migration `0005_conversation_workbench`: nullable `title`, `pinnedAt`, `archivedAt`, integer `unreadCount`, json `tags`, and `updatedAt`.
+- `conversations` also has `visitorSessionId` (text, nullable, indexed) added by migration `0008_widget_configs` — ties a chat conversation to a browser session for reconnect, parallel to `emailReplyToAddress`.
 - `messages.metadata.email` tracks `messageId`, `inReplyTo`, `resendId`, delivery status, and errors.
 - `tickets.create` also creates a conversation so queue "View" actions resolve.
 - `tickets.create` rejects `channel=email` unless the selected customer belongs to the org and has a syntactically valid email address; dashboard ticket creation mirrors this with a customer picker.

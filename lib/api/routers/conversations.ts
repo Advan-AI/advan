@@ -2,9 +2,10 @@ import { z } from "zod"
 import { eq, and, desc, inArray, isNull, isNotNull, sql } from "drizzle-orm"
 import { TRPCError } from "@trpc/server"
 import { protectedProcedure, router } from "../trpc"
-import { conversations, messages, tickets, customers } from "@/lib/db/schema"
+import { conversations, messages, tickets, customers, users } from "@/lib/db/schema"
 import { db } from "@/lib/db"
 import { notificationQueue } from "@/lib/queue/queues"
+import { insertAgentMessage } from "@/lib/conversations/insert-agent-message"
 
 type MessageMetadata = NonNullable<typeof messages.$inferInsert.metadata>
 type EmailDeliveryStatus = NonNullable<MessageMetadata["email"]>["deliveryStatus"]
@@ -214,13 +215,17 @@ export const conversationsRouter = router({
 
       if (rows.length === 0) return []
 
-      // Fetch last message per conversation in one query then map
+      // Fetch last message per conversation in one query then map.
+      // metadata is included so the conversation list can render triage
+      // status badges (AI Replied, Complaint, Pending Review) without an
+      // extra round-trip — and these work identically for email and chat.
       const convIds = rows.map((r) => r.id)
       const allMsgs = await db
         .select({
           conversationId: messages.conversationId,
           content: messages.content,
           role: messages.role,
+          metadata: messages.metadata,
           createdAt: messages.createdAt,
         })
         .from(messages)
@@ -362,88 +367,67 @@ export const conversationsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const enqueueEmail =
-        await db.transaction(async (tx) => {
-          const [row] = await tx
-            .select({
-              conversationId: conversations.id,
-              channel: conversations.channel,
-              ticketSubject: tickets.subject,
-              customerEmail: customers.email,
-            })
-            .from(conversations)
-            .innerJoin(tickets, eq(conversations.ticketId, tickets.id))
-            .leftJoin(customers, eq(conversations.customerId, customers.id))
-            .where(
-              and(
-                eq(conversations.id, input.conversationId),
-                eq(conversations.orgId, ctx.user.orgId),
-              ),
-            )
-            .limit(1)
-
-          if (!row) {
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "Conversation not found",
-            })
+      // Agent messages go through the shared insertAgentMessage helper so the
+      // triage worker auto-send path uses the exact same code. Non-agent
+      // messages (user, assistant) do not trigger email and are handled below.
+      if (input.role === "agent") {
+        try {
+          const result = await insertAgentMessage({
+            orgId: ctx.user.orgId,
+            conversationId: input.conversationId,
+            content: input.content,
+            metadata: input.metadata,
+          })
+          return result.message
+        } catch (err) {
+          if ((err as Error).message.includes("not found")) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" })
           }
-
-          const shouldSendEmail =
-            row.channel === "email" &&
-            input.role === "agent" &&
-            !input.metadata?.isInternal
-
-          let metadata: MessageMetadata | undefined = input.metadata
-
-          if (shouldSendEmail) {
-            const customerEmail = row.customerEmail?.trim()
-            if (!customerEmail) {
-              metadata = mergeEmailMetadata(metadata, {
-                deliveryStatus: "failed",
-                error: "No customer email on file",
-              })
-            } else {
-              metadata = mergeEmailMetadata(metadata, {
-                deliveryStatus: "queued",
-              })
-            }
-          }
-
-          const [msg] = await tx
-            .insert(messages)
-            .values({
-              conversationId: input.conversationId,
-              role: input.role,
-              content: input.content,
-              metadata,
-            })
-            .returning()
-
-          await tx
-            .update(conversations)
-            .set({
-              updatedAt: new Date(),
-              ...(input.role === "user"
-                ? { unreadCount: sql`${conversations.unreadCount} + 1` }
-                : {}),
-            })
-            .where(eq(conversations.id, input.conversationId))
-
-          const shouldEnqueue = shouldSendEmail && Boolean(row.customerEmail?.trim())
-
-          return { msg, shouldEnqueue }
-        })
-
-      if (enqueueEmail.shouldEnqueue) {
-        await enqueueAgentReplyEmail({
-          orgId: ctx.user.orgId,
-          conversationId: input.conversationId,
-          messageId: enqueueEmail.msg.id,
-        })
+          throw err
+        }
       }
 
-      return enqueueEmail.msg
+      // user / assistant — no email side-effects
+      const msg = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select({ id: conversations.id })
+          .from(conversations)
+          .where(
+            and(
+              eq(conversations.id, input.conversationId),
+              eq(conversations.orgId, ctx.user.orgId),
+            ),
+          )
+          .limit(1)
+
+        if (!row) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" })
+        }
+
+        const [msg] = await tx
+          .insert(messages)
+          .values({
+            conversationId: input.conversationId,
+            role: input.role,
+            content: input.content,
+            metadata: input.metadata,
+          })
+          .returning()
+
+        await tx
+          .update(conversations)
+          .set({
+            updatedAt: new Date(),
+            ...(input.role === "user"
+              ? { unreadCount: sql`${conversations.unreadCount} + 1` }
+              : {}),
+          })
+          .where(eq(conversations.id, input.conversationId))
+
+        return msg
+      })
+
+      return msg
     }),
 
   createSupportThread: protectedProcedure
@@ -678,6 +662,35 @@ export const conversationsRouter = router({
       })
 
       return { ok: true }
+    }),
+
+  // ── Agent chat availability ─────────────────────────────────────────────────
+
+  /**
+   * Returns the current agent's chat availability toggle value.
+   * Used by the dashboard topbar to render and initialise the toggle.
+   */
+  getAgentChatStatus: protectedProcedure.query(async ({ ctx }) => {
+    const row = await db.query.users.findFirst({
+      where: eq(users.id, ctx.user.id),
+      columns: { chatAvailable: true },
+    })
+    return { chatAvailable: row?.chatAvailable ?? true }
+  }),
+
+  /**
+   * Toggle the current agent's chat availability.
+   * When set to false the agent is excluded from the org availability check
+   * even while their socket session is connected.
+   */
+  setAgentChatAvailable: protectedProcedure
+    .input(z.object({ available: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      await db
+        .update(users)
+        .set({ chatAvailable: input.available })
+        .where(eq(users.id, ctx.user.id))
+      return { chatAvailable: input.available }
     }),
 
   /**

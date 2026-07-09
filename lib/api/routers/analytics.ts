@@ -4,6 +4,7 @@ import { protectedProcedure, router } from "../trpc"
 import { auditLogs, tickets } from "@/lib/db/schema"
 import { db } from "@/lib/db"
 import { getOrgOverview } from "@/lib/analytics/org-overview"
+import { getTriageBreakdown } from "@/lib/analytics/triage-breakdown"
 
 function normalizeConfidence(value: unknown): number | null {
   if (value == null) return null
@@ -223,8 +224,21 @@ export const analyticsRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const rows = await db
-        .select()
+        .select({
+          id: auditLogs.id,
+          orgId: auditLogs.orgId,
+          workflowId: auditLogs.workflowId,
+          ticketId: auditLogs.ticketId,
+          input: auditLogs.input,
+          output: auditLogs.output,
+          metadata: auditLogs.metadata,
+          createdAt: auditLogs.createdAt,
+          // JOIN tickets to surface the channel (email / chat / …) so the
+          // Tap Box can label each audit log by originating channel.
+          channel: tickets.channel,
+        })
         .from(auditLogs)
+        .leftJoin(tickets, eq(auditLogs.ticketId, tickets.id))
         .where(eq(auditLogs.orgId, ctx.user.orgId))
         .orderBy(desc(auditLogs.createdAt))
         .limit(input.limit)
@@ -248,4 +262,19 @@ export const analyticsRouter = router({
 
       return row ?? null
     }),
+
+  /**
+   * Auto-triage resolution breakdown.
+   *
+   * Returns per-org counts of inbound customer messages that were auto-resolved
+   * by the AI vs escalated to human review, broken out by channel and by
+   * complaint vs non-complaint classification.
+   *
+   * This is the primary metric that proves the "instant resolution" claim is
+   * real and safe: complaint messages must never appear in the auto-resolved
+   * bucket (invariant enforced by the triage worker and verified in tests).
+   */
+  triageBreakdown: protectedProcedure.query(async ({ ctx }) => {
+    return getTriageBreakdown(ctx.user.orgId)
+  }),
 })

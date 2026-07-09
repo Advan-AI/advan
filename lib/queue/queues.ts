@@ -72,3 +72,29 @@ export const notificationQueue = new Queue<NotificationJob>("notification", {
     removeOnFail: 200,
   },
 })
+
+export type CopilotTriageJob = {
+  orgId: string
+  ticketId: string
+  conversationId: string
+  messageId: string
+}
+
+/**
+ * Dedicated queue for AI copilot triage of inbound customer messages.
+ *
+ * Kept separate from notificationQueue and embeddingQueue so triage latency
+ * is never blocked by unrelated background work (embedding jobs can be slow;
+ * notification retries have their own backoff rhythm).
+ *
+ * Processed by: lib/queue/workers/copilot-triage-worker.ts
+ */
+export const copilotTriageQueue = new Queue<CopilotTriageJob>("copilot-triage", {
+  connection: getConnectionConfig(),
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: "exponential", delay: 5000 },
+    removeOnComplete: 200,
+    removeOnFail: 500,
+  },
+})

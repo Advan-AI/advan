@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advan Widget — Embed Test Page</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f0e8;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+    .page-nav {
+      background: #1a1628;
+      color: #fff;
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .page-nav span { font-weight: 600; font-size: 15px; }
+    .page-nav small { opacity: 0.55; font-size: 12px; margin-left: auto; }
+    .page-content {
+      max-width: 760px;
+      margin: 60px auto;
+      padding: 0 24px;
+    }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    p  { color: #444; line-height: 1.6; margin-bottom: 16px; }
+    .setup-card {
+      background: #fff;
+      border: 1px solid #e0dbd1;
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 24px;
+    }
+    .setup-card h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+    .setup-card ol  { padding-left: 20px; color: #444; line-height: 1.8; }
+    code {
+      background: #ede8df;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    pre {
+      background: #1a1628;
+      color: #c9d1d9;
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+      overflow-x: auto;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #c8e6c9;
+    }
+    .status.warn {
+      background: #fff8e1;
+      color: #e65100;
+      border-color: #ffcc80;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .badge {
+      display: inline-block;
+      background: #6B5CD6;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    footer {
+      text-align: center;
+      padding: 40px 0 24px;
+      color: #888;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Simulated customer site nav -->
+  <nav class="page-nav">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+    </svg>
+    <span>Acme Corp <span class="badge">Test Embed</span></span>
+    <small>This page simulates a customer's website embedding the Advan widget</small>
+  </nav>
+
+  <div class="page-content">
+    <h1>Advan Widget — Integration Test</h1>
+    <p>
+      This is a static test page that embeds the <strong>Advan Chat Widget</strong>.
+      The floating chat bubble appears in the bottom-right corner. Click it to open
+      the panel and verify the full embed flow.
+    </p>
+
+    <div class="setup-card">
+      <h2>Prerequisites</h2>
+      <ol>
+        <li>
+          Start the dev server: <code>npm run dev:all</code>
+          (Next.js on <code>:3000</code>, Socket.IO on <code>:3002</code>)
+        </li>
+        <li>
+          Ensure a row exists in <code>widget_configs</code> with:
+          <ul style="margin-top:6px">
+            <li><code>widgetKey</code> matching the <code>data-key</code> below</li>
+            <li><code>allowedOrigins</code> containing <code>"http://localhost:3000"</code></li>
+          </ul>
+        </li>
+        <li>
+          Seed the DB if needed:
+<pre>INSERT INTO widget_configs (id, org_id, widget_key, allowed_origins, pre_chat_form_enabled)
+SELECT gen_random_uuid(), id, 'wk_test_local',
+       '["http://localhost:3000"]'::jsonb, true
+FROM organizations LIMIT 1;</pre>
+        </li>
+        <li>
+          Open this page at <code>http://localhost:3000/widget-test.html</code>
+          and click the <strong>chat bubble</strong>.
+        </li>
+      </ol>
+    </div>
+
+    <div class="setup-card">
+      <h2>What to verify</h2>
+      <ol>
+        <li>Bubble renders bottom-right; click opens animated panel.</li>
+        <li>
+          Widget frame loads inside the iframe — check browser DevTools
+          <em>Network</em> tab for <code>/api/chat/availability</code>.
+        </li>
+        <li>
+          If no agents are online, the <strong>pre-chat form</strong> (name + email)
+          appears; submitting it returns the "Message sent!" confirmation.
+        </li>
+        <li>
+          If an agent is online, the chat composer appears directly; sending a
+          message calls <code>/api/chat/intake</code> and socket events flow.
+        </li>
+        <li>
+          Socket connection: DevTools → <em>Network → WS</em> should show a
+          connection to <code>localhost:3002/chat-widget</code>.
+        </li>
+        <li>
+          Typing indicator: from the dashboard, emit <code>agent:typing:start</code>
+          to see the animated dots in the widget.
+        </li>
+        <li>
+          Close button (inside the widget) fires a <code>postMessage</code> to the
+          parent, collapsing the panel.
+        </li>
+        <li>
+          Escape key on the parent page also closes the panel.
+        </li>
+      </ol>
+    </div>
+
+    <div class="setup-card">
+      <h2>Embed snippet (copy this to any page)</h2>
+<pre>&lt;script
+  src="http://localhost:3000/widget.js"
+  data-key="wk_test_local"
+&gt;&lt;/script&gt;</pre>
+      <p style="margin:0;color:#888;font-size:13px">
+        Replace <code>http://localhost:3000</code> with your production URL and
+        <code>wk_test_local</code> with your real widget key.
+      </p>
+    </div>
+
+    <p>
+      <span class="status"><span class="dot"></span>Widget script loaded from this origin</span>
+    </p>
+  </div>
+
+  <footer>
+    Advan AI · Chat Widget Integration Test · Not for production use
+  </footer>
+
+  <!--
+    ╔══════════════════════════════════════════════════════════════╗
+    ║  THE ACTUAL WIDGET EMBED — same snippet your customers use  ║
+    ╚══════════════════════════════════════════════════════════════╝
+    Replace "wk_test_local" with your real widgetKey.
+    The src must point to the same host that serves the Next.js app.
+  -->
+  <script
+    src="/widget.js"
+    data-key="wk_test_local"
+  ></script>
+
+</body>
+</html>

@@ -65,9 +65,15 @@ export async function markMessageEmailFailed(
 }
 
 function priorEmailMetadata(
-  rows: Array<{ metadata: typeof messages.$inferSelect.metadata }>,
+  rows: Array<{ metadata: typeof messages.$inferSelect.metadata; role: string }>,
 ): PriorMessageEmailMeta[] {
+  // Only inbound (user-role) messages have reliable RFC Message-IDs.
+  // AWS SES overwrites outbound Message-IDs even when we pass them in headers
+  // (see threading.ts comment), so referencing our own outbound IDs in
+  // In-Reply-To / References would send IDs the customer's email client
+  // has never seen — breaking Gmail/Outlook thread grouping.
   return rows
+    .filter((row) => row.role === "user")
     .map((row) => row.metadata?.email)
     .filter((email): email is NonNullable<typeof email> => Boolean(email?.messageId))
     .map((email) => ({
@@ -121,7 +127,7 @@ export async function processAgentReplyJob(job: Job<AgentReplyEmailJob>) {
   }
 
   const priorRows = await db
-    .select({ metadata: messages.metadata })
+    .select({ metadata: messages.metadata, role: messages.role })
     .from(messages)
     .where(
       and(eq(messages.conversationId, conversationId), ne(messages.id, messageId)),

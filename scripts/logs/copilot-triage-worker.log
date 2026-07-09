@@ -1,0 +1,30 @@
+[TriageWorker] Starting...
+[TriageWorker] Starting...
+[TriageWorker] Starting...
+[TriageWorker] Starting...
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+[TriageWorker] Starting...
+[TriageWorker] Processing message=743a0a0d-8c2e-4612-9d58-af69f82509f7 ticket=33080ab6-7f33-4958-8c8d-5fe3fb541fe4
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=false severity=low confidence=44 policyPassed=false latency=6031ms
+[TriageWorker] Enqueued HITL id=e4bcdecb-2f5d-46b0-a99d-c98cb823791c decision=hitl_low_confidence
+[TriageWorker] ✓ Done message=743a0a0d-8c2e-4612-9d58-af69f82509f7 decision=hitl_low_confidence totalMs=6052
+[TriageWorker] Job triage-743a0a0d-8c2e-4612-9d58-af69f82509f7 completed
+[TriageWorker] Processing message=d750d209-3e9a-4411-a7e6-d17f037f3b75 ticket=1459d1a2-fb91-4f0f-b56a-3abb9d6167aa
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=true severity=high confidence=44 policyPassed=false latency=5310ms
+[TriageWorker] Enqueued HITL id=27c0490c-fac9-4185-b55d-6e63f3bea4dd decision=hitl_complaint
+[TriageWorker] ✓ Done message=d750d209-3e9a-4411-a7e6-d17f037f3b75 decision=hitl_complaint totalMs=5317
+[TriageWorker] Job triage-d750d209-3e9a-4411-a7e6-d17f037f3b75 completed
+[TriageWorker] Processing message=6e0b1cea-224b-498e-a8c6-8599c9f5023f ticket=591e65c6-667a-4f77-8a0e-47f870f02c7f
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=false severity=low confidence=44 policyPassed=false latency=5933ms
+[TriageWorker] Enqueued HITL id=c48089c2-d099-4add-b9a4-85e8ba1bd9a2 decision=hitl_low_confidence
+[TriageWorker] ✓ Done message=6e0b1cea-224b-498e-a8c6-8599c9f5023f decision=hitl_low_confidence totalMs=5940
+[TriageWorker] Job triage-6e0b1cea-224b-498e-a8c6-8599c9f5023f completed
