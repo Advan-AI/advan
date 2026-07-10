@@ -27,6 +27,7 @@ function getConnectionConfig() {
     tls: url.startsWith("rediss://") ? {} : undefined,
     maxRetriesPerRequest: null as null,
     enableReadyCheck: false,
+    family: 0,
   }
 }
 

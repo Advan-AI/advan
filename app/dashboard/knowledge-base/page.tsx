@@ -20,6 +20,7 @@ import {
   Globe,
   Hash,
   Loader2,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -89,8 +90,16 @@ export default function KnowledgeBasePage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [activeId, setActiveId] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [viewOpen, setViewOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<KnowledgeSource | null>(null)
   const [draft, setDraft] = useState<Draft>({
+    title: "",
+    content: "",
+    url: "",
+    sourceType: "document",
+  })
+  const [editDraft, setEditDraft] = useState<Draft>({
     title: "",
     content: "",
     url: "",
@@ -138,6 +147,19 @@ export default function KnowledgeBasePage() {
       ])
     },
     onError: (error) => toast.error(error.message || "Could not delete source"),
+  })
+
+  const updateMutation = api.knowledge.update.useMutation({
+    onSuccess: async (source) => {
+      toast.success("Knowledge source updated")
+      setEditOpen(false)
+      setActiveId(source.id)
+      await Promise.all([
+        utils.knowledge.list.invalidate(),
+        utils.knowledge.getById.invalidate({ id: source.id }),
+      ])
+    },
+    onError: (error) => toast.error(error.message || "Could not update source"),
   })
 
   const stats = useMemo(() => {
@@ -189,6 +211,39 @@ export default function KnowledgeBasePage() {
       content,
       sourceType: draft.sourceType,
       url: url || undefined,
+    })
+  }
+
+  function openEdit() {
+    if (!detail) return
+    setEditDraft({
+      title: detail.title,
+      content: detail.content,
+      url: detail.url ?? "",
+      sourceType: detail.sourceType,
+    })
+    setEditOpen(true)
+  }
+
+  function submitEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!activeSource) return
+
+    const title = editDraft.title.trim()
+    const content = editDraft.content.trim()
+    const url = editDraft.url.trim()
+
+    if (!title || !content) {
+      toast.error("Title and content are required")
+      return
+    }
+
+    updateMutation.mutate({
+      id: activeSource.id,
+      title,
+      content,
+      sourceType: editDraft.sourceType,
+      url: url || "",
     })
   }
 
@@ -357,6 +412,8 @@ export default function KnowledgeBasePage() {
             detail={detail}
             isLoading={detailQuery.isLoading}
             onCopy={copyContent}
+            onEdit={openEdit}
+            onView={() => setViewOpen(true)}
             onDelete={() => activeSource && setDeleteTarget(activeSource)}
           />
           <DashCard title="Retrieval readiness" icon={<ShieldCheck className="h-[18px] w-[18px]" />}>
@@ -372,67 +429,102 @@ export default function KnowledgeBasePage() {
 
       <AnimatePresence>
         {createOpen && (
+          <SourceFormModal
+            title="New knowledge source"
+            subtitle="Add approved content and queue it for embedding."
+            draft={draft}
+            setDraft={setDraft}
+            submitLabel="Add and index"
+            submitIcon={<Plus className="h-4 w-4" />}
+            isPending={addMutation.isPending}
+            onClose={() => setCreateOpen(false)}
+            onSubmit={submitSource}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {editOpen && activeSource && (
+          <SourceFormModal
+            title="Edit knowledge source"
+            subtitle="Update content and metadata. Title or content changes re-queue indexing."
+            draft={editDraft}
+            setDraft={setEditDraft}
+            submitLabel="Save changes"
+            submitIcon={<Pencil className="h-4 w-4" />}
+            isPending={updateMutation.isPending}
+            onClose={() => setEditOpen(false)}
+            onSubmit={submitEdit}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {viewOpen && detail && activeSource && (
           <motion.div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onMouseDown={() => setCreateOpen(false)}
+            onMouseDown={() => setViewOpen(false)}
           >
-            <motion.form
-              onSubmit={submitSource}
+            <motion.div
               onMouseDown={(event) => event.stopPropagation()}
               initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.98 }}
               transition={{ duration: 0.22 }}
-              className="w-full max-w-[720px] overflow-hidden rounded-2xl border dash-border bg-[var(--dash-card)] shadow-[0_30px_90px_-45px_rgba(23,26,23,0.55)]"
+              className="flex max-h-[90vh] w-full max-w-[900px] flex-col overflow-hidden rounded-2xl border dash-border bg-[var(--dash-card)] shadow-[0_30px_90px_-45px_rgba(23,26,23,0.55)]"
             >
               <div className="flex items-center gap-3 border-b dash-border-soft px-5 py-4">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ECE9FB] text-[var(--dash-accent)]">
-                  <BookOpen className="h-4.5 w-4.5" />
+                  {SOURCE_ICON[activeSource.sourceType]}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-bold text-[var(--dash-ink)]">New knowledge source</div>
-                  <div className="text-[12px] text-[var(--dash-ink-faint)]">Add approved content and queue it for embedding.</div>
+                  <div className="truncate text-[15px] font-bold text-[var(--dash-ink)]">{detail.title}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-[var(--dash-ink-faint)]">
+                    <span className="capitalize">{detail.sourceType}</span>
+                    <span>·</span>
+                    <StatusBadge status={detail.embeddingStatus} />
+                    <span>·</span>
+                    <span>{formatRelativeTime(detail.createdAt)}</span>
+                  </div>
                 </div>
-                <button type="button" onClick={() => setCreateOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--dash-ink-faint)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)]">
+                <button type="button" onClick={() => setViewOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--dash-ink-faint)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)]">
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="grid gap-3 p-5">
-                <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
-                  <Field label="Title" required>
-                    <input value={draft.title} onChange={(event) => setDraft((value) => ({ ...value, title: event.target.value }))} autoFocus placeholder="Refund policy v4" className={FIELD_CLASS} />
-                  </Field>
-                  <Field label="Type">
-                    <select value={draft.sourceType} onChange={(event) => setDraft((value) => ({ ...value, sourceType: event.target.value as SourceType }))} className={FIELD_CLASS}>
-                      {SOURCE_TYPES.map((item) => (
-                        <option key={item} value={item}>{capitalize(item)}</option>
-                      ))}
-                    </select>
-                  </Field>
+              {detail.url && (
+                <div className="border-b dash-border-soft px-5 py-3">
+                  <a href={detail.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 font-mono text-[11px] text-[var(--dash-accent-deep)] transition hover:underline">
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{detail.url}</span>
+                  </a>
                 </div>
-                <Field label="URL">
-                  <input value={draft.url} onChange={(event) => setDraft((value) => ({ ...value, url: event.target.value }))} placeholder="https://docs.company.com/refunds" className={FIELD_CLASS} />
-                </Field>
-                <Field label="Content" required>
-                  <textarea
-                    value={draft.content}
-                    onChange={(event) => setDraft((value) => ({ ...value, content: event.target.value }))}
-                    placeholder="Paste the approved article, policy, runbook, or ticket resolution..."
-                    className="min-h-[220px] w-full resize-y rounded-lg border dash-border bg-white px-3 py-2.5 text-[13px] leading-5 text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
-                  />
-                </Field>
+              )}
+              <div className="min-h-0 flex-1 overflow-auto p-5">
+                <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-6 text-[var(--dash-ink-soft)]">
+                  {detail.content}
+                </pre>
               </div>
               <div className="flex justify-end gap-2 border-t dash-border-soft px-5 py-4">
-                <button type="button" onClick={() => setCreateOpen(false)} className="h-9 rounded-lg border dash-border bg-white px-3.5 text-[13px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)]">Cancel</button>
-                <button type="submit" disabled={addMutation.isPending} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60">
-                  {addMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  Add and index
+                <button type="button" onClick={copyContent} className="inline-flex h-9 items-center gap-1.5 rounded-lg border dash-border bg-white px-3.5 text-[13px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)]">
+                  <Clipboard className="h-4 w-4" />
+                  Copy content
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewOpen(false)
+                    openEdit()
+                  }}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white transition"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit source
                 </button>
               </div>
-            </motion.form>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -553,7 +645,7 @@ function StatusBadge({ status }: { status: EmbeddingStatus }) {
   )
 }
 
-function SourceInspector({ source, detail, isLoading, onCopy, onDelete }: { source: KnowledgeSource | null; detail?: KnowledgeDetail; isLoading: boolean; onCopy: () => void; onDelete: () => void }) {
+function SourceInspector({ source, detail, isLoading, onCopy, onEdit, onView, onDelete }: { source: KnowledgeSource | null; detail?: KnowledgeDetail; isLoading: boolean; onCopy: () => void; onEdit: () => void; onView: () => void; onDelete: () => void }) {
   if (!source) {
     return (
       <DashCard title="Source inspector" icon={<BookOpen className="h-[18px] w-[18px]" />}>
@@ -597,22 +689,40 @@ function SourceInspector({ source, detail, isLoading, onCopy, onDelete }: { sour
       </div>
 
       <div className="mt-4 border-t dash-border-soft pt-3">
-        <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Content preview</div>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Content preview</div>
+          {detail?.content && (
+            <button type="button" onClick={onView} className="text-[11px] font-bold text-[var(--dash-accent-deep)] transition hover:underline">
+              View full
+            </button>
+          )}
+        </div>
         {isLoading ? (
           <div className="skeleton h-40 rounded-lg" />
         ) : (
-          <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--dash-bg)] p-3 font-mono text-[11.5px] leading-5 text-[var(--dash-ink-soft)]">
-            {detail?.content || "No content available."}
-          </pre>
+          <button
+            type="button"
+            onClick={onView}
+            disabled={!detail?.content}
+            className="block w-full text-left disabled:cursor-not-allowed"
+          >
+            <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--dash-bg)] p-3 font-mono text-[11.5px] leading-5 text-[var(--dash-ink-soft)] transition hover:ring-2 hover:ring-[#6B5CD6]/15 disabled:opacity-50">
+              {detail?.content || "No content available."}
+            </pre>
+          </button>
         )}
       </div>
 
-      <div className="mt-4 flex gap-2">
-        <button type="button" onClick={onCopy} disabled={!detail?.content} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border dash-border bg-white text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50">
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button type="button" onClick={onEdit} disabled={!detail?.content || isLoading} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border dash-border bg-white text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50">
+          <Pencil className="h-4 w-4" />
+          Edit
+        </button>
+        <button type="button" onClick={onCopy} disabled={!detail?.content} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border dash-border bg-white text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50">
           <Clipboard className="h-4 w-4" />
           Copy
         </button>
-        <button type="button" onClick={onDelete} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border dash-border bg-white text-[12.5px] font-semibold text-[var(--dash-rose)] transition hover:dash-shadow-sm">
+        <button type="button" onClick={onDelete} className="col-span-2 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border dash-border bg-white text-[12.5px] font-semibold text-[var(--dash-rose)] transition hover:dash-shadow-sm">
           <Trash2 className="h-4 w-4" />
           Delete
         </button>
@@ -648,6 +758,93 @@ function Field({ label, required, children }: { label: string; required?: boolea
       </span>
       {children}
     </label>
+  )
+}
+
+function SourceFormModal({
+  title,
+  subtitle,
+  draft,
+  setDraft,
+  submitLabel,
+  submitIcon,
+  isPending,
+  onClose,
+  onSubmit,
+}: {
+  title: string
+  subtitle: string
+  draft: Draft
+  setDraft: React.Dispatch<React.SetStateAction<Draft>>
+  submitLabel: string
+  submitIcon: ReactNode
+  isPending: boolean
+  onClose: () => void
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
+}) {
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onMouseDown={onClose}
+    >
+      <motion.form
+        onSubmit={onSubmit}
+        onMouseDown={(event) => event.stopPropagation()}
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 10, scale: 0.98 }}
+        transition={{ duration: 0.22 }}
+        className="w-full max-w-[720px] overflow-hidden rounded-2xl border dash-border bg-[var(--dash-card)] shadow-[0_30px_90px_-45px_rgba(23,26,23,0.55)]"
+      >
+        <div className="flex items-center gap-3 border-b dash-border-soft px-5 py-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ECE9FB] text-[var(--dash-accent)]">
+            <BookOpen className="h-4.5 w-4.5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[15px] font-bold text-[var(--dash-ink)]">{title}</div>
+            <div className="text-[12px] text-[var(--dash-ink-faint)]">{subtitle}</div>
+          </div>
+          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--dash-ink-faint)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)]">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="grid gap-3 p-5">
+          <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
+            <Field label="Title" required>
+              <input value={draft.title} onChange={(event) => setDraft((value) => ({ ...value, title: event.target.value }))} autoFocus placeholder="Refund policy v4" className={FIELD_CLASS} />
+            </Field>
+            <Field label="Type">
+              <select value={draft.sourceType} onChange={(event) => setDraft((value) => ({ ...value, sourceType: event.target.value as SourceType }))} className={FIELD_CLASS}>
+                {SOURCE_TYPES.map((item) => (
+                  <option key={item} value={item}>{capitalize(item)}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <Field label="URL">
+            <input value={draft.url} onChange={(event) => setDraft((value) => ({ ...value, url: event.target.value }))} placeholder="https://docs.company.com/refunds" className={FIELD_CLASS} />
+          </Field>
+          <Field label="Content" required>
+            <textarea
+              value={draft.content}
+              onChange={(event) => setDraft((value) => ({ ...value, content: event.target.value }))}
+              placeholder="Paste the approved article, policy, runbook, or ticket resolution..."
+              className="min-h-[220px] w-full resize-y rounded-lg border dash-border bg-white px-3 py-2.5 text-[13px] leading-5 text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
+            />
+          </Field>
+        </div>
+        <div className="flex justify-end gap-2 border-t dash-border-soft px-5 py-4">
+          <button type="button" onClick={onClose} className="h-9 rounded-lg border dash-border bg-white px-3.5 text-[13px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)]">Cancel</button>
+          <button type="submit" disabled={isPending} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60">
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : submitIcon}
+            {submitLabel}
+          </button>
+        </div>
+      </motion.form>
+    </motion.div>
   )
 }
 

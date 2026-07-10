@@ -189,6 +189,7 @@ describe("processTriageJob — complaint message", () => {
           ...HIGH_CONFIDENCE_DRAFT,
           auditLogId: auditLog.id,
         }),
+        retrieve: async () => [{ score: 0.55 }],
       }
 
       const t0 = performance.now()
@@ -197,13 +198,15 @@ describe("processTriageJob — complaint message", () => {
 
       console.log(`\n  [latency] Complaint path (mocked LLM, DB-only): ${elapsed.toFixed(0)} ms`)
 
-      // ── Must NOT auto-send ──────────────────────────────────────────────────
+      // ── Sends collaborative AI acknowledgment, does not auto-send KB draft ──
       const agentMessages = await db
         .select()
         .from(messages)
         .where(and(eq(messages.conversationId, conversationId), eq(messages.role, "agent")))
 
-      expect(agentMessages).toHaveLength(0)
+      expect(agentMessages.length).toBeGreaterThan(0)
+      expect(agentMessages[agentMessages.length - 1].content).toMatch(/team|teammate|Got it/i)
+      expect(agentMessages[agentMessages.length - 1].metadata?.triageMode).toBe("complaint_ack")
 
       // ── Must create a HITL row with [COMPLAINT] prefix ─────────────────────
       const hitlRow = await db.query.hitlQueue.findFirst({
@@ -211,13 +214,13 @@ describe("processTriageJob — complaint message", () => {
       })
       expect(hitlRow).toBeTruthy()
       expect(hitlRow!.reason).toMatch(/\[COMPLAINT\]/i)
-      expect(hitlRow!.draftOutput).toBe(HIGH_CONFIDENCE_DRAFT.finalText)
+      expect(hitlRow!.draftOutput).toMatch(/team|teammate|Got it/i)
 
       // ── Must stamp triage decision on the customer message ─────────────────
       const refreshed = await db.query.messages.findFirst({
         where: eq(messages.id, msg.id),
       })
-      expect(refreshed!.metadata?.triage?.decision).toBe("hitl_complaint")
+      expect(refreshed!.metadata?.triage?.decision).toBe("hitl_collaborative")
       expect(refreshed!.metadata?.triage?.isComplaint).toBe(true)
       expect(refreshed!.metadata?.triage?.confidence).toBe(HIGH_CONFIDENCE_DRAFT.confidence)
       expect(refreshed!.metadata?.triage?.auditLogId).toBe(auditLog.id)
@@ -249,6 +252,7 @@ describe("processTriageJob — high-confidence non-complaint", () => {
           ...HIGH_CONFIDENCE_DRAFT,
           auditLogId: auditLog.id,
         }),
+        retrieve: async () => [{ score: 0.82 }],
       }
 
       const t0 = performance.now()
@@ -264,8 +268,8 @@ describe("processTriageJob — high-confidence non-complaint", () => {
         .where(and(eq(messages.conversationId, conversationId), eq(messages.role, "agent")))
 
       expect(agentMessages.length).toBeGreaterThan(0)
-      const reply = agentMessages[agentMessages.length - 1]
-      expect(reply.content).toBe(HIGH_CONFIDENCE_DRAFT.finalText)
+      const reply = agentMessages.find((m) => m.content === HIGH_CONFIDENCE_DRAFT.finalText)
+      expect(reply).toBeTruthy()
 
       // ── Triage decision must be auto_send (not HITL) ──────────────────────
       // The HITL table may have rows from the complaint test; we check the
@@ -291,7 +295,7 @@ describe("processTriageJob — high-confidence non-complaint", () => {
 })
 
 describe("processTriageJob — low confidence non-complaint", () => {
-  it("routes to HITL (not auto-send) when confidence is below 85", async () => {
+  it("auto-clarifies instead of leaving the visitor in silence", async () => {
     const msg = await insertTestMessage("I am not sure about something with my account")
     const auditLog = await insertTestAuditLog(orgId, ticketId)
 
@@ -303,6 +307,7 @@ describe("processTriageJob — low confidence non-complaint", () => {
     const deps: TriageDeps = {
       classifier: makeClassifier(NON_COMPLAINT_CLASSIFICATION),
       draftGenerator: makeDraftGenerator({ ...LOW_CONFIDENCE_DRAFT, auditLogId: auditLog.id }),
+      retrieve: async () => [{ score: 0.42 }],
     }
 
     await processTriageJob(fakeJob({ orgId, ticketId, conversationId, messageId: msg.id }), deps)
@@ -312,10 +317,16 @@ describe("processTriageJob — low confidence non-complaint", () => {
       .from(hitlQueue)
       .where(eq(hitlQueue.orgId, orgId))
 
-    expect(hitlAfter[0].n).toBeGreaterThan(hitlBefore[0].n)
+    expect(hitlAfter[0].n).toBe(hitlBefore[0].n)
+
+    const agentMessages = await db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.conversationId, conversationId), eq(messages.role, "agent")))
+    expect(agentMessages.length).toBeGreaterThan(0)
 
     const refreshed = await refreshedMessage(msg.id)
-    expect(refreshed!.metadata?.triage?.decision).toBe("hitl_low_confidence")
+    expect(refreshed!.metadata?.triage?.decision).toBe("auto_clarify")
   })
 })
 

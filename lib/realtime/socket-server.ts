@@ -122,7 +122,11 @@ io.on("connection", async (socket) => {
 
   // Notify visitors that an agent just came online.
   if (chatWidgetNs) {
-    chatWidgetNs.to(widgetOrgRoom(orgId)).emit("presence:agent-online", { online: true })
+    const count = io.sockets.adapter.rooms.get(`org:${orgId}`)?.size ?? 1
+    chatWidgetNs.to(widgetOrgRoom(orgId)).emit("presence:agent-online", {
+      online: true,
+      count,
+    })
   }
 
   // ── hitl:approve ────────────────────────────────────────────────────────
@@ -161,10 +165,13 @@ io.on("connection", async (socket) => {
     console.log(`[Socket] Agent disconnected (${socket.id})`)
     // Remove from Redis presence SET (non-fatal).
     trackAgentOffline(orgId, socket.id).catch(() => {/* non-fatal */})
-    // Notify visitors if no agents remain online.
+    // Notify visitors of remaining agent count (0 = offline).
     const agentRoomSize = io.sockets.adapter.rooms.get(`org:${orgId}`)?.size ?? 0
-    if (chatWidgetNs && agentRoomSize === 0) {
-      chatWidgetNs.to(widgetOrgRoom(orgId)).emit("presence:agent-online", { online: false })
+    if (chatWidgetNs) {
+      chatWidgetNs.to(widgetOrgRoom(orgId)).emit("presence:agent-online", {
+        online: agentRoomSize > 0,
+        count: agentRoomSize,
+      })
     }
   })
 })

@@ -15,6 +15,8 @@ export interface PolicyDecision {
 export class PolicyClient {
   private static baseUrl = process.env.OPA_SERVICE_URL ?? "http://localhost:8181"
   private static timeoutMs = 2000
+  private static liveOpaUnavailable = false
+  private static warnedLiveOpaUnavailable = false
 
   /**
    * Evaluate a policy rule.
@@ -22,8 +24,10 @@ export class PolicyClient {
    * @param input - The request context passed to the Rego rule
    */
   static async evaluate<T>(path: string, input: T): Promise<PolicyDecision> {
-    // Try live OPA first
-    if (process.env.OPA_SERVICE_URL) {
+    const useLiveOpa = Boolean(process.env.OPA_SERVICE_URL) && !this.liveOpaUnavailable
+
+    // Try live OPA when configured and previously reachable.
+    if (useLiveOpa) {
       try {
         const controller = new AbortController()
         const tid = setTimeout(() => controller.abort(), this.timeoutMs)
@@ -46,7 +50,15 @@ export class PolicyClient {
           }
         }
       } catch (err) {
-        console.warn("[OPA] Live policy evaluation failed, using fallback:", (err as Error).message)
+        this.liveOpaUnavailable = true
+        if (!this.warnedLiveOpaUnavailable) {
+          this.warnedLiveOpaUnavailable = true
+          console.warn(
+            "[OPA] Live policy evaluation unavailable, using inline fallback for this process:",
+            (err as Error).message,
+            `(OPA_SERVICE_URL=${process.env.OPA_SERVICE_URL})`
+          )
+        }
       }
     }
 

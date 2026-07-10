@@ -41,7 +41,7 @@
  *   typing:stop      (no payload — visitor stopped typing)
  */
 
-import { jwtVerify } from "jose"
+import { verifyWidgetToken, type WidgetTokenPayload } from "@/lib/chat/verify-widget-token"
 import type { Namespace, Server as SocketIOServer } from "socket.io"
 
 export const CHAT_WIDGET_NAMESPACE = "/chat-widget"
@@ -107,19 +107,8 @@ export interface ChatWidgetDeps {
   clearOfflineDelivery(conversationId: string, orgId: string): Promise<void>
 }
 
-// ─── JWT ──────────────────────────────────────────────────────────────────────
-
-function getSigningKey(): Uint8Array {
-  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET
-  if (!secret) throw new Error("AUTH_SECRET / NEXTAUTH_SECRET is not configured")
-  return new TextEncoder().encode(secret)
-}
-
-interface WidgetTokenPayload {
-  orgId: string
-  widgetKey: string
-  visitorSessionId: string
-}
+// ─── JWT verification (shared with POST /api/chat/intake) ────────────────────
+// verifyWidgetToken and WidgetTokenPayload are imported from lib/chat/verify-widget-token.ts
 
 // ─── Internal socket data ─────────────────────────────────────────────────────
 
@@ -156,14 +145,7 @@ export function registerChatWidgetNamespace(
 
     let tokenPayload: WidgetTokenPayload
     try {
-      const { payload } = await jwtVerify(rawToken, getSigningKey(), {
-        issuer: "advan:chat-session",
-      })
-      const p = payload as Partial<WidgetTokenPayload>
-      if (!p.orgId || !p.widgetKey || !p.visitorSessionId) {
-        return next(new Error("Invalid token claims"))
-      }
-      tokenPayload = { orgId: p.orgId, widgetKey: p.widgetKey, visitorSessionId: p.visitorSessionId }
+      tokenPayload = await verifyWidgetToken(rawToken)
     } catch {
       // Covers expired, malformed, wrong-issuer, wrong-key tokens.
       return next(new Error("Invalid or expired token"))
@@ -267,10 +249,11 @@ export function registerChatWidgetNamespace(
     let agentsOnline = false
     try {
       const agentSockets = await io.in(`org:${orgId}`).fetchSockets()
-      agentsOnline = agentSockets.length > 0
-      socket.emit("presence:agent-online", { online: agentsOnline })
+      const count = agentSockets.length
+      agentsOnline = count > 0
+      socket.emit("presence:agent-online", { online: agentsOnline, count })
     } catch {
-      socket.emit("presence:agent-online", { online: false })
+      socket.emit("presence:agent-online", { online: false, count: 0 })
     }
 
     // Live-switch: if this conversation was created in offline mode (visitor

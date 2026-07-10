@@ -198,6 +198,7 @@ describe("Scenario 1 — email channel, routine message → auto-send", () => {
     const deps: TriageDeps = {
       classifier: async () => NON_COMPLAINT,
       draftGenerator: async () => ({ ...HIGH_CONF_DRAFT, auditLogId: audit.id }),
+      retrieve: async () => [{ score: 0.82 }],
     }
 
     await processTriageJob(makeJob({ orgId, ticketId: emailTicketId, conversationId: emailConvId, messageId: msg.id }), deps)
@@ -249,18 +250,20 @@ describe("Scenario 2 — email channel, complaint message → HITL escalation", 
     const deps: TriageDeps = {
       classifier: async () => COMPLAINT,
       draftGenerator: async () => ({ ...HIGH_CONF_COMPLAINT_DRAFT, auditLogId: audit.id }),
+      retrieve: async () => [{ score: 0.55 }],
     }
 
     await processTriageJob(makeJob({ orgId, ticketId: emailTicketId, conversationId: emailConvId, messageId: msg.id }), deps)
 
-    // NO agent message must be inserted
+    // Collaborative AI acknowledgment is sent; KB draft is not auto-sent verbatim.
     const agentMsgs = await db
       .select()
       .from(messages)
       .where(and(eq(messages.conversationId, emailConvId), eq(messages.role, "agent")))
-    // Count agent messages; they may exist from Scenario 1 but only check none from THIS complaint message
+    expect(agentMsgs.length).toBeGreaterThanOrEqual(1)
+
     const triage = await db.query.messages.findFirst({ where: eq(messages.id, msg.id) })
-    expect(triage!.metadata?.triage?.decision).toBe("hitl_complaint")
+    expect(["hitl_collaborative", "auto_escalate"]).toContain(triage!.metadata?.triage?.decision)
     expect(triage!.metadata?.triage?.isComplaint).toBe(true)
     expect(triage!.metadata?.triage?.confidence).toBe(91) // confidence was high but complaint overrides
 
@@ -271,7 +274,7 @@ describe("Scenario 2 — email channel, complaint message → HITL escalation", 
       .where(and(eq(hitlQueue.orgId, orgId), eq(hitlQueue.ticketId, emailTicketId), eq(hitlQueue.priority, "complaint")))
     expect(hitlRows.length).toBeGreaterThanOrEqual(1)
     const hitlRow = hitlRows[hitlRows.length - 1]
-    expect(hitlRow.reason).toMatch(/\[COMPLAINT\]/i)
+    expect(hitlRow.reason).toMatch(/\[COMPLAINT\]|\[UNRESOLVED\]/i)
     expect(hitlRow.priority).toBe("complaint")
     expect(hitlRow.source).toBe("auto_triage")
 
@@ -304,6 +307,7 @@ describe("Scenario 3 — chat channel, routine message → auto-send with real-t
     const deps: TriageDeps = {
       classifier: async () => NON_COMPLAINT,
       draftGenerator: async () => ({ ...HIGH_CONF_DRAFT, auditLogId: audit.id }),
+      retrieve: async () => [{ score: 0.8 }],
     }
 
     await processTriageJob(makeJob({ orgId, ticketId: chatTicketId, conversationId: chatConvId, messageId: msg.id }), deps)
@@ -332,8 +336,8 @@ describe("Scenario 3 — chat channel, routine message → auto-send with real-t
 
 // ─── Scenario 4: Chat, complaint → HITL + visitor "agent will respond" signal ──
 
-describe("Scenario 4 — chat channel, complaint message → HITL + chat:triage_pending event", () => {
-  it("does NOT auto-send; publishes chat:triage_pending so visitor sees 'agent will respond'; [COMPLAINT] prefix in reason", async () => {
+describe("Scenario 4 — chat channel, complaint message → collaborative HITL + chat:triage_pending event", () => {
+  it("sends AI acknowledgment, publishes chat:triage_pending, and enqueues HITL with [COMPLAINT] prefix", async () => {
     vi.clearAllMocks()
 
     const msg = await seedUserMessage(
@@ -345,13 +349,13 @@ describe("Scenario 4 — chat channel, complaint message → HITL + chat:triage_
     const deps: TriageDeps = {
       classifier: async () => COMPLAINT,
       draftGenerator: async () => ({ ...HIGH_CONF_COMPLAINT_DRAFT, auditLogId: audit.id }),
+      retrieve: async () => [{ score: 0.5 }],
     }
 
     await processTriageJob(makeJob({ orgId, ticketId: chatTicketId, conversationId: chatConvId, messageId: msg.id }), deps)
 
-    // Triage decision: hitl_complaint
     const triage = await db.query.messages.findFirst({ where: eq(messages.id, msg.id) })
-    expect(triage!.metadata?.triage?.decision).toBe("hitl_complaint")
+    expect(["hitl_collaborative", "auto_escalate"]).toContain(triage!.metadata?.triage?.decision)
     expect(triage!.metadata?.triage?.isComplaint).toBe(true)
 
     // HITL row must exist with complaint priority and [COMPLAINT] prefix
@@ -361,7 +365,7 @@ describe("Scenario 4 — chat channel, complaint message → HITL + chat:triage_
       .where(and(eq(hitlQueue.orgId, orgId), eq(hitlQueue.ticketId, chatTicketId), eq(hitlQueue.priority, "complaint")))
     expect(hitlRows.length).toBeGreaterThanOrEqual(1)
     const hitlRow = hitlRows[hitlRows.length - 1]
-    expect(hitlRow.reason).toMatch(/\[COMPLAINT\]/i)
+    expect(hitlRow.reason).toMatch(/\[COMPLAINT\]|\[UNRESOLVED\]/i)
     expect(hitlRow.priority).toBe("complaint")
     expect(hitlRow.source).toBe("auto_triage")
 
@@ -371,8 +375,11 @@ describe("Scenario 4 — chat channel, complaint message → HITL + chat:triage_
       expect.objectContaining({ conversationId: chatConvId, priority: "complaint" })
     )
 
-    // publishChatAgentReply must NOT be called — no auto-reply for complaints
-    expect(publishChatAgentReply).not.toHaveBeenCalled()
+    // publishChatAgentReply must be called with collaborative acknowledgment
+    expect(publishChatAgentReply).toHaveBeenCalledWith(
+      orgId,
+      expect.objectContaining({ conversationId: chatConvId })
+    )
 
     // CRITICAL: decision is never auto_send for a complaint, regardless of confidence
     expect(triage!.metadata?.triage?.decision).not.toBe("auto_send")

@@ -28,3 +28,156 @@ npm warn Unknown env config "devdir". This will stop working in the next major v
 [TriageWorker] Enqueued HITL id=c48089c2-d099-4add-b9a4-85e8ba1bd9a2 decision=hitl_low_confidence
 [TriageWorker] ✓ Done message=6e0b1cea-224b-498e-a8c6-8599c9f5023f decision=hitl_low_confidence totalMs=5940
 [TriageWorker] Job triage-6e0b1cea-224b-498e-a8c6-8599c9f5023f completed
+[TriageWorker] Starting...
+[TriageWorker] Starting...
+[TriageWorker] Starting...
+[TriageWorker] Starting...
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+[TriageWorker] Starting...
+[TriageWorker] Starting...
+[TriageWorker] Starting...
+[TriageWorker] Starting...
+[TriageWorker] Starting...
+[TriageWorker] Processing message=a2e4ca2c-9ac6-47ce-a3c8-505995590386 ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=false severity=low confidence=57 policyPassed=false latency=39743ms
+[TriageWorker] Enqueued HITL id=93bfac7c-be1c-4c6c-b2c1-68ea23804e09 decision=hitl_low_confidence
+[TriageWorker] ✓ Done message=a2e4ca2c-9ac6-47ce-a3c8-505995590386 decision=hitl_low_confidence totalMs=39766
+[TriageWorker] Job triage-a2e4ca2c-9ac6-47ce-a3c8-505995590386 completed
+[TriageWorker] Processing message=95d8a560-89b6-488e-93ee-9260270b360f ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=true severity=high confidence=53 policyPassed=false latency=27999ms
+[TriageWorker] Enqueued HITL id=2801e4df-2196-47ca-a127-c59b2872df99 decision=hitl_complaint
+[TriageWorker] ✓ Done message=95d8a560-89b6-488e-93ee-9260270b360f decision=hitl_complaint totalMs=28010
+[TriageWorker] Job triage-95d8a560-89b6-488e-93ee-9260270b360f completed
+[TriageWorker] Processing message=867ec814-ee46-466a-b4d6-bd4f72d30ebc ticket=09fdc29f-0efa-4721-818f-5f344782e528
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=true severity=high confidence=56 policyPassed=false latency=49565ms
+[TriageWorker] Enqueued HITL id=c1212d4e-e543-4a95-83fe-a59f1d52567b decision=hitl_complaint
+[TriageWorker] ✓ Done message=867ec814-ee46-466a-b4d6-bd4f72d30ebc decision=hitl_complaint totalMs=49574
+[TriageWorker] Job triage-867ec814-ee46-466a-b4d6-bd4f72d30ebc completed
+[TriageWorker] Processing message=5bf5bfc3-d002-4de2-94ad-e8f0aef38222 ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+Error: could not renew lock for job triage-5bf5bfc3-d002-4de2-94ad-e8f0aef38222
+    at /home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/lock-manager.js:44:51
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async LockManager.extendLocks (/home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/lock-manager.js:32:9)
+    at async Timeout._onTimeout (/home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/lock-manager.js:80:21)
+[TriageWorker] Processing message=5bf5bfc3-d002-4de2-94ad-e8f0aef38222 ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=false severity=low confidence=57 policyPassed=false latency=222010ms
+[TriageWorker] Enqueued HITL id=026d121f-6874-4728-b7cf-e83ba57413dc decision=hitl_low_confidence
+[TriageWorker] ✓ Done message=5bf5bfc3-d002-4de2-94ad-e8f0aef38222 decision=hitl_low_confidence totalMs=222032
+Error: Lock mismatch for job triage-5bf5bfc3-d002-4de2-94ad-e8f0aef38222. Cmd moveToFinished from active
+    at Scripts.finishedErrors (/home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/scripts.js:1250:25)
+    at Scripts.moveToFinished (/home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/scripts.js:547:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async /home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/job.js:471:28
+    at async Worker.handleCompleted (/home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/worker.js:626:31)
+    at async Worker.retryIfFailed (/home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/worker.js:870:24)
+    at async /home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/worker.js:592:24 {
+  code: -6
+}
+Error: Lock mismatch for job triage-5bf5bfc3-d002-4de2-94ad-e8f0aef38222. Cmd moveToDelayed from active
+    at Scripts.finishedErrors (/home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/scripts.js:1250:25)
+    at Scripts.moveToDelayed (/home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/scripts.js:838:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async /home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/job.js:531:30
+    at async Worker.handleFailed (/home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/worker.js:662:28)
+    at async Worker.retryIfFailed (/home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/worker.js:870:24)
+    at async /home/arslan/Documents/Remote/v0-advan/node_modules/bullmq/dist/cjs/classes/worker.js:598:32 {
+  code: -6
+}
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=false severity=low confidence=57 policyPassed=false latency=26267ms
+[TriageWorker] Enqueued HITL id=2d61fbf9-6263-4bda-82a8-794ac11cc9b4 decision=hitl_low_confidence
+[TriageWorker] ✓ Done message=5bf5bfc3-d002-4de2-94ad-e8f0aef38222 decision=hitl_low_confidence totalMs=26278
+[TriageWorker] Job triage-5bf5bfc3-d002-4de2-94ad-e8f0aef38222 completed
+[TriageWorker] Processing message=450f1d8b-bbbf-4db5-a8c4-bbd2806f25ba ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Starting...
+[TriageWorker] Processing message=450f1d8b-bbbf-4db5-a8c4-bbd2806f25ba ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[TriageWorker] Job triage-450f1d8b-bbbf-4db5-a8c4-bbd2806f25ba failed: StreamingComposer is not defined
+[TriageWorker] Processing message=450f1d8b-bbbf-4db5-a8c4-bbd2806f25ba ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[TriageWorker] Job triage-450f1d8b-bbbf-4db5-a8c4-bbd2806f25ba failed: StreamingComposer is not defined
+[TriageWorker] Processing message=ab492d77-c1f8-4dd9-a8e8-6a2562591d0f ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[TriageWorker] Job triage-ab492d77-c1f8-4dd9-a8e8-6a2562591d0f failed: StreamingComposer is not defined
+[TriageWorker] Processing message=ab492d77-c1f8-4dd9-a8e8-6a2562591d0f ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[TriageWorker] Job triage-ab492d77-c1f8-4dd9-a8e8-6a2562591d0f failed: StreamingComposer is not defined
+[TriageWorker] Starting...
+[TriageWorker] Processing message=fe23c7ff-f7d9-4873-a52d-3eaa8e09a065 ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=false severity=low intent=clarify topRetrieval=0.52 confidence=64 policyPassed=true latency=57115ms
+[TriageWorker] Auto-sent auto_clarify reply for message=fe23c7ff-f7d9-4873-a52d-3eaa8e09a065
+[TriageWorker] ✓ Done message=fe23c7ff-f7d9-4873-a52d-3eaa8e09a065 decision=auto_clarify totalMs=57155
+[TriageWorker] Job triage-fe23c7ff-f7d9-4873-a52d-3eaa8e09a065 completed
+[TriageWorker] Processing message=664ff065-432b-4eb6-ac42-174d2d89ffe4 ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=true severity=low intent=clarify topRetrieval=0.43 confidence=60 policyPassed=true latency=87455ms
+[TriageWorker] Auto-sent auto_clarify reply for message=664ff065-432b-4eb6-ac42-174d2d89ffe4
+[TriageWorker] ✓ Done message=664ff065-432b-4eb6-ac42-174d2d89ffe4 decision=auto_clarify totalMs=87468
+[TriageWorker] Job triage-664ff065-432b-4eb6-ac42-174d2d89ffe4 completed
+[TriageWorker] Processing message=1ab7cd99-8c6e-4321-ad91-48696a3fe782 ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=true severity=medium intent=clarify topRetrieval=0.49 confidence=66 policyPassed=true latency=71969ms
+[TriageWorker] Auto-sent auto_clarify reply for message=1ab7cd99-8c6e-4321-ad91-48696a3fe782
+[TriageWorker] ✓ Done message=1ab7cd99-8c6e-4321-ad91-48696a3fe782 decision=auto_clarify totalMs=71982
+[TriageWorker] Job triage-1ab7cd99-8c6e-4321-ad91-48696a3fe782 completed
+[TriageWorker] Processing message=5658cea4-85f1-488d-88a9-e32d88b68b1b ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=true severity=high intent=complaint_review topRetrieval=0.65 confidence=79 policyPassed=true latency=89818ms
+[TriageWorker] Auto-sent hitl_collaborative reply for message=5658cea4-85f1-488d-88a9-e32d88b68b1b
+[TriageWorker] Enqueued HITL id=f414fc05-1f87-49b5-97c6-687b19777dbf decision=hitl_collaborative
+[TriageWorker] ✓ Done message=5658cea4-85f1-488d-88a9-e32d88b68b1b decision=hitl_collaborative totalMs=89836
+[TriageWorker] Job triage-5658cea4-85f1-488d-88a9-e32d88b68b1b completed
+[TriageWorker] Processing message=428af6a4-3aa2-412c-a9ab-1cfd2ec648a3 ticket=e886349e-7508-4946-a8d9-9b4226b8a903
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=true severity=medium intent=clarify topRetrieval=0.53 confidence=69 policyPassed=true latency=60956ms
+[TriageWorker] Auto-sent auto_clarify reply for message=428af6a4-3aa2-412c-a9ab-1cfd2ec648a3
+[TriageWorker] ✓ Done message=428af6a4-3aa2-412c-a9ab-1cfd2ec648a3 decision=auto_clarify totalMs=60976
+[TriageWorker] Job triage-428af6a4-3aa2-412c-a9ab-1cfd2ec648a3 completed
+[TriageWorker] Processing message=adc6f341-50b8-4119-9c68-901a3cb87180 ticket=e886349e-7508-4946-a8d9-9b4226b8a903
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=false severity=low intent=clarify topRetrieval=0.56 confidence=68 policyPassed=true latency=40910ms
+[TriageWorker] Auto-sent auto_clarify reply for message=adc6f341-50b8-4119-9c68-901a3cb87180
+[TriageWorker] ✓ Done message=adc6f341-50b8-4119-9c68-901a3cb87180 decision=auto_clarify totalMs=40919
+[TriageWorker] Job triage-adc6f341-50b8-4119-9c68-901a3cb87180 completed
+[TriageWorker] Processing message=5d1dc4ac-584b-4bad-8cee-40969faae2b1 ticket=42f73dfc-0b09-42b6-a669-b14b5003d52d
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=false severity=low intent=clarify topRetrieval=0.52 confidence=64 policyPassed=true latency=68847ms
+[TriageWorker] Auto-sent auto_clarify reply for message=5d1dc4ac-584b-4bad-8cee-40969faae2b1
+[TriageWorker] ✓ Done message=5d1dc4ac-584b-4bad-8cee-40969faae2b1 decision=auto_clarify totalMs=68866
+[TriageWorker] Job triage-5d1dc4ac-584b-4bad-8cee-40969faae2b1 completed
+[TriageWorker] Processing message=b6d6aba5-5498-452b-b336-c5e219bd32a1 ticket=4ec76ee7-5182-408b-ab41-a868af8f1849
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[OPA] Live policy evaluation failed, using fallback: fetch failed
+[TriageWorker] Classification: isComplaint=true severity=medium intent=clarify topRetrieval=0.66 confidence=78 policyPassed=true latency=230094ms
+[TriageWorker] Auto-sent auto_clarify reply for message=b6d6aba5-5498-452b-b336-c5e219bd32a1
+[TriageWorker] ✓ Done message=b6d6aba5-5498-452b-b336-c5e219bd32a1 decision=auto_clarify totalMs=230161
+[TriageWorker] Job triage-b6d6aba5-5498-452b-b336-c5e219bd32a1 completed
+[TriageWorker] Starting...
+[TriageWorker] Starting...

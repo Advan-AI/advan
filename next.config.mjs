@@ -46,6 +46,8 @@ const nextConfig = {
       "https://*.upstash.io",
       "ws://localhost:3002",
       "http://localhost:3002",
+      "ws://127.0.0.1:3002",
+      "http://127.0.0.1:3002",
       "wss:",
       "ws:",
     ].join(" ")
@@ -56,7 +58,7 @@ const nextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      `connect-src ${socketOrigins}`,
+      `connect-src ${socketOrigins} http://127.0.0.1:11434 http://localhost:11434 https://api.groq.com`,
       // Permit embedding from any origin — the allowedOrigins whitelist is
       // enforced at the API/socket layer, not at the HTTP header level.
       "frame-ancestors *",
@@ -73,7 +75,7 @@ const nextConfig = {
 
     return [
       // ── Widget iframe route ───────────────────────────────────────────────
-      // Must come BEFORE the catch-all so Next.js picks the more specific match.
+      // Must come BEFORE the catch-all. Match with and without trailing slash.
       {
         source: "/chat-widget-frame",
         headers: [
@@ -81,15 +83,23 @@ const nextConfig = {
             key: isDev ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy",
             value: cspWidget,
           },
-          // Do NOT set X-Frame-Options here — it would override frame-ancestors.
-          // Omitting X-Frame-Options means only the CSP frame-ancestors directive
-          // controls embedding, which is what we want.
+          // No X-Frame-Options — CSP frame-ancestors * controls embedding.
           ...sharedHeaders,
         ],
       },
-      // ── All other routes ──────────────────────────────────────────────────
       {
-        source: "/(.*)",
+        source: "/chat-widget-frame/:path*",
+        headers: [
+          {
+            key: isDev ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy",
+            value: cspWidget,
+          },
+          ...sharedHeaders,
+        ],
+      },
+      // ── All other routes (exclude widget frame) ───────────────────────────
+      {
+        source: "/((?!chat-widget-frame).*)",
         headers: [
           {
             key: isDev ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy",

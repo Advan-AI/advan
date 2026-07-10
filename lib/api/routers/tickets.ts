@@ -46,7 +46,7 @@ export const ticketsRouter = router({
         .from(tickets)
         .leftJoin(customers, eq(tickets.customerId, customers.id))
         .where(and(...conditions))
-        .orderBy(desc(tickets.createdAt))
+        .orderBy(desc(tickets.updatedAt))
         .limit(input.limit)
         .offset(input.offset)
 

@@ -8,32 +8,34 @@
  * ticket, and conversation; inserts the user message; enqueues the
  * copilot-triage job).
  *
- * Online mode (agent available):
- *   The caller should then connect to the /chat-widget Socket.IO namespace
- *   with handshake.auth = { token, conversationId } to receive real-time
- *   events:
- *     agent:message   — AI auto-replied or human agent sent a reply
- *     triage:pending  — Escalated; show "an agent will respond shortly"
+ * ── Authentication ────────────────────────────────────────────────────────────
+ * Every call must include the session JWT issued by POST /api/chat/session,
+ * either as:
+ *   • JSON body field "token"
+ *   • Authorization header: "Bearer <token>"
  *
- * Offline mode (no agent online + pre-chat form submitted):
- *   Pass `visitorEmail` and optionally `visitorName`.  The intake creates
- *   the customer with their email address and marks the conversation as
- *   chatOfflineDelivery=true so the triage worker routes the first reply
- *   through the existing email path (same suppression / deliverability
- *   checks as a literal email ticket).
- *   When an agent comes online later and the visitor reconnects, the
- *   /chat-widget namespace handler clears chatOfflineDelivery, restoring
- *   live socket delivery for subsequent messages.
+ * The token is verified via lib/chat/verify-widget-token.ts — the same
+ * function used by the /chat-widget Socket.IO namespace middleware.
  *
- * Authentication: NONE — intentionally unauthenticated so the public widget
- * can submit messages without a session. Rate-limited per IP below.
+ * orgId, widgetKey, and visitorSessionId are derived EXCLUSIVELY from the
+ * verified token claims. No client-supplied orgId is ever trusted.
  *
- * Security notes:
- *   - orgId must be a valid UUID; invalid values produce 400.
- *   - Content is capped at 8 000 characters and trimmed.
- *   - PII masking and HTML sanitization happen inside processVisitorMessage.
- *   - visitorSessionId is scoped to orgId — two orgs can share a session ID
- *     without collision (customer lookup is always org-scoped).
+ * If no valid token is present, the endpoint returns 401.
+ *
+ * ── Online mode (agent available) ────────────────────────────────────────────
+ * Caller should connect to /chat-widget Socket.IO namespace with
+ * handshake.auth = { token, conversationId } to receive real-time events:
+ *   agent:message   — AI auto-replied or human agent sent a reply
+ *   triage:pending  — Escalated; show "an agent will respond shortly"
+ *
+ * ── Offline mode ──────────────────────────────────────────────────────────────
+ * Pass `visitorEmail` and optionally `visitorName`. The intake creates the
+ * customer with their email address and marks the conversation as
+ * chatOfflineDelivery=true so the triage worker routes the first reply
+ * through the existing email path.
+ *
+ * ── Rate limiting ─────────────────────────────────────────────────────────────
+ * 30 requests per 60-second window per IP (in-process sliding window).
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -42,6 +44,7 @@ import { resolveOrCreateIntake } from "@/lib/tickets/auto-intake"
 import { isOrgChatAccepting } from "@/lib/realtime/event-bus"
 import { sanitizeInboundText } from "@/lib/email/parse-inbound"
 import { PIIMasker } from "@/lib/governance/pii-masker"
+import { verifyWidgetToken } from "@/lib/chat/verify-widget-token"
 
 export const runtime = "nodejs"
 
@@ -74,34 +77,52 @@ setInterval(() => {
 }, RATE_WINDOW_MS * 5)
 
 // ─── Input schema ─────────────────────────────────────────────────────────────
+//
+// orgId is intentionally absent — it is derived from the verified JWT, never
+// from the request body. Any client-supplied orgId is silently ignored.
 
 const IntakeSchema = z.object({
-  /** Public org identifier; supplied by the widget embed script. */
-  orgId: z.string().uuid({ message: "orgId must be a valid UUID" }),
+  /**
+   * The widget session JWT from POST /api/chat/session.
+   * May also be supplied via Authorization: Bearer <token> header.
+   * Required — requests missing a valid token receive 401.
+   */
+  token: z.string().optional(),
+
   /** Message text from the visitor. */
   content: z.string().min(1, "content is required").max(8000).trim(),
-  /**
-   * Visitor session identifier (browser-generated UUID from localStorage).
-   * Correlates follow-up messages from the same visitor into one open ticket.
-   * Generated server-side when omitted.
-   */
-  visitorSessionId: z.string().min(1).max(128).optional(),
-  /** Optional subject line; falls back to the first 120 chars of content. */
-  subject: z.string().max(255).optional(),
+
   /**
    * Pre-chat form: visitor's email address.
    * Required when the widget is in offline mode (no agents online).
    * Stored on the customer row and used to deliver the agent reply via email.
-   * Must pass standard email validation; common disposable domains are NOT
-   * filtered here — that is a policy concern for the notification worker.
    */
   visitorEmail: z.string().trim().email("visitorEmail must be a valid email").optional(),
+
   /**
    * Pre-chat form: visitor's display name (optional).
    * Stored as customers.name when creating a new visitor customer row.
    */
   visitorName: z.string().trim().max(120).optional(),
+
+  /** Optional subject line; falls back to the first 120 chars of content. */
+  subject: z.string().max(255).optional(),
 })
+
+// ─── Resolve token from request ───────────────────────────────────────────────
+
+function extractRawToken(req: NextRequest, body: z.infer<typeof IntakeSchema>): string | null {
+  // 1. Authorization: Bearer <token> header
+  const auth = req.headers.get("authorization")
+  if (auth?.startsWith("Bearer ")) {
+    const t = auth.slice(7).trim()
+    if (t) return t
+  }
+  // 2. JSON body field "token"
+  if (body.token) return body.token
+
+  return null
+}
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
@@ -132,34 +153,44 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { orgId, content, visitorSessionId, subject, visitorEmail, visitorName } = parsed.data
+  // ── Verify session token — reject if missing or invalid ────────────────────
+  const rawToken = extractRawToken(req, parsed.data)
+  if (!rawToken) {
+    return NextResponse.json(
+      { error: "Missing session token. Call POST /api/chat/session first." },
+      { status: 401 }
+    )
+  }
+
+  let orgId: string
+  let visitorSessionId: string
+  try {
+    const claims = await verifyWidgetToken(rawToken)
+    // All tenant identity comes exclusively from the verified JWT.
+    orgId = claims.orgId
+    visitorSessionId = claims.visitorSessionId
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid or expired session token." },
+      { status: 401 }
+    )
+  }
+
+  const { content, visitorEmail, visitorName, subject } = parsed.data
 
   // ── Sanitize content ───────────────────────────────────────────────────────
-  // Same two-pass pipeline as the socket-based processVisitorMessage.
   const sanitized = PIIMasker.mask(sanitizeInboundText(content))
 
   // ── Determine delivery mode ────────────────────────────────────────────────
-  // Check agent availability from Redis (maintained by the socket server).
-  // Falls back to false (offline) on Redis unavailability so the email path
-  // is used as the safe default rather than silently dropping replies.
   const agentsOnline = await isOrgChatAccepting(orgId)
   const offlineMode = !agentsOnline
-
-  // When no agents are online and the visitor provides their email, mark the
-  // conversation for email-based delivery.  The widget MUST collect visitorEmail
-  // when both preChatFormEnabled=true and agentsOnline=false (enforced client-
-  // side); we accept it here without requiring it so the intake endpoint stays
-  // backward-compatible for direct API callers.
   const chatOfflineDelivery = offlineMode && Boolean(visitorEmail)
-
-  const sessionId = visitorSessionId ?? `anon-${crypto.randomUUID()}`
 
   // ── Intake ─────────────────────────────────────────────────────────────────
   try {
-    const customerIdentifier =
-      visitorEmail
-        ? { visitorSessionId: sessionId, email: visitorEmail }
-        : { visitorSessionId: sessionId }
+    const customerIdentifier = visitorEmail
+      ? { visitorSessionId, email: visitorEmail }
+      : { visitorSessionId }
 
     const result = await resolveOrCreateIntake({
       orgId,

@@ -37,7 +37,10 @@ export class PgVectorRetrieval implements RetrievalPort {
         id: m.id,
         title: (m.metadata?.title as string) ?? "Untitled",
         url: (m.metadata?.url as string) ?? undefined,
-        snippet: (m.metadata?.snippet as string) ?? "Referenced context chunk",
+        snippet:
+          (m.metadata?.snippet as string) ??
+          (m.metadata?.content as string) ??
+          "Referenced context chunk",
         score: m.score ?? 0,
       }))
     } catch {
@@ -48,9 +51,11 @@ export class PgVectorRetrieval implements RetrievalPort {
 
 // ─── Composer (single-pass streaming) ───────────────────────────────────────────
 
-const SYSTEM_PREAMBLE = `You are Advan AI, a transparent customer support specialist.
-Base every answer on the provided knowledge sources. Never fabricate facts.
-If the sources don't cover the question, say so explicitly.`
+const SYSTEM_PREAMBLE = `You are a customer support agent for Advan.
+Keep every reply to 1–3 short sentences. Be direct and friendly.
+Never mention AI, bots, assistants, or language models — speak as a human agent.
+Base answers only on the provided knowledge sources. Never fabricate facts.
+If sources don't cover the question, ask one brief clarifying question instead of guessing.`
 
 function buildSystemPrompt(sources: Source[], intent?: string): string {
   const ctx = sources.length

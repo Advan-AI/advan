@@ -46,18 +46,21 @@ export class CitationEngine {
 
         const scoreMap = new Map(matches.map((m) => [m.id, m.score ?? 0]))
 
-        const citations: Citation[] = sources.map((s) => ({
-          sourceId: s.id,
-          title: s.title,
-          url: s.url,
-          snippet: s.snippet ?? "Referenced context chunk",
-          confidence: Math.round((scoreMap.get(s.id) ?? s.score ?? 0.7) * 100),
-        }))
+        const citations: Citation[] = sources.map((s) => {
+          const requery = scoreMap.get(s.id)
+          const retrieval = s.score ?? 0
+          const aligned = sourceAlignmentScore(answer, s.title, s.snippet ?? "")
+          const blended = Math.max(requery ?? 0, retrieval, aligned)
+          return {
+            sourceId: s.id,
+            title: s.title,
+            url: s.url,
+            snippet: s.snippet ?? "Referenced context chunk",
+            confidence: Math.round(blended * 100),
+          }
+        })
 
-        const overall =
-          citations.length > 0
-            ? Math.round(citations.reduce((sum, c) => sum + c.confidence, 0) / citations.length)
-            : 70
+        const overall = overallGroundingConfidence(citations, sources)
 
         return { answer, citations, overallConfidence: overall }
       } catch {
@@ -72,22 +75,58 @@ export class CitationEngine {
       const sourceText = `${s.title} ${s.snippet ?? ""}`.toLowerCase()
       const sourceWords = sourceText.split(/\W+/).filter((w) => w.length > 3)
       const overlap = sourceWords.filter((w) => answerWords.has(w)).length
-      const confidence = Math.min(95, Math.round(60 + (overlap / Math.max(sourceWords.length, 1)) * 40))
+      const overlapScore = 0.6 + (overlap / Math.max(sourceWords.length, 1)) * 0.35
+      const blended = Math.max(s.score ?? 0, overlapScore)
+      const confidence = Math.min(95, Math.round(blended * 100))
 
       return {
         sourceId: s.id,
         title: s.title,
         url: s.url,
         snippet: s.snippet ?? "Referenced context chunk",
-        confidence: s.score ? Math.round(s.score * 100) : confidence,
+        confidence,
       }
     })
 
-    const overall =
-      citations.length > 0
-        ? Math.round(citations.reduce((sum, c) => sum + c.confidence, 0) / citations.length)
-        : 70
+    const overall = overallGroundingConfidence(citations, sources)
 
     return { answer, citations, overallConfidence: overall }
   }
+}
+
+/** Token overlap between answer and a source — floors grounding when content clearly aligns. */
+function sourceAlignmentScore(answer: string, title: string, snippet: string): number {
+  const answerWords = new Set(answer.toLowerCase().split(/\W+/).filter((w) => w.length > 3))
+  if (answerWords.size === 0) return 0
+
+  const sourceWords = `${title} ${snippet}`.toLowerCase().split(/\W+/).filter((w) => w.length > 3)
+  const overlap = sourceWords.filter((w) => answerWords.has(w)).length
+  if (overlap === 0) return 0
+
+  return Math.min(0.95, 0.65 + (overlap / Math.max(answerWords.size, 1)) * 0.3)
+}
+
+/** Favor the best-matching source instead of diluting across all retrieved chunks. */
+function overallGroundingConfidence(
+  citations: Citation[],
+  sources: Array<{ score?: number }>
+): number {
+  if (citations.length === 0) return 70
+
+  const topIdx = sources.reduce(
+    (best, s, i) => ((s.score ?? 0) > (sources[best]?.score ?? 0) ? i : best),
+    0
+  )
+  const topCitation = citations[topIdx]?.confidence ?? 0
+
+  let weightSum = 0
+  let weighted = 0
+  for (let i = 0; i < citations.length; i++) {
+    const w = sources[i]?.score ?? 0.5
+    weightSum += w
+    weighted += citations[i].confidence * w
+  }
+  const weightedAvg = weightSum > 0 ? weighted / weightSum : topCitation
+
+  return Math.round(Math.max(topCitation, weightedAvg * 0.85))
 }

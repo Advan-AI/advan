@@ -104,6 +104,61 @@ export const knowledgeRouter = router({
       return source
     }),
 
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        title: z.string().min(1).max(255),
+        content: z.string().min(1),
+        url: z.union([z.string().url(), z.literal("")]).optional(),
+        sourceType: z.enum(["document", "website", "ticket"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const source = await db.query.knowledgeSources.findFirst({
+        where: and(
+          eq(knowledgeSources.id, input.id),
+          eq(knowledgeSources.orgId, ctx.user.orgId)
+        ),
+      })
+
+      if (!source) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Knowledge source not found" })
+      }
+
+      const needsReembed =
+        input.title !== source.title ||
+        input.content !== source.content ||
+        input.sourceType !== source.sourceType
+
+      const [updated] = await db
+        .update(knowledgeSources)
+        .set({
+          title: input.title,
+          content: input.content,
+          url: input.url || null,
+          sourceType: input.sourceType,
+          ...(needsReembed
+            ? { embeddingStatus: "pending" as const, embedding: null }
+            : {}),
+        })
+        .where(eq(knowledgeSources.id, input.id))
+        .returning()
+
+      if (needsReembed) {
+        await embeddingQueue.add(
+          "embed" as any,
+          {
+            knowledgeSourceId: updated.id,
+            orgId: ctx.user.orgId,
+          },
+          { jobId: `embed-${updated.id}` }
+        )
+      }
+
+      return updated
+    }),
+
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {

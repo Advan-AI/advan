@@ -62,7 +62,8 @@ type MsgMeta = {
   latencyMs?: number
   model?: string
   isInternal?: boolean
-  isAutoTriaged?: boolean
+    isAutoTriaged?: boolean
+    triageMode?: "kb_answer" | "clarify" | "warn" | "escalate_ack" | "complaint_ack"
   email?: {
     messageId?: string
     inReplyTo?: string
@@ -71,11 +72,19 @@ type MsgMeta = {
     error?: string
   }
   triage?: {
-    decision: "auto_send" | "hitl_complaint" | "hitl_low_confidence"
+    decision:
+      | "auto_send"
+      | "auto_clarify"
+      | "auto_warn"
+      | "auto_escalate"
+      | "hitl_complaint"
+      | "hitl_collaborative"
+      | "hitl_low_confidence"
     confidence: number
     isComplaint: boolean
     auditLogId: string
     classifiedAt: string
+    chatIntent?: string
   }
 }
 
@@ -1020,6 +1029,18 @@ function ConversationList({
                           </span>
                         )
                       }
+                      if (
+                        lm.role === "user" &&
+                        (meta?.triage?.decision === "hitl_collaborative" ||
+                          meta?.triage?.decision === "auto_escalate")
+                      ) {
+                        return (
+                          <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md text-[var(--dash-rose)] bg-[var(--dash-rose-wash)]">
+                            <AlertCircle className="h-2.5 w-2.5" />
+                            Human Joining
+                          </span>
+                        )
+                      }
                       if (lm.role === "user" && meta?.triage?.decision === "hitl_low_confidence") {
                         return (
                           <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-md text-[#92400E] bg-[#FEF3C7]">
@@ -1028,10 +1049,18 @@ function ConversationList({
                         )
                       }
                       if (lm.role === "agent" && meta?.isAutoTriaged) {
+                        const modeLabel =
+                          meta.triageMode === "clarify"
+                            ? "AI Clarifying"
+                            : meta.triageMode === "warn"
+                              ? "AI Redirected"
+                              : meta.triageMode === "escalate_ack" || meta.triageMode === "complaint_ack"
+                                ? "AI + Human"
+                                : "AI Replied"
                         return (
                           <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md text-[#166534] bg-[#DCFCE7]">
                             <Sparkles className="h-2.5 w-2.5" />
-                            AI Replied
+                            {modeLabel}
                           </span>
                         )
                       }

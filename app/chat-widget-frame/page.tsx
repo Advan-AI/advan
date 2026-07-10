@@ -26,6 +26,13 @@
 
 import { useEffect, useRef, useState, useCallback, KeyboardEvent } from "react"
 import * as SocketIO from "socket.io-client"
+import {
+  AgentAvatar,
+  AgentPresenceStack,
+  VisitorAvatar,
+  presenceTitle,
+  type PresenceAgent,
+} from "./presence"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -100,6 +107,9 @@ export default function ChatWidgetFrame() {
   const [phase, setPhase]     = useState<Phase>("loading")
   const [errMsg, setErrMsg]   = useState<string | null>(null)
   const [agentOnline, setAgentOnline]   = useState(false)
+  const [agentCount, setAgentCount]     = useState(0)
+  const [teamName, setTeamName]         = useState("Support")
+  const [agents, setAgents]             = useState<PresenceAgent[]>([])
   const [preChatEnabled, setPreChatEnabled] = useState(false)
   const [agentTyping, setAgentTyping]   = useState(false)
   const [messages, setMessages]         = useState<Message[]>([])
@@ -141,11 +151,20 @@ export default function ChatWidgetFrame() {
         const r = await fetch(`/api/chat/availability?widgetKey=${encodeURIComponent(widgetKey)}`)
         if (r.status === 404) { fail("Widget not configured."); return }
         if (!r.ok)            { fail("Unable to load chat."); return }
-        const { agentsOnline, preChatFormEnabled } = await r.json()
-        setAgentOnline(agentsOnline as boolean)
-        setPreChatEnabled(preChatFormEnabled as boolean)
+        const data = await r.json() as {
+          agentsOnline: boolean
+          agentCount?: number
+          teamName?: string
+          agents?: PresenceAgent[]
+          preChatFormEnabled: boolean
+        }
+        setAgentOnline(data.agentsOnline)
+        setAgentCount(data.agentCount ?? (data.agentsOnline ? 1 : 0))
+        setTeamName(data.teamName?.trim() || "Support")
+        setAgents(Array.isArray(data.agents) ? data.agents : [])
+        setPreChatEnabled(data.preChatFormEnabled)
 
-        if (preChatFormEnabled && !agentsOnline) {
+        if (data.preChatFormEnabled && !data.agentsOnline) {
           setPhase("pre-chat")
         } else {
           // Agents online (or no form required) — start session and connect.
@@ -222,14 +241,18 @@ export default function ChatWidgetFrame() {
       addMessage({
         id: localId(),
         role: "agent",
-        content: "An agent will respond to you shortly.",
+        content: "Someone from the team will reply shortly.",
         ts: new Date(),
       })
     })
 
     chatNs.on("typing:start",  (d: { role: string }) => { if (d.role === "agent") setAgentTyping(true)  })
     chatNs.on("typing:stop",   (d: { role: string }) => { if (d.role === "agent") setAgentTyping(false) })
-    chatNs.on("presence:agent-online", (d: { online: boolean }) => setAgentOnline(d.online))
+    chatNs.on("presence:agent-online", (d: { online: boolean; count?: number }) => {
+      setAgentOnline(d.online)
+      if (typeof d.count === "number") setAgentCount(d.count)
+      else setAgentCount(d.online ? 1 : 0)
+    })
 
     return chatNs
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -289,9 +312,9 @@ export default function ChatWidgetFrame() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            orgId: sess.orgId,
+            token: sess.token,
             content: content.trim(),
-            visitorSessionId: sess.visitorSessionId,
+            // orgId is derived server-side from the verified JWT — do not send it.
           }),
         })
         if (!r.ok) throw new Error("intake failed")
@@ -338,11 +361,11 @@ export default function ChatWidgetFrame() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orgId,
+          token,
           content: "Hi, I need some help.",
-          visitorSessionId,
           visitorEmail: formEmail.trim(),
           visitorName:  formName.trim() || undefined,
+          // orgId and visitorSessionId are derived server-side from the JWT.
         }),
       })
       if (!ir.ok) { fail("Could not submit. Try again."); return }
@@ -379,15 +402,30 @@ export default function ChatWidgetFrame() {
 
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 bg-primary text-primary-foreground flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
-            <IconChat className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold leading-snug">Chat with us</p>
-            <p className="text-[11px] leading-snug flex items-center gap-1 opacity-75">
-              <span className={`w-1.5 h-1.5 rounded-full inline-block ${agentOnline ? "bg-green-400" : "bg-amber-400"}`} />
-              {agentOnline ? "We&apos;re online" : "Offline — reply by email"}
+        <div className="flex items-center gap-3 min-w-0">
+          <AgentPresenceStack
+            online={agentOnline}
+            agents={agents}
+            agentCount={agentCount}
+            teamName={teamName}
+          />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold leading-snug truncate">
+              {agentOnline ? presenceTitle(agents, teamName, agentCount) : teamName}
+            </p>
+            <p className="text-[11px] leading-snug flex items-center gap-1.5 opacity-80">
+              <span
+                className={`w-1.5 h-1.5 rounded-full inline-block flex-shrink-0 ${
+                  agentOnline ? "bg-emerald-400 shadow-[0_0_0_2px_rgba(52,211,153,0.25)]" : "bg-amber-300"
+                }`}
+              />
+              <span className="truncate">
+                {agentOnline
+                  ? agentCount > 1
+                    ? `${agentCount} teammates online`
+                    : "We're online"
+                  : "Offline — we'll email you"}
+              </span>
             </p>
           </div>
         </div>
@@ -395,7 +433,7 @@ export default function ChatWidgetFrame() {
           type="button"
           aria-label="Close chat"
           onClick={() => postToParent({ type: "advan:close" })}
-          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors"
+          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors flex-shrink-0"
         >
           <IconX className="w-4 h-4" />
         </button>
@@ -485,9 +523,9 @@ export default function ChatWidgetFrame() {
             <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0">
               {messages.length === 0 && (
                 <div className="flex items-start gap-2">
-                  <AgentAvatar />
+                  <AgentAvatar initials={agents[0]?.initials} name={agents[0]?.name} />
                   <div className="max-w-[80%] bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 text-sm shadow-sm">
-                    Hi there! How can I help you today?
+                    Hi! How can I help you today?
                   </div>
                 </div>
               )}
@@ -497,7 +535,9 @@ export default function ChatWidgetFrame() {
                   key={msg.id}
                   className={`flex items-end gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
                 >
-                  {msg.role === "agent" && <AgentAvatar />}
+                  {msg.role === "agent" && (
+                    <AgentAvatar initials={agents[0]?.initials} name={agents[0]?.name} />
+                  )}
                   <div
                     className={[
                       "max-w-[78%] rounded-2xl px-3 py-2 text-sm shadow-sm whitespace-pre-wrap break-words",
@@ -515,7 +555,7 @@ export default function ChatWidgetFrame() {
 
               {agentTyping && (
                 <div className="flex items-end gap-2">
-                  <AgentAvatar />
+                  <AgentAvatar initials={agents[0]?.initials} name={agents[0]?.name} />
                   <div className="bg-card border border-border rounded-2xl rounded-bl-sm px-3 py-3 shadow-sm">
                     <TypingDots />
                   </div>
@@ -557,7 +597,7 @@ export default function ChatWidgetFrame() {
                 </button>
               </div>
               <p className="text-[10px] text-muted-foreground text-center mt-1.5 opacity-60">
-                Powered by Advan AI
+                Typically replies in a few minutes
               </p>
             </div>
           </>
@@ -577,22 +617,6 @@ export default function ChatWidgetFrame() {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function AgentAvatar() {
-  return (
-    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-primary-foreground text-[10px] font-bold">
-      A
-    </div>
-  )
-}
-
-function VisitorAvatar() {
-  return (
-    <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0 text-muted-foreground text-[10px] font-bold">
-      Y
-    </div>
-  )
-}
-
 function TypingDots() {
   return (
     <span className="flex items-center gap-[3px]">
@@ -608,13 +632,6 @@ function TypingDots() {
 }
 
 // Minimal inline icons — no external import needed.
-function IconChat({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  )
-}
 function IconX({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">

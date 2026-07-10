@@ -11,6 +11,7 @@ import {
   StreamingComposer,
 } from "@/lib/copilot/adapters"
 import { confidenceScorer } from "@/lib/copilot/scorer"
+import { buildConversationalReply } from "@/lib/copilot/conversational-replies"
 import type { Citation, HitlPort, SuggestionContext, SuggestionEvent } from "@/lib/copilot/types"
 import {
   classifyMessage,
@@ -21,11 +22,13 @@ import {
   publishHitlNew,
   publishChatTriagePending,
 } from "@/lib/realtime/event-bus"
+import { assessConversationEscalation } from "@/lib/tickets/conversation-escalation"
+import { resolveChatIntent } from "@/lib/tickets/chat-intent"
 import { type CopilotTriageJob } from "../queues"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CONFIDENCE_THRESHOLD = 85
+const CONFIDENCE_THRESHOLD = Number(process.env.TRIAGE_AUTO_SEND_THRESHOLD ?? 85)
 
 // ─── No-op HITL port ─────────────────────────────────────────────────────────
 
@@ -90,7 +93,11 @@ async function defaultDraftGenerator(ctx: SuggestionContext): Promise<DraftResul
         citations.push(event.citation)
         break
       case "policy":
-        policyPassed = event.checks.every((c) => c.passed)
+        // Handoff mirrors the confidence threshold we apply below — only safety/PII
+        // gates should block auto-send here.
+        policyPassed = event.checks
+          .filter((c) => c.rule !== "advan/handoff")
+          .every((c) => c.passed)
         break
       case "done":
         finalText = event.finalText
@@ -107,21 +114,80 @@ async function defaultDraftGenerator(ctx: SuggestionContext): Promise<DraftResul
 // ─── Deps (injectable for tests) ─────────────────────────────────────────────
 
 export interface TriageDeps {
-  /**
-   * Override the complaint classifier.
-   * Inject a fake in tests to avoid real LLM calls.
-   */
   classifier?: (content: string, history?: string[]) => Promise<ComplaintClassification>
-  /**
-   * Override the draft generation pipeline.
-   * Inject a fake in tests to avoid real LLM/vector calls.
-   */
   draftGenerator?: DraftGeneratorFn
+  /** Override KB retrieval scores (tests). */
+  retrieve?: (orgId: string, query: string, k: number) => Promise<Array<{ score: number }>>
 }
 
 // ─── Core triage logic ────────────────────────────────────────────────────────
 
-type TriageDecision = "auto_send" | "hitl_complaint" | "hitl_low_confidence"
+type TriageDecision =
+  | "auto_send"
+  | "auto_clarify"
+  | "auto_warn"
+  | "auto_escalate"
+  | "hitl_complaint"
+  | "hitl_collaborative"
+  | "hitl_low_confidence"
+
+type AgentReplyPlan = {
+  content: string
+  triageMode: "kb_answer" | "clarify" | "warn" | "escalate_ack" | "complaint_ack"
+}
+
+function planAgentReply(args: {
+  decision: TriageDecision
+  userMessage: string
+  draftText: string
+  classification: ComplaintClassification
+}): AgentReplyPlan | null {
+  const { decision, userMessage, draftText, classification } = args
+
+  switch (decision) {
+    case "auto_send":
+      return { content: draftText, triageMode: "kb_answer" }
+    case "auto_clarify":
+      return {
+        content: buildConversationalReply("clarify", { userMessage }),
+        triageMode: "clarify",
+      }
+    case "auto_warn":
+      return {
+        content: buildConversationalReply("warn", { userMessage }),
+        triageMode: "warn",
+      }
+    case "auto_escalate":
+      return {
+        content: buildConversationalReply("escalate_ack", { userMessage }),
+        triageMode: "escalate_ack",
+      }
+    case "hitl_collaborative":
+      return {
+        content: buildConversationalReply("complaint_ack", {
+          userMessage,
+          classificationReason: classification.reasoning,
+        }),
+        triageMode: "complaint_ack",
+      }
+    case "hitl_complaint":
+    case "hitl_low_confidence":
+      return null
+  }
+}
+
+function needsHitlQueue(decision: TriageDecision): boolean {
+  return (
+    decision === "hitl_complaint" ||
+    decision === "hitl_collaborative" ||
+    decision === "hitl_low_confidence" ||
+    decision === "auto_escalate"
+  )
+}
+
+function hitlPriority(decision: TriageDecision): "complaint" | "low_confidence" {
+  return decision === "hitl_low_confidence" ? "low_confidence" : "complaint"
+}
 
 /**
  * Process one CopilotTriageJob.
@@ -147,6 +213,12 @@ export async function processTriageJob(
   const t0 = Date.now()
   const classify = deps.classifier ?? classifyMessage
   const generateDraft = deps.draftGenerator ?? defaultDraftGenerator
+  const retrieve =
+    deps.retrieve ??
+    (async (orgId: string, query: string, k: number) => {
+      const sources = await new PgVectorRetrieval().retrieve(orgId, query, k)
+      return sources.map((s) => ({ score: s.score }))
+    })
 
   console.log(`[TriageWorker] Processing message=${messageId} ticket=${ticketId}`)
 
@@ -187,6 +259,21 @@ export async function processTriageJob(
     throw new UnrecoverableError(`Ticket ${ticketId} not found for org ${orgId}`)
   }
 
+  // Full thread for escalation detection (oldest-first)
+  const threadRows = await db
+    .select({ content: messages.content, role: messages.role })
+    .from(messages)
+    .where(eq(messages.conversationId, conversationId))
+    .orderBy(asc(messages.createdAt))
+    .limit(30)
+
+  const escalation = assessConversationEscalation(
+    threadRows.map((r) => ({
+      role: r.role as "user" | "agent" | "assistant",
+      content: r.content,
+    }))
+  )
+
   // Last N user messages for classifier context (oldest-first, excluding current)
   const historyRows = await db
     .select({ content: messages.content, role: messages.role })
@@ -214,28 +301,53 @@ export async function processTriageJob(
     threshold: CONFIDENCE_THRESHOLD,
   }
 
-  const [classification, draft] = await Promise.all([
+  const [classification, draft, retrieved] = await Promise.all([
     classify(existing.content, history),
     generateDraft(suggestionCtx),
+    retrieve(orgId, existing.content, 6),
   ])
+
+  const topRetrievalScore =
+    retrieved.length > 0 ? Math.max(...retrieved.map((s) => s.score ?? 0)) : 0
+
+  const intent = resolveChatIntent({
+    content: existing.content,
+    topRetrievalScore,
+    classification,
+    needsHumanHandoff: escalation.shouldEscalate,
+    confidence: draft.confidence,
+    confidenceThreshold: CONFIDENCE_THRESHOLD,
+  })
 
   const latencyMs = Date.now() - t0
 
   console.log(
     `[TriageWorker] Classification: isComplaint=${classification.isComplaint} severity=${classification.severity} ` +
+    `intent=${intent.intent} topRetrieval=${topRetrievalScore.toFixed(2)} ` +
     `confidence=${draft.confidence} policyPassed=${draft.policyPassed} latency=${latencyMs}ms`
   )
 
   // ── 4. Decision gate ────────────────────────────────────────────────────────
   let decision: TriageDecision
 
-  if (classification.isComplaint) {
-    // Never auto-send a complaint regardless of model confidence.
-    decision = "hitl_complaint"
+  if (intent.intent === "human_handoff") {
+    decision = "auto_escalate"
+  } else if (intent.intent === "complaint_review") {
+    decision = "hitl_collaborative"
+  } else if (intent.intent === "off_topic") {
+    decision = "auto_warn"
+  } else if (
+    intent.intent === "kb_answer" &&
+    draft.confidence >= CONFIDENCE_THRESHOLD &&
+    draft.policyPassed
+  ) {
+    decision = "auto_send"
+  } else if (intent.intent === "clarify") {
+    decision = "auto_clarify"
   } else if (draft.confidence >= CONFIDENCE_THRESHOLD && draft.policyPassed) {
     decision = "auto_send"
   } else {
-    decision = "hitl_low_confidence"
+    decision = "auto_clarify"
   }
 
   // ── 5. Update the audit log with triage metadata ────────────────────────────
@@ -263,33 +375,47 @@ export async function processTriageJob(
   }
 
   // ── 6. Execute decision ─────────────────────────────────────────────────────
-  if (decision === "auto_send") {
-    const { message: agentMsg } = await insertAgentMessage({
+  const replyPlan = planAgentReply({
+    decision,
+    userMessage: existing.content,
+    draftText: draft.finalText,
+    classification,
+  })
+
+  if (replyPlan) {
+    await insertAgentMessage({
       orgId,
       conversationId,
-      content: draft.finalText,
+      content: replyPlan.content,
       metadata: {
         confidence: draft.confidence,
-        citations: draft.citations.map((c) => ({
-          source: c.title,
-          url: c.url,
-          confidence: c.confidence,
-        })),
+        citations:
+          decision === "auto_send"
+            ? draft.citations.map((c) => ({
+                source: c.title,
+                url: c.url,
+                confidence: c.confidence,
+              }))
+            : undefined,
         model: "advan-copilot-v1",
         isAutoTriaged: true,
+        triageMode: replyPlan.triageMode,
       },
     })
-    console.log(`[TriageWorker] Auto-sent agent reply for message=${messageId}`)
-    // Note: chat visitor notification (publishChatAgentReply) is now emitted
-    // inside insertAgentMessage for all channels, same as the email path enqueues
-    // to notificationQueue there. No channel-specific emit needed here.
-  } else {
-    const reason =
-      decision === "hitl_complaint"
-        ? `[COMPLAINT] ${classification.severity} — ${classification.reasoning.slice(0, 200)}`
-        : `Confidence ${draft.confidence}% below threshold or policy failed`
+    console.log(`[TriageWorker] Auto-sent ${decision} reply for message=${messageId}`)
+  }
 
-    const priority = decision === "hitl_complaint" ? "complaint" : "low_confidence"
+  if (needsHitlQueue(decision)) {
+    const reason =
+      decision === "auto_escalate"
+        ? `[UNRESOLVED] ${escalation.signals.join("; ").slice(0, 200) || "Customer needs human collaboration"}`
+        : decision === "hitl_collaborative"
+          ? `[COMPLAINT] ${classification.severity} — ${classification.reasoning.slice(0, 200)}`
+          : decision === "hitl_complaint"
+            ? `[COMPLAINT] ${classification.severity} — ${classification.reasoning.slice(0, 200)}`
+            : `Confidence ${draft.confidence}% below threshold or policy failed`
+
+    const priority = hitlPriority(decision)
 
     const [hitlRow] = await db
       .insert(hitlQueue)
@@ -297,7 +423,7 @@ export async function processTriageJob(
         orgId,
         ticketId,
         conversationId,
-        draftOutput: draft.finalText,
+        draftOutput: replyPlan?.content ?? draft.finalText,
         reason,
         status: "pending",
         priority,
@@ -309,20 +435,19 @@ export async function processTriageJob(
           reasoning: classification.reasoning,
           draftConfidence: draft.confidence,
           auditLogId: draft.auditLogId,
+          chatIntent: intent.intent,
+          collaborative: decision === "auto_escalate" || decision === "hitl_collaborative",
+          escalationSignals: escalation.signals,
         },
       })
       .returning()
 
-    // Fan out to connected reviewers (cross-process via Redis pub/sub).
     try {
       await publishHitlNew(orgId, hitlRow)
     } catch {
       // Non-fatal: reviewers will poll if pub/sub is unavailable.
     }
 
-    // For non-email channels: signal the visitor that a human agent will
-    // respond, so the widget shows the correct waiting state instead of
-    // leaving the visitor in silence while the complaint is reviewed.
     if (conv.channel !== "email") {
       try {
         await publishChatTriagePending(orgId, {
@@ -335,6 +460,8 @@ export async function processTriageJob(
     }
 
     console.log(`[TriageWorker] Enqueued HITL id=${hitlRow.id} decision=${decision}`)
+  } else if (!replyPlan) {
+    console.log(`[TriageWorker] No auto-reply for message=${messageId} decision=${decision}`)
   }
 
   // ── 7. Stamp triage metadata on the original customer message ───────────────
@@ -349,6 +476,7 @@ export async function processTriageJob(
           isComplaint: classification.isComplaint,
           auditLogId: draft.auditLogId,
           classifiedAt: new Date().toISOString(),
+          chatIntent: intent.intent,
         },
       },
     })
@@ -373,6 +501,7 @@ function getConnectionConfig() {
     tls: url.startsWith("rediss://") ? {} : undefined,
     maxRetriesPerRequest: null as null,
     enableReadyCheck: false,
+    family: 0,
   }
 }
 

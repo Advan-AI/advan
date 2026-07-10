@@ -191,11 +191,19 @@ export const messages = pgTable("messages", {
     }
     /** Set by copilot-triage-worker after automated triage completes. */
     triage?: {
-      decision: "auto_send" | "hitl_complaint" | "hitl_low_confidence"
+      decision:
+        | "auto_send"
+        | "auto_clarify"
+        | "auto_warn"
+        | "auto_escalate"
+        | "hitl_complaint"
+        | "hitl_collaborative"
+        | "hitl_low_confidence"
       confidence: number
       isComplaint: boolean
       auditLogId: string
       classifiedAt: string
+      chatIntent?: string
     }
     /**
      * True when this agent-role message was inserted by the background
@@ -203,6 +211,8 @@ export const messages = pgTable("messages", {
      * "AI auto-replied" from a human agent reply.
      */
     isAutoTriaged?: boolean
+    /** How the AI engaged: KB answer, clarify, warn, or escalation ack. */
+    triageMode?: "kb_answer" | "clarify" | "warn" | "escalate_ack" | "complaint_ack"
   }>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })

@@ -40,7 +40,7 @@ function getPublisher(): Redis | null {
   if (g.__ADVAN_REDIS_PUB__ !== undefined) return g.__ADVAN_REDIS_PUB__
   const url = process.env.REDIS_URL
   g.__ADVAN_REDIS_PUB__ = url
-    ? new Redis(url, { maxRetriesPerRequest: null, lazyConnect: false })
+    ? new Redis(url, { maxRetriesPerRequest: null, lazyConnect: false, family: 0 })
     : null
   return g.__ADVAN_REDIS_PUB__
 }
@@ -114,7 +114,7 @@ export function publishChatTriagePending(
 /** Create a dedicated subscriber connection (caller owns its lifecycle). */
 export function createSubscriber(): Redis | null {
   const url = process.env.REDIS_URL
-  return url ? new Redis(url, { maxRetriesPerRequest: null }) : null
+  return url ? new Redis(url, { maxRetriesPerRequest: null, family: 0 }) : null
 }
 
 // ─── Agent presence (chat availability) ──────────────────────────────────────
@@ -172,13 +172,22 @@ export async function trackAgentOffline(orgId: string, socketId: string): Promis
  * maintained by the standalone socket server). Falls back to false on error.
  */
 export async function isAnyAgentOnline(orgId: string): Promise<boolean> {
+  const count = await countAgentsOnline(orgId)
+  return count > 0
+}
+
+/**
+ * Returns how many agent sockets are currently online for the org.
+ * Used by the chat widget for multi-agent avatar stack (+N) UI.
+ * Falls back to 0 on Redis error.
+ */
+export async function countAgentsOnline(orgId: string): Promise<number> {
   const pub = getPublisher()
-  if (!pub) return false
+  if (!pub) return 0
   try {
-    const count = await pub.scard(presenceKey(orgId))
-    return count > 0
+    return await pub.scard(presenceKey(orgId))
   } catch {
-    return false
+    return 0
   }
 }
 

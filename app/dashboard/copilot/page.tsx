@@ -243,14 +243,16 @@ export default function CopilotPage() {
   }, [activeId, conversations])
 
   useEffect(() => {
-    if (!activeId) return
+    if (!activeId || !activeConversation) return
+    if (activeConversation.unreadCount <= 0) return
+
     const seq = ++requestSeq.current
     const timer = window.setTimeout(() => {
       if (seq !== requestSeq.current) return
       markRead.mutate({ id: activeId }, { onSettled: () => void utils.conversations.listWorkbench.invalidate() })
     }, 150)
     return () => window.clearTimeout(timer)
-  }, [activeId, markRead, utils.conversations.listWorkbench])
+  }, [activeId, activeConversation, markRead, utils.conversations.listWorkbench])
 
   useEffect(() => stop, [stop])
 

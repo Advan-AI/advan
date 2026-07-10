@@ -209,7 +209,7 @@ export const conversationsRouter = router({
         .leftJoin(tickets, eq(conversations.ticketId, tickets.id))
         .leftJoin(customers, eq(conversations.customerId, customers.id))
         .where(eq(conversations.orgId, ctx.user.orgId))
-        .orderBy(desc(conversations.createdAt))
+        .orderBy(desc(conversations.updatedAt))
         .limit(input.limit)
         .offset(input.offset)
 
