@@ -1,6 +1,9 @@
+import "dotenv/config"
 import { hash } from "bcryptjs"
+import { sql } from "drizzle-orm"
 import { db } from "./index"
 import {
+  plans,
   organizations,
   users,
   customers,
@@ -18,12 +21,86 @@ import {
 async function seed() {
   console.log("🌱 Seeding database...")
 
+  console.log("🌱 Cleaning existing database tables...")
+  await db.execute(sql`TRUNCATE TABLE
+    "messages",
+    "conversations",
+    "tickets",
+    "knowledge_sources",
+    "customers",
+    "users",
+    "widget_configs",
+    "usage_events",
+    "email_events",
+    "audit_logs",
+    "suppressed_emails",
+    "hitl_queue",
+    "pipeline_runs",
+    "pipeline_run_steps",
+    "workflows",
+    "jobs",
+    "organizations",
+    "plans"
+    CASCADE;`)
+
+  // 0. Seed subscription plans
+  // NOTE ON STRIPE PRICE CONFIGURATION:
+  // These placeholder Stripe Price IDs must be replaced with real Stripe Dashboard-created Product/Price IDs before going live.
+  // In a production environment, the flat monthly subscription price and the metered overage price are represented as TWO SEPARATE Stripe Price objects per plan:
+  // - Flat price (licensed recurring: e.g. price_starter_flat_placeholder) - e.g. $49.00/mo flat
+  // - Metered overage price (recurring metered: e.g. price_starter_metered_placeholder) - e.g. $0.05 per conversation or message over the included limit.
+  // Both are attached as separate subscription items on the exact same customer subscription.
+  console.log("🌱 Seeding subscription plans...")
+  const seededPlans = await db
+    .insert(plans)
+    .values([
+      {
+        key: "starter",
+        name: "Starter",
+        seatLimit: 2,
+        includedMessages: 500,
+        monthlyPriceCents: 4900,
+        stripePriceId: process.env.STRIPE_PRICE_STARTER_FLAT ?? "price_starter_flat_placeholder",
+        stripeMeteredPriceId: process.env.STRIPE_PRICE_STARTER_METERED ?? "price_starter_metered_placeholder",
+        active: true,
+      },
+      {
+        key: "pro",
+        name: "Pro",
+        seatLimit: 5,
+        includedMessages: 2000,
+        monthlyPriceCents: 14900,
+        stripePriceId: process.env.STRIPE_PRICE_PRO_FLAT ?? "price_pro_flat_placeholder",
+        stripeMeteredPriceId: process.env.STRIPE_PRICE_PRO_METERED ?? "price_pro_metered_placeholder",
+        active: true,
+      },
+      {
+        key: "enterprise",
+        name: "Enterprise",
+        seatLimit: 100,
+        includedMessages: 10000,
+        monthlyPriceCents: 49900,
+        stripePriceId: process.env.STRIPE_PRICE_ENTERPRISE_FLAT ?? "price_enterprise_flat_placeholder",
+        stripeMeteredPriceId: process.env.STRIPE_PRICE_ENTERPRISE_METERED ?? "price_enterprise_metered_placeholder",
+        active: true,
+      },
+    ])
+    .returning()
+
+  const proPlan = seededPlans.find((p) => p.key === "pro")!
+  console.log(`  plans: seeded 3 plans (Starter, Pro, Enterprise)`)
+
   // 1. Create demo organisation
   const [org] = await db
     .insert(organizations)
     .values({
       name: "Acme Corp",
       slug: "acme",
+      inboundEmailAlias: "support+acme",
+      planId: proPlan.id,
+      subscriptionStatus: "active",
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days out
     })
     .returning()
 

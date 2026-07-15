@@ -243,6 +243,7 @@ describe("processTriageJob (chat) — auditLogs row + publishChatAgentReply", ()
       const deps: TriageDeps = {
         classifier: async () => NON_COMPLAINT,
         draftGenerator: async () => ({ ...HIGH_CONF_DRAFT, auditLogId: auditRow.id }),
+        retrieve: async () => [{ score: 0.9 }],
       }
 
       await processTriageJob(

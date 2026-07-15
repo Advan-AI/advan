@@ -40,6 +40,8 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { Ratelimit } from "@upstash/ratelimit"
+import { Redis } from "@upstash/redis"
 import { resolveOrCreateIntake } from "@/lib/tickets/auto-intake"
 import { isOrgChatAccepting } from "@/lib/realtime/event-bus"
 import { sanitizeInboundText } from "@/lib/email/parse-inbound"
@@ -49,6 +51,53 @@ import { verifyWidgetToken } from "@/lib/chat/verify-widget-token"
 export const runtime = "nodejs"
 
 // ─── Rate limiting (best-effort, in-memory) ───────────────────────────────────
+
+let widgetRatelimit: Ratelimit | null = null
+
+function getWidgetRatelimit(): Ratelimit | null {
+  if (widgetRatelimit) return widgetRatelimit
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return null
+  }
+  // Secondary rate limit keyed by widgetKey to prevent tenant starvation.
+  // We allow up to 120 messages per minute per widgetKey. This allows a higher,
+  // burstable throughput for actual active chat sessions (bursty behavior),
+  // while preventing broad exhaustion or DDoS-style flooding.
+  widgetRatelimit = new Ratelimit({
+    redis: Redis.fromEnv(),
+    limiter: Ratelimit.slidingWindow(120, "60 s"),
+    analytics: true,
+    prefix: "advan:chat:intake:widget",
+  })
+  return widgetRatelimit
+}
+
+async function applyWidgetRateLimit(widgetKey: string): Promise<Response | null> {
+  const rl = getWidgetRatelimit()
+  if (!rl) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[ChatIntake] Upstash widget rate limit env is missing in production")
+      return NextResponse.json({ error: "Rate limit unavailable" }, { status: 503 })
+    }
+    return null
+  }
+
+  const { success, limit, remaining, reset } = await rl.limit(widgetKey)
+  if (success) return null
+
+  return new Response(
+    JSON.stringify({ error: "Too many messages for this widget. Please slow down.", limit, remaining }),
+    {
+      status: 429,
+      headers: {
+        "Content-Type": "application/json",
+        "X-RateLimit-Limit": String(limit),
+        "X-RateLimit-Remaining": String(remaining),
+        "Retry-After": String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))),
+      },
+    },
+  )
+}
 
 const RATE_WINDOW_MS = 60_000
 const RATE_LIMIT = 30 // messages per window per IP
@@ -164,17 +213,23 @@ export async function POST(req: NextRequest) {
 
   let orgId: string
   let visitorSessionId: string
+  let widgetKey: string
   try {
     const claims = await verifyWidgetToken(rawToken)
     // All tenant identity comes exclusively from the verified JWT.
     orgId = claims.orgId
     visitorSessionId = claims.visitorSessionId
+    widgetKey = claims.widgetKey
   } catch {
     return NextResponse.json(
       { error: "Invalid or expired session token." },
       { status: 401 }
     )
   }
+
+  // Apply secondary rate limit keyed by widgetKey to prevent tenant starvation
+  const widgetRateLimited = await applyWidgetRateLimit(widgetKey)
+  if (widgetRateLimited) return widgetRateLimited
 
   const { content, visitorEmail, visitorName, subject } = parsed.data
 

@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { TRPCError } from "@trpc/server"
-import { router, protectedProcedure } from "../trpc"
+import { router, protectedProcedure, activeSubscriptionProcedure } from "../trpc"
 import { db } from "@/lib/db"
 import { workflows } from "@/lib/db/schema"
 import { eq, and, desc, sql } from "drizzle-orm"
@@ -36,7 +36,7 @@ export const orchestrationRouter = router({
     .input(z.object({ workflowId: z.string().uuid().optional(), input: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => WorkflowExecutor.run(ctx.user.orgId, input.input)),
 
-  saveWorkflow: protectedProcedure
+  saveWorkflow: activeSubscriptionProcedure
     .input(
       z.object({
         id: z.string().uuid().optional(),
@@ -87,7 +87,7 @@ export const orchestrationRouter = router({
     .input(z.object({ definition: PipelineSchema }))
     .query(async ({ input }) => analyzeWorkflowDefinition(input.definition)),
 
-  setWorkflowActive: protectedProcedure
+  setWorkflowActive: activeSubscriptionProcedure
     .input(z.object({ id: z.string().uuid(), isActive: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
       const existing = await db.query.workflows.findFirst({
@@ -115,7 +115,7 @@ export const orchestrationRouter = router({
       return row
     }),
 
-  duplicateWorkflow: protectedProcedure
+  duplicateWorkflow: activeSubscriptionProcedure
     .input(z.object({ id: z.string().uuid(), name: z.string().min(1).optional() }))
     .mutation(async ({ input, ctx }) => {
       const existing = await db.query.workflows.findFirst({
@@ -139,7 +139,7 @@ export const orchestrationRouter = router({
       return row
     }),
 
-  deleteWorkflow: protectedProcedure
+  deleteWorkflow: activeSubscriptionProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ input, ctx }) => {
       const [row] = await db

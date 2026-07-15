@@ -31,12 +31,50 @@ const vector = customType<{ data: number[]; driverData: string }>({
 
 // ─── Layer 5: Multi-tenant core ───────────────────────────────────────────────
 
+export const plans = pgTable("plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  key: text("key").notNull().unique(),
+  name: text("name").notNull(),
+  seatLimit: integer("seat_limit").notNull(),
+  includedMessages: integer("included_messages").notNull(),
+  monthlyPriceCents: integer("monthly_price_cents").notNull(),
+  stripePriceId: text("stripe_price_id").notNull(),
+  stripeMeteredPriceId: text("stripe_metered_price_id").notNull(),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
+
 export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
+  inboundEmailAlias: text("inbound_email_alias").unique(),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  planId: uuid("plan_id").references(() => plans.id),
+  subscriptionStatus: text("subscription_status"),
+  trialEndsAt: timestamp("trial_ends_at"),
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
+
+export const usageEvents = pgTable(
+  "usage_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    type: text("type").notNull(),
+    quantity: integer("quantity").default(1).notNull(),
+    stripeUsageRecordId: text("stripe_usage_record_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("usage_events_org_type_created_idx").on(table.orgId, table.type, table.createdAt),
+  ],
+)
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -46,6 +84,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   name: text("name"),
   passwordHash: text("password_hash"),
+  emailVerified: boolean("email_verified").default(false).notNull(),
   role: text("role", { enum: ["admin", "member", "viewer"] })
     .default("member")
     .notNull(),
@@ -56,6 +95,17 @@ export const users = pgTable("users", {
    * existing agents remain available without any migration action.
    */
   chatAvailable: boolean("chat_available").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
+
+// ─── Email verification OTPs ─────────────────────────────────────────────────
+
+export const emailVerifications = pgTable("email_verifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull(),
+  otp: text("otp").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
@@ -465,3 +515,11 @@ export const widgetConfigs = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
 )
+
+// ─── Stripe Events for Webhook Idempotency ────────────────────────────────────
+
+export const stripeEvents = pgTable("stripe_events", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})

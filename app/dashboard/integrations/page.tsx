@@ -3,6 +3,8 @@
 import { Plug, Plus, CheckCircle2 } from "lucide-react"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
 import { ChatWidgetSettings } from "./chat-widget-settings"
+import { EmailForwardingSettings } from "./email-forwarding-settings"
+import { TeamSettings } from "./team-settings"
 
 const INTEGRATIONS = [
   { name: "Salesforce", category: "CRM",           connected: true,  events: "Auto-sync on resolve" },
@@ -33,7 +35,9 @@ export default function IntegrationsPage() {
       />
 
       <div className="space-y-4">
+        <TeamSettings />
         <ChatWidgetSettings />
+        <EmailForwardingSettings />
 
         {CATS.map((cat) => (
           <DashCard key={cat} title={cat} icon={<Plug className="w-[18px] h-[18px]" />} padded={false}>

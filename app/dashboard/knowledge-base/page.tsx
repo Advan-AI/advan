@@ -20,6 +20,7 @@ import {
   Globe,
   Hash,
   Loader2,
+  Lock,
   Pencil,
   Plus,
   RefreshCw,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react"
 import { DashCard, DashPageHeader } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
+import { useBillingRestriction } from "@/hooks/use-billing-restriction"
 import { formatRelativeTime } from "@/lib/dashboard/format"
 import { cn } from "@/lib/utils"
 
@@ -83,6 +85,8 @@ const SOURCE_ICON: Record<SourceType, ReactNode> = {
 
 export default function KnowledgeBasePage() {
   const utils = api.useUtils()
+  const { isRestricted: isBillingRestricted } = useBillingRestriction()
+
   const [search, setSearch] = useState("")
   const [sourceType, setSourceType] = useState<SourceTypeFilter>("all")
   const [status, setStatus] = useState<StatusFilter>("all")
@@ -277,12 +281,19 @@ export default function KnowledgeBasePage() {
               <Sparkles className="h-4 w-4" />
               Test in Copilot
             </Link>
-            <button
+             <button
               type="button"
-              onClick={() => setCreateOpen(true)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] transition hover:-translate-y-px"
+              disabled={isBillingRestricted}
+              onClick={() => {
+                if (isBillingRestricted) {
+                  toast.error("Actions are locked due to past due invoice. Please update billing under settings.")
+                } else {
+                  setCreateOpen(true)
+                }
+              }}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] transition hover:-translate-y-px disabled:from-gray-400 disabled:to-gray-500 disabled:shadow-none disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <Plus className="h-4 w-4" />
+              {isBillingRestricted ? <Lock className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
               New source
             </button>
           </>

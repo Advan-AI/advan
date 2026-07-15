@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { eq, and, desc, ilike, or } from "drizzle-orm"
 import { TRPCError } from "@trpc/server"
-import { protectedProcedure, router } from "../trpc"
+import { protectedProcedure, activeSubscriptionProcedure, router } from "../trpc"
 import { knowledgeSources } from "@/lib/db/schema"
 import { db } from "@/lib/db"
 import { embeddingQueue } from "@/lib/queue/queues"
@@ -80,7 +80,7 @@ export const knowledgeRouter = router({
       }
     }),
 
-  add: protectedProcedure
+  add: activeSubscriptionProcedure
     .input(
       z.object({
         title: z.string().min(1).max(255),
@@ -104,7 +104,7 @@ export const knowledgeRouter = router({
       return source
     }),
 
-  update: protectedProcedure
+  update: activeSubscriptionProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -159,7 +159,7 @@ export const knowledgeRouter = router({
       return updated
     }),
 
-  delete: protectedProcedure
+  delete: activeSubscriptionProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const source = await db.query.knowledgeSources.findFirst({

@@ -9,6 +9,7 @@ import {
   conversations,
   emailEvents,
   messages,
+  organizations,
 } from "@/lib/db/schema"
 import { requireEmailConfig, type EmailConfig } from "@/lib/email/config"
 import { parseInboundEmail, type ParsedInboundEmail } from "@/lib/email/parse-inbound"
@@ -21,6 +22,7 @@ export const runtime = "nodejs"
 type InboundEventStatus =
   | "received"
   | "unresolved"
+  | "unknown_org_alias"
 
 interface LogEmailEventInput {
   orgId: string | null
@@ -35,13 +37,9 @@ export interface InboundRouteDeps {
   verifyWebhook(payload: string, headers: WebhookRequiredHeaders): EmailReceivedEvent
   fetchReceivedEmail(providerId: string): Promise<GetReceivingEmailResponseSuccess>
   findExistingInboundEvent(providerId: string): Promise<unknown | null>
+  resolveOrgByEmailAlias(addresses: string[]): Promise<string | null>
   resolveOrgByReplyAddress(addresses: string[]): Promise<string | null>
   resolveOrgByStoredMessageIds(messageIds: string[]): Promise<string | null>
-  /**
-   * Last-resort resolver: if the recipient address is at the configured inbound
-   * domain, return the configured default org (EMAIL_INBOUND_DEFAULT_ORG_ID).
-   * This handles first-contact emails that are not replies to existing threads.
-   */
   resolveOrgByInboundDomain(addresses: string[]): Promise<string | null>
   logEmailEvent(input: LogEmailEventInput): Promise<void>
   resolveOrCreateIntake(input: {
@@ -52,6 +50,7 @@ export interface InboundRouteDeps {
 }
 
 let ratelimit: Ratelimit | null = null
+let orgEmailRatelimit: Ratelimit | null = null
 
 function getRatelimit() {
   if (ratelimit) return ratelimit
@@ -60,14 +59,39 @@ function getRatelimit() {
     return null
   }
 
+  // IP-based global protection (600 requests per minute per IP).
+  // Resend webhooks arrive from shared Resend delivery IPs, so we use a high
+  // global IP threshold to prevent one tenant's inbound volume from triggering
+  // false-positive blocks for other tenants sharing the same webhook endpoint,
+  // while still shielding against brute-force DDoS/abuse attacks.
   ratelimit = new Ratelimit({
     redis: Redis.fromEnv(),
-    limiter: Ratelimit.slidingWindow(30, "60 s"),
+    limiter: Ratelimit.slidingWindow(600, "60 s"),
     analytics: true,
     prefix: "advan:webhooks:resend:inbound",
   })
 
   return ratelimit
+}
+
+function getOrgEmailRatelimit() {
+  if (orgEmailRatelimit) return orgEmailRatelimit
+
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return null
+  }
+
+  // Tenant-isolated rate limit (60 inbound emails per minute per organization).
+  // Ensures robust tenant protection and prevents a single organization's
+  // inbound email volume spike from disrupting overall system resources.
+  orgEmailRatelimit = new Ratelimit({
+    redis: Redis.fromEnv(),
+    limiter: Ratelimit.slidingWindow(60, "60 s"),
+    analytics: true,
+    prefix: "advan:email:inbound:org",
+  })
+
+  return orgEmailRatelimit
 }
 
 function jsonOk(body: Record<string, unknown> = { ok: true }) {
@@ -114,6 +138,13 @@ function extractEmailAddress(value: string | null | undefined): string {
 
 function normalizeAddress(value: string): string {
   return extractEmailAddress(value)
+}
+
+// Extract local part of an email (everything before @)
+function extractLocalPart(value: string): string {
+  const addr = normalizeAddress(value)
+  const at = addr.indexOf("@")
+  return at !== -1 ? addr.slice(0, at) : addr
 }
 
 function normalizeMessageId(value: string): string {
@@ -190,6 +221,40 @@ export const productionDeps: InboundRouteDeps = {
         eq(emailEvents.providerId, providerId),
       ),
     })
+  },
+
+  async resolveOrgByEmailAlias(addresses) {
+    let config: EmailConfig
+    try {
+      config = requireEmailConfig()
+    } catch {
+      return null
+    }
+
+    const inboundDomain = config.inboundDomain.toLowerCase()
+
+    // 1. Filter recipient addresses under inboundDomain and extract local-parts
+    const recipientLocalParts = addresses
+      .map(addr => {
+        const normalized = addr.trim().toLowerCase()
+        const at = normalized.indexOf("@")
+        if (at === -1) return null
+        const domain = normalized.slice(at + 1)
+        if (domain !== inboundDomain) return null
+        return normalized.slice(0, at)
+      })
+      .filter((localPart): localPart is string => Boolean(localPart))
+
+    if (recipientLocalParts.length === 0) return null
+
+    // 2. Query organizations where inboundEmailAlias matches any extracted local-part
+    const [row] = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(inArray(organizations.inboundEmailAlias, recipientLocalParts))
+      .limit(1)
+
+    return row?.id ?? null
   },
 
   async resolveOrgByReplyAddress(addresses) {
@@ -326,10 +391,53 @@ export async function handleInboundRequest(
   const receivedEmail = await deps.fetchReceivedEmail(providerId)
   const parsed = parseInboundEmail({ webhookEvent: event, receivedEmail })
 
-  const orgId =
-    (await deps.resolveOrgByReplyAddress(parsed.recipientAddresses)) ??
-    (await deps.resolveOrgByStoredMessageIds(headerMessageIds(parsed))) ??
-    (await deps.resolveOrgByInboundDomain(parsed.recipientAddresses))
+  let config: EmailConfig | null = null
+  try {
+    config = requireEmailConfig()
+  } catch {
+    // Missing config is fine during test execution
+  }
+
+  const inboundDomain = config?.inboundDomain?.toLowerCase()
+  const hasInboundDomainRecipient = inboundDomain
+    ? parsed.recipientAddresses.some(addr => {
+        const at = addr.indexOf("@")
+        return at !== -1 && addr.slice(at + 1) === inboundDomain
+      })
+    : false
+
+  const hasReplyAddress = parsed.recipientAddresses.some(addr => {
+    const at = addr.indexOf("@")
+    if (at === -1) return false
+    const localPart = addr.slice(0, at)
+    return localPart.startsWith("reply+")
+  })
+
+  // FIRST RESOLUTION STEP: Match the `to` address's local-part against organizations.inboundEmailAlias
+  let orgId = await deps.resolveOrgByEmailAlias(parsed.recipientAddresses)
+
+  if (!orgId) {
+    // If it was sent to our inbound domain but wasn't a thread reply (or matched any alias), it is an unknown org alias!
+    if (hasInboundDomainRecipient && !hasReplyAddress) {
+      console.warn("[ResendInboundWebhook] Unknown organization inbound email alias", {
+        providerId,
+        recipients: parsed.recipientAddresses,
+      })
+      await deps.logEmailEvent({
+        orgId: null,
+        conversationId: null,
+        providerId,
+        status: "unknown_org_alias",
+        payload: { event, parsed },
+      })
+      return jsonOk({ unresolved: true, reason: "unknown_org_alias" })
+    }
+
+    // FALLBACK RESOLUTIONS: Try reply address then thread message ID headers
+    orgId =
+      (await deps.resolveOrgByReplyAddress(parsed.recipientAddresses)) ??
+      (await deps.resolveOrgByStoredMessageIds(headerMessageIds(parsed)))
+  }
 
   if (!orgId) {
     console.warn("[ResendInboundWebhook] Could not resolve inbound conversation", {
@@ -345,6 +453,37 @@ export async function handleInboundRequest(
       payload: { event, parsed },
     })
     return jsonOk({ unresolved: true })
+  }
+
+  // Apply secondary tenant-isolated rate limiting to protect resources
+  const orgRl = getOrgEmailRatelimit()
+  if (orgRl) {
+    const { success, limit, remaining, reset } = await orgRl.limit(orgId)
+    if (!success) {
+      console.warn("[ResendInboundWebhook] Rate limit exceeded for organization", {
+        orgId,
+        providerId,
+      })
+      await deps.logEmailEvent({
+        orgId,
+        conversationId: null,
+        providerId,
+        status: "rate_limited",
+        payload: { event, parsed, limit, remaining },
+      })
+      return new Response(
+        JSON.stringify({ error: "Rate limit exceeded for this organization", limit, remaining }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "X-RateLimit-Limit": String(limit),
+            "X-RateLimit-Remaining": String(remaining),
+            "Retry-After": String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))),
+          },
+        },
+      )
+    }
   }
 
   const intake = await deps.resolveOrCreateIntake({ orgId, parsed })

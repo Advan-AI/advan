@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   ChevronDown,
   Crown,
+  CreditCard,
 } from "lucide-react"
 import { api } from "@/lib/api/trpc-client"
 import { formatCount } from "@/lib/dashboard/format"
@@ -52,6 +53,7 @@ const COPILOT: NavItem[] = [
 const AUTOMATION: NavItem[] = [
   { href: "/dashboard/orchestration", label: "Orchestration", icon: GitBranch },
   { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
+  { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
 ]
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
@@ -116,6 +118,14 @@ export function DashboardSidebar() {
     }
   )
 
+  const { data: billingInfo } = api.billing.getBillingInfo.useQuery(
+    undefined,
+    {
+      staleTime: 30_000,
+      refetchInterval: 60_000,
+    }
+  )
+
   const navCounts = useMemo(
     () => ({
       conversations: overview?.metrics.openConversations ?? 0,
@@ -136,6 +146,21 @@ export function DashboardSidebar() {
       }),
     [navCounts, countsLoading]
   )
+
+  const orgName = billingInfo?.org?.name ?? "Acme Inc."
+  const planName = billingInfo?.currentPlan?.name ?? "Enterprise Plan"
+  const orgInitial = orgName.charAt(0).toUpperCase()
+  const isStarter = billingInfo?.currentPlan?.key === "starter" || !billingInfo?.currentPlan
+
+  const trialEndsAt = billingInfo?.org?.trialEndsAt ? new Date(billingInfo.org.trialEndsAt) : null
+  const trialDaysRemaining = trialEndsAt 
+    ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 0
+  const isTrialing = billingInfo?.org?.subscriptionStatus === "trialing" || (trialEndsAt && trialEndsAt > new Date())
+
+  const planSubText = isTrialing 
+    ? `${trialDaysRemaining} ${trialDaysRemaining === 1 ? "day" : "days"} left`
+    : planName
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard"
@@ -174,29 +199,56 @@ export function DashboardSidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-2.5">
-        <div className="dash-card-raised p-3.5">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Crown className="w-[15px] h-[15px] text-[var(--dash-amber)]" />
-            <span className="text-[13px] font-bold text-[var(--dash-ink)]">Upgrade to Pro</span>
+        {isStarter && (
+          <div className="dash-card-raised p-3.5 relative overflow-hidden">
+            {isTrialing && trialDaysRemaining > 0 && (
+              <div className="absolute top-0 left-0 right-0 h-1 bg-[rgba(107,92,214,0.08)]">
+                <div 
+                  className="h-full bg-[var(--dash-accent)] transition-all duration-500" 
+                  style={{ width: `${Math.min(100, (trialDaysRemaining / 14) * 100)}%` }} 
+                />
+              </div>
+            )}
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-1.5">
+                <Crown className="w-[15px] h-[15px] text-[var(--dash-amber)]" />
+                <span className="text-[13px] font-bold text-[var(--dash-ink)]">
+                  {isTrialing ? "Free Trial Period" : "Upgrade to Pro"}
+                </span>
+              </div>
+              {isTrialing && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[rgba(107,92,214,0.1)] text-[var(--dash-accent-deep)]">
+                  {trialDaysRemaining}d left
+                </span>
+              )}
+            </div>
+            <p className="text-[11.5px] text-[var(--dash-ink-soft)] leading-[1.5] mb-2.5">
+              {isTrialing 
+                ? "Experience the full power of Advan AI. Upgrade to lock in your workspace features." 
+                : "Unlock advanced AI, automation & more."}
+            </p>
+            <Link
+              href="/dashboard/billing"
+              className="flex items-center justify-center w-full h-8 rounded-lg border border-[var(--dash-accent)] text-[var(--dash-accent-deep)] text-[12.5px] font-semibold hover:bg-[var(--dash-accent)] hover:text-white transition-colors"
+            >
+              Upgrade Now
+            </Link>
           </div>
-          <p className="text-[11.5px] text-[var(--dash-ink-soft)] leading-[1.5] mb-2.5">
-            Unlock advanced AI, automation &amp; more.
-          </p>
-          <button className="w-full h-8 rounded-lg border border-[var(--dash-accent)] text-[var(--dash-accent-deep)] text-[12.5px] font-semibold hover:bg-[var(--dash-accent)] hover:text-white transition-colors">
-            Upgrade Now
-          </button>
-        </div>
+        )}
 
-        <button className="flex items-center gap-2.5 p-2.5 rounded-[11px] border dash-border dash-bg-card hover:dash-shadow-sm transition cursor-pointer text-left">
+        <Link
+          href="/dashboard/billing"
+          className="flex items-center gap-2.5 p-2.5 rounded-[11px] border dash-border dash-bg-card hover:dash-shadow-sm transition cursor-pointer text-left"
+        >
           <div className="w-[30px] h-[30px] rounded-lg dash-bg-deep flex items-center justify-center text-[13px] font-bold text-[var(--dash-ink-soft)]">
-            A
+            {orgInitial}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[12.5px] font-bold leading-tight text-[var(--dash-ink)]">Acme Inc.</div>
-            <div className="text-[10.5px] text-[var(--dash-ink-faint)]">Enterprise Plan</div>
+            <div className="text-[12.5px] font-bold leading-tight text-[var(--dash-ink)] truncate">{orgName}</div>
+            <div className="text-[10.5px] text-[var(--dash-ink-faint)] truncate">{planSubText}</div>
           </div>
           <ChevronDown className="w-3.5 h-3.5 text-[var(--dash-ink-faint)]" />
-        </button>
+        </Link>
       </div>
       </div>
     </aside>

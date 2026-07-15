@@ -18,6 +18,19 @@ vi.mock("@/lib/db", () => ({
   },
 }))
 
+const mockLimit = vi.fn()
+vi.mock("@upstash/ratelimit", () => {
+  function RatelimitMock() {
+    return {
+      limit: (key: string) => mockLimit(key),
+    }
+  }
+  ;(RatelimitMock as any).slidingWindow = vi.fn().mockReturnValue({})
+  return {
+    Ratelimit: RatelimitMock,
+  }
+})
+
 import { db } from "@/lib/db"
 import { POST } from "./route"
 
@@ -76,9 +89,10 @@ async function decodeToken(token: string) {
 
 beforeEach(() => {
   process.env.AUTH_SECRET = AUTH_SECRET
-  // Disable Upstash so rate limiting is skipped in tests (no Redis connection).
+  // Disable Upstash so rate limiting is skipped in tests (no Redis connection) by default.
   delete process.env.UPSTASH_REDIS_REST_URL
   delete process.env.UPSTASH_REDIS_REST_TOKEN
+  mockLimit.mockReset().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: Date.now() + 1000 })
   mockFindFirst.mockReset()
 })
 
@@ -192,5 +206,50 @@ describe("POST /api/chat/session", () => {
     // Schema rejects non-UUID visitorSessionId before hitting the DB.
     expect(res.status).toBe(400)
     expect(mockFindFirst).not.toHaveBeenCalled()
+  })
+
+  describe("Secondary Rate Limiting", () => {
+    beforeEach(() => {
+      // Re-enable Upstash for these specific tests
+      process.env.UPSTASH_REDIS_REST_URL = "https://mock-redis.upstash.io"
+      process.env.UPSTASH_REDIS_REST_TOKEN = "mock-token"
+    })
+
+    afterEach(() => {
+      delete process.env.UPSTASH_REDIS_REST_URL
+      delete process.env.UPSTASH_REDIS_REST_TOKEN
+    })
+
+    it("rejects request on IP-based rate limit failure", async () => {
+      mockLimit.mockResolvedValueOnce({
+        success: false,
+        limit: 20,
+        remaining: 0,
+        reset: Date.now() + 5000,
+      })
+
+      const res = await POST(
+        makeRequest({ widgetKey: WIDGET_KEY, origin: ALLOWED_ORIGIN }),
+      )
+
+      expect(res.status).toBe(429)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe("Too many requests")
+    })
+
+    it("rejects request on widgetKey-scoped rate limit failure", async () => {
+      // First call (IP check) succeeds, second call (widgetKey check) fails
+      mockLimit
+        .mockResolvedValueOnce({ success: true, limit: 20, remaining: 19, reset: Date.now() })
+        .mockResolvedValueOnce({ success: false, limit: 60, remaining: 0, reset: Date.now() + 5000 })
+
+      const res = await POST(
+        makeRequest({ widgetKey: WIDGET_KEY, origin: ALLOWED_ORIGIN }),
+      )
+
+      expect(res.status).toBe(429)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("Too many requests for this widget")
+    })
   })
 })

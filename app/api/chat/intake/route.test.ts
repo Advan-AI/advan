@@ -14,6 +14,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { SignJWT } from "jose"
 import { NextRequest } from "next/server"
 
+const mockLimit = vi.fn()
+vi.mock("@upstash/ratelimit", () => {
+  function RatelimitMock() {
+    return {
+      limit: (key: string) => mockLimit(key),
+    }
+  }
+  ;(RatelimitMock as any).slidingWindow = vi.fn().mockReturnValue({})
+  return {
+    Ratelimit: RatelimitMock,
+  }
+})
+
 // ─── Mocks ─────────────────────────────────────────────────────────────────────
 // vi.mock is hoisted — use vi.fn() inside the factory and access via vi.mocked().
 
@@ -93,6 +106,9 @@ function makeRequestWithAuthHeader(token: string, body: unknown): NextRequest {
 
 beforeEach(() => {
   process.env.AUTH_SECRET = AUTH_SECRET
+  delete process.env.UPSTASH_REDIS_REST_URL
+  delete process.env.UPSTASH_REDIS_REST_TOKEN
+  mockLimit.mockReset().mockResolvedValue({ success: true, limit: 120, remaining: 119, reset: Date.now() + 1000 })
   mockIsOrgChatAccepting.mockResolvedValue(true)
   mockResolveOrCreate.mockResolvedValue({
     conversationId: "conv-001",
@@ -240,5 +256,35 @@ describe("POST /api/chat/intake — tenant isolation", () => {
     const body = await res.json() as { error: string }
     expect(body.error).toBe("Invalid request")
     expect(mockResolveOrCreate).not.toHaveBeenCalled()
+  })
+
+  describe("Secondary Rate Limiting", () => {
+    beforeEach(() => {
+      process.env.UPSTASH_REDIS_REST_URL = "https://mock-redis.upstash.io"
+      process.env.UPSTASH_REDIS_REST_TOKEN = "mock-token"
+    })
+
+    afterEach(() => {
+      delete process.env.UPSTASH_REDIS_REST_URL
+      delete process.env.UPSTASH_REDIS_REST_TOKEN
+    })
+
+    it("rejects request on widgetKey-scoped rate limit failure", async () => {
+      mockLimit.mockResolvedValueOnce({
+        success: false,
+        limit: 120,
+        remaining: 0,
+        reset: Date.now() + 5000,
+      })
+
+      const token = await mintToken({ orgId: ORG_A, widgetKey: WIDGET_KEY_A, visitorSessionId: SESSION_ID_A })
+      const res = await POST(
+        makeRequest({ token, content: "Rate-limited content attempt" })
+      )
+
+      expect(res.status).toBe(429)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("Too many messages for this widget")
+    })
   })
 })

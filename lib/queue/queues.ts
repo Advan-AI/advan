@@ -99,3 +99,36 @@ export const copilotTriageQueue = new Queue<CopilotTriageJob>("copilot-triage", 
     removeOnFail: 500,
   },
 })
+
+/**
+ * Queue for handling scheduled and metered billing reporting tasks.
+ * Processed by: lib/queue/workers/billing-worker.ts
+ */
+export const billingQueue = new Queue<{ type: "report_usage" }>("billing", {
+  connection: getConnectionConfig(),
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: "exponential", delay: 5000 },
+    removeOnComplete: 100,
+    removeOnFail: 500,
+  },
+})
+
+/**
+ * Schedules a repeatable, hourly billing usage reporting job.
+ * This runs at minute 0 of every hour (cron: "0 * * * *").
+ * This satisfies the "report at least daily" requirement.
+ */
+export async function scheduleBillingUsageReporting() {
+  await billingQueue.add(
+    "report_usage",
+    { type: "report_usage" },
+    {
+      repeat: {
+        pattern: "0 * * * *", // Hourly cadence
+      },
+      jobId: "billing_hourly_report", // Keeps the job idempotent across server restarts
+    }
+  )
+  console.log("[BillingQueue] Hourly usage reporting job successfully scheduled.")
+}

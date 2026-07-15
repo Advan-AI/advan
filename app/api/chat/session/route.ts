@@ -46,6 +46,7 @@ const TOKEN_EXPIRY = "1h"
 // ─── Rate limiting ────────────────────────────────────────────────────────────
 
 let ratelimit: Ratelimit | null = null
+let widgetRatelimit: Ratelimit | null = null
 
 function getRatelimit(): Ratelimit | null {
   if (ratelimit) return ratelimit
@@ -59,6 +60,22 @@ function getRatelimit(): Ratelimit | null {
     prefix: "advan:chat:session",
   })
   return ratelimit
+}
+
+function getWidgetRatelimit(): Ratelimit | null {
+  if (widgetRatelimit) return widgetRatelimit
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return null
+  }
+  // Secondary rate limit keyed by widgetKey to prevent tenant starvation.
+  // We allow up to 60 session mints per minute per widgetKey.
+  widgetRatelimit = new Ratelimit({
+    redis: Redis.fromEnv(),
+    limiter: Ratelimit.slidingWindow(60, "60 s"),
+    analytics: true,
+    prefix: "advan:chat:session:widget",
+  })
+  return widgetRatelimit
 }
 
 async function applyRateLimit(req: NextRequest): Promise<Response | null> {
@@ -81,6 +98,33 @@ async function applyRateLimit(req: NextRequest): Promise<Response | null> {
 
   return new Response(
     JSON.stringify({ error: "Too many requests", limit, remaining }),
+    {
+      status: 429,
+      headers: {
+        "Content-Type": "application/json",
+        "X-RateLimit-Limit": String(limit),
+        "X-RateLimit-Remaining": String(remaining),
+        "Retry-After": String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))),
+      },
+    },
+  )
+}
+
+async function applyWidgetRateLimit(widgetKey: string): Promise<Response | null> {
+  const rl = getWidgetRatelimit()
+  if (!rl) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[ChatSession] Upstash widget rate limit env is missing in production")
+      return NextResponse.json({ error: "Rate limit unavailable" }, { status: 503 })
+    }
+    return null
+  }
+
+  const { success, limit, remaining, reset } = await rl.limit(widgetKey)
+  if (success) return null
+
+  return new Response(
+    JSON.stringify({ error: "Too many requests for this widget. Please try again later.", limit, remaining }),
     {
       status: 429,
       headers: {
@@ -156,6 +200,10 @@ export async function POST(req: NextRequest) {
   }
 
   const { widgetKey, origin, visitorSessionId: resumeSessionId } = parsed.data
+
+  // Apply secondary rate limit keyed by widgetKey to prevent tenant starvation
+  const widgetRateLimited = await applyWidgetRateLimit(widgetKey)
+  if (widgetRateLimited) return widgetRateLimited
 
   const config = await db.query.widgetConfigs.findFirst({
     where: eq(widgetConfigs.widgetKey, widgetKey),

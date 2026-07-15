@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import {
@@ -9,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import {
   MessageSquare,
   Sparkles,
@@ -34,10 +35,16 @@ import {
   Inbox,
   Radio,
   X,
+  Loader2,
+  BookOpen,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react"
 import * as SocketIO from "socket.io-client"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
+import { useCopilot } from "@/lib/copilot/store"
+import { useCopilotStream } from "@/lib/copilot/use-copilot-stream"
 
 // ─── Socket URL (mirrors use-pipeline-realtime.ts) ────────────────────────────
 const DASH_SOCKET_URL =
@@ -218,6 +225,17 @@ export default function ConversationsPage() {
   const [sendError, setSendError] = useState<string | null>(null)
   const [ticketIdFromUrl, setTicketIdFromUrl] = useState<string | null>(null)
   const [deepLinkResolved, setDeepLinkResolved] = useState(false)
+
+  // ── AI Copilot State ───────────────────────────────────────────────────────
+  const [showCopilot, setShowCopilot] = useState(false)
+  const [copilotGuidance, setCopilotGuidance] = useState("")
+  const { start: startCopilot, stop: stopCopilot } = useCopilotStream()
+
+  const copilotStatus = useCopilot((s) => s.status)
+  const copilotDraft = useCopilot((s) => s.draft)
+  const copilotConfidence = useCopilot((s) => s.confidence)
+  const copilotCitations = useCopilot((s) => s.citations)
+  const copilotError = useCopilot((s) => s.error)
 
   // ── Chat realtime: visitor presence + typing ───────────────────────────────
   /** Set of conversationIds whose visitor widget is currently connected. */
@@ -407,6 +425,38 @@ export default function ConversationsPage() {
     }
   )
   const thread = (threadRaw ?? null) as ThreadData | null
+
+  // Reset copilot state when selected conversation changes
+  useEffect(() => {
+    stopCopilot()
+    useCopilot.getState().reset()
+    setShowCopilot(false)
+    setCopilotGuidance("")
+  }, [activeId, stopCopilot])
+
+  const handleGenerateCopilotDraft = () => {
+    if (!thread) return
+    const recent = thread.messages
+      .slice(-12)
+      .map((message) => {
+        const speaker = message.role === "user" ? "Customer" : message.role === "agent" ? "Agent" : "AI"
+        return `${speaker}: ${message.content}`
+      })
+      .join("\n")
+
+    const input = [
+      "Draft a concise customer-support reply for the selected real conversation.",
+      `Ticket: ${thread.ticketSubject ?? thread.id}`,
+      `Priority: ${thread.ticketPriority ?? "medium"}`,
+      `Channel: ${thread.channel}`,
+      `Customer: ${thread.customerName ?? thread.customerEmail ?? "Unknown customer"}`,
+      copilotGuidance.trim() ? `Agent guidance: ${copilotGuidance.trim()}` : "Agent guidance: Use the available context and cite sources.",
+      "Conversation:",
+      recent || "No customer messages yet. Ask one focused clarifying question.",
+    ].join("\n")
+
+    startCopilot(input, { ticketId: thread.ticketId, threshold: 85 })
+  }
 
   // ── Mutation with optimistic update ───────────────────────────────────────
 
@@ -646,7 +696,10 @@ export default function ConversationsPage() {
             <button className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] font-semibold text-[var(--dash-ink-soft)] hover:dash-shadow-sm transition">
               <Filter className="w-4 h-4" /> Filters
             </button>
-            <button className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-semibold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] hover:-translate-y-px transition">
+            <button
+              onClick={() => setShowCopilot((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-semibold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] hover:-translate-y-px transition"
+            >
               <Sparkles className="w-4 h-4" /> Ask Copilot
             </button>
           </>
@@ -796,6 +849,171 @@ export default function ConversationsPage() {
                 <div ref={bottomRef} />
               </div>
 
+              {/* Inline AI Copilot Assistant */}
+              <AnimatePresence>
+                {showCopilot && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden border-t border-b dash-border-soft bg-[linear-gradient(180deg,#fff,rgba(107,92,214,0.02))] p-3"
+                  >
+                    <div className="rounded-xl border border-[#D7CFF2] bg-white p-3.5 shadow-[0_4px_24px_rgba(107,92,214,0.06)]">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[12px] font-bold text-[var(--dash-accent-deep)] flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-[var(--dash-accent)] animate-pulse" />
+                          AI Copilot Assistant
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCopilot(false)
+                            stopCopilot()
+                            useCopilot.getState().reset()
+                          }}
+                          className="text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink)] transition"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2 mb-3">
+                        <input
+                          type="text"
+                          value={copilotGuidance}
+                          onChange={(e) => setCopilotGuidance(e.target.value)}
+                          placeholder="Instructions (e.g. explain refund process, apologize for delay)..."
+                          className="flex-1 h-9 px-3 rounded-lg border dash-border bg-[var(--dash-bg)] text-[12px] text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] outline-none focus:border-[var(--dash-accent)] focus:bg-white focus:shadow-[0_0_0_2px_var(--dash-accent-wash)] transition-all"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault()
+                              handleGenerateCopilotDraft()
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleGenerateCopilotDraft}
+                          disabled={copilotStatus === "streaming" || copilotStatus === "grounding"}
+                          className="h-9 px-3.5 rounded-lg text-[12px] font-bold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_4px_14px_-4px_rgba(107,92,214,0.5)] hover:opacity-95 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-60"
+                        >
+                          {copilotStatus === "streaming" || copilotStatus === "grounding" ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
+                          {copilotStatus === "streaming" || copilotStatus === "grounding"
+                            ? "Drafting..."
+                            : copilotDraft
+                            ? "Regenerate"
+                            : "Generate Reply"}
+                        </button>
+                      </div>
+
+                      {/* Output Draft */}
+                      {(copilotDraft || copilotStatus === "streaming" || copilotStatus === "grounding" || copilotError) && (
+                        <div className="mt-3 p-3.5 rounded-xl border border-dashed border-[#D7CFF2] bg-[var(--dash-accent-wash)]/20">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-bold text-[var(--dash-accent-deep)]">
+                              Suggested Draft
+                            </span>
+                            {copilotConfidence !== null && (
+                              <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 border ${
+                                copilotConfidence >= 85
+                                  ? "bg-[#DCFCE7] text-[#166534] border-[#CBE0CF]"
+                                  : copilotConfidence >= 70
+                                  ? "bg-[#FEF3C7] text-[#92400E] border-[#E5D2A8]"
+                                  : "bg-[#FEE2E2] text-[#991B1B] border-[#E5C5C3]"
+                              }`}>
+                                {copilotConfidence}% Confidence
+                              </span>
+                            )}
+                          </div>
+
+                          {copilotError ? (
+                            <p className="text-[12px] text-[var(--dash-rose)]">{copilotError}</p>
+                          ) : (
+                            <p className="text-[13px] leading-[1.65] text-[var(--dash-ink-soft)] whitespace-pre-wrap select-text">
+                              {copilotDraft}
+                              {(copilotStatus === "streaming" || copilotStatus === "grounding") && (
+                                <span className="inline-block w-1.5 h-3.5 bg-[var(--dash-accent)] ml-1 animate-pulse align-middle" />
+                              )}
+                            </p>
+                          )}
+
+                          {/* Citations */}
+                          {copilotCitations.length > 0 && (
+                            <div className="mt-3.5 pt-2 border-t border-[var(--dash-accent)]/10 flex flex-wrap gap-1.5 items-center">
+                              <span className="text-[9.5px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)] mr-1">
+                                Sourced Citations:
+                              </span>
+                               {copilotCitations.map((cit, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 text-[9.5px] font-semibold px-2 py-0.5 rounded-md bg-white text-[var(--dash-accent-deep)] border border-[#D7CFF2] shadow-sm"
+                                >
+                                  <span className="w-1 h-1 rounded-full bg-[var(--dash-accent)] shrink-0" />
+                                  {cit.title || cit.sourceId}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Action Buttons */}
+                          {copilotStatus === "ready" && (
+                            <div className="mt-4 flex items-center justify-end gap-2 border-t border-[var(--dash-accent)]/10 pt-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setText(copilotDraft)
+                                  setComposeMode("reply")
+                                  // Update height of text area automatically
+                                  setTimeout(() => {
+                                    if (textareaRef.current) {
+                                      textareaRef.current.style.height = "auto"
+                                      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`
+                                    }
+                                  }, 0)
+                                }}
+                                className="h-8 px-3 rounded-lg text-[11.5px] font-bold text-white bg-[var(--dash-accent)] hover:opacity-95 transition-all flex items-center gap-1"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                                Use as Reply
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setText(copilotDraft)
+                                  setComposeMode("note")
+                                  setTimeout(() => {
+                                    if (textareaRef.current) {
+                                      textareaRef.current.style.height = "auto"
+                                      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`
+                                    }
+                                  }, 0)
+                                }}
+                                className="h-8 px-3 rounded-lg text-[11.5px] font-bold text-[#92400E] bg-[#FEF3C7] border border-[#FDE68A] hover:bg-[#FDE68A] transition-all flex items-center gap-1"
+                              >
+                                📌 Use as Note
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  useCopilot.getState().reset()
+                                }}
+                                className="h-8 px-2.5 rounded-lg text-[11.5px] font-semibold text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)] transition-all"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Composer */}
               <Composer
                 mode={composeMode}
@@ -810,6 +1028,8 @@ export default function ConversationsPage() {
                 onDismissError={() => setSendError(null)}
                 channel={thread?.channel ?? null}
                 destinationEmail={thread?.customerEmail ?? null}
+                showCopilot={showCopilot}
+                onToggleCopilot={() => setShowCopilot((prev) => !prev)}
               />
             </>
           )}
@@ -1275,6 +1495,8 @@ function Composer({
   onDismissError,
   channel,
   destinationEmail,
+  showCopilot = false,
+  onToggleCopilot,
 }: {
   mode: ComposeMode
   onModeChange: (m: ComposeMode) => void
@@ -1288,6 +1510,8 @@ function Composer({
   onDismissError: () => void
   channel: ThreadData["channel"] | null
   destinationEmail: string | null
+  showCopilot?: boolean
+  onToggleCopilot?: () => void
 }) {
   const isNote = mode === "note"
   const showEmailDestination = channel === "email" && mode === "reply"
@@ -1377,6 +1601,24 @@ function Composer({
             <Icon className="w-3.5 h-3.5" />
           </button>
         ))}
+
+        {onToggleCopilot && (
+          <>
+            <div className="h-4 w-px bg-slate-200 mx-1 shrink-0" />
+            <button
+              type="button"
+              onClick={onToggleCopilot}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
+                showCopilot
+                  ? "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]"
+                  : "text-[var(--dash-ink-faint)] hover:text-[var(--dash-accent)] hover:bg-[var(--dash-bg-deep)]"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[var(--dash-accent)] animate-pulse" />
+              Ask Copilot
+            </button>
+          </>
+        )}
         <button
           disabled={!text.trim() || isPending}
           onClick={onSend}
@@ -1402,6 +1644,46 @@ function Composer({
   )
 }
 
+function ConfidenceRing({ value, provisional }: { value: number; provisional: boolean }) {
+  const reduce = useReducedMotion()
+  const R = 28
+  const circ = 2 * Math.PI * R
+  const offset = circ - (value / 100) * circ
+  const color = value >= 85 ? ["#76B98C", "#4A8A60"] : value >= 70 ? ["#E5A84F", "#B07A2A"] : ["#E58080", "#A04040"]
+
+  return (
+    <div
+      className="relative w-[66px] h-[66px] shrink-0"
+      role="meter"
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={`AI confidence ${value} percent${provisional ? " provisional" : ""}`}
+    >
+      <svg width={66} height={66} viewBox="0 0 66 66" className="-rotate-90">
+        <defs>
+          <linearGradient id="copilot-ring-conversations" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={color[0]} />
+            <stop offset="1" stopColor={color[1]} />
+          </linearGradient>
+        </defs>
+        <circle cx="33" cy="33" r={R} stroke="var(--dash-line)" strokeWidth="7" fill="none" />
+        <motion.circle
+          cx="33" cy="33" r={R}
+          stroke="url(#copilot-ring-conversations)" strokeWidth="7" fill="none" strokeLinecap="round"
+          strokeDasharray={circ}
+          initial={false}
+          animate={{ strokeDashoffset: offset, opacity: provisional ? 0.55 : 1 }}
+          transition={reduce ? { duration: 0 } : { duration: 0.9, ease: [0.34, 1.2, 0.64, 1] }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-[15px] font-extrabold text-[var(--dash-ink)]">
+        {value}%
+      </div>
+    </div>
+  )
+}
+
 // ─── DetailsPanel ─────────────────────────────────────────────────────────────
 
 function DetailsPanel({
@@ -1411,6 +1693,13 @@ function DetailsPanel({
   thread: ThreadData | null
   loading: boolean
 }) {
+  const confidence = useCopilot((s) => s.confidence)
+  const stage = useCopilot((s) => s.confidenceStage)
+  const status = useCopilot((s) => s.status)
+  const citations = useCopilot((s) => s.citations)
+  const hitl = useCopilot((s) => s.hitl)
+  const latencyMs = useCopilot((s) => s.latencyMs)
+
   return (
     <DashCard
       title="Details"
@@ -1544,6 +1833,83 @@ function DetailsPanel({
                 value={relativeTime(thread.createdAt)}
               />
             </div>
+          </section>
+
+          <Divider />
+
+          {/* AI Reasoning section */}
+          <section>
+            <SectionLabel>AI Reasoning</SectionLabel>
+            
+            <div className="flex items-center gap-3.5 mb-4 rounded-xl border dash-border bg-[var(--dash-bg-deep)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+              <ConfidenceRing value={confidence ?? 0} provisional={stage === "retrieval"} />
+              <div className="text-[12px] leading-[1.6] text-[var(--dash-ink-soft)] min-w-0 flex-1">
+                {confidence === null ? (
+                  status === "streaming" ? "Analyzing sources…" : "Generate a draft to see reasoning."
+                ) : (
+                  <>
+                    <div className={`font-bold ${
+                      confidence >= 85 ? "text-[var(--dash-sage)]"
+                      : confidence >= 70 ? "text-[var(--dash-amber)]"
+                      : "text-[var(--dash-rose)]"
+                    }`}>
+                      {confidence}% confidence{stage === "retrieval" ? " (provisional)" : ""}
+                    </div>
+                    {hitl?.required ? (
+                      <span className="inline-flex items-center gap-1 text-[var(--dash-amber)] text-[11px] font-semibold">
+                        <AlertTriangle className="h-3 w-3 shrink-0" /> HITL required
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[var(--dash-sage)] text-[11px] font-semibold">
+                        <CheckCircle2 className="h-3 w-3 shrink-0" /> Agent ready
+                      </span>
+                    )}
+                    {latencyMs ? <span className="font-mono text-[10.5px]"> · {latencyMs}ms</span> : null}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-2">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)] mb-2">
+                Sources cited
+              </div>
+              {citations.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {citations.map((c, i) => (
+                    <li
+                      key={c.sourceId || i}
+                      className="flex items-center gap-2 px-2.5 py-2 rounded-lg border dash-border-soft bg-white hover:dash-shadow-sm transition"
+                    >
+                      <span className="w-5 h-5 rounded-md bg-[var(--dash-accent-wash)] flex items-center justify-center shrink-0">
+                        <BookOpen className="w-3 h-3 text-[var(--dash-accent-deep)]" />
+                      </span>
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="block truncate text-[11px] font-semibold text-[var(--dash-ink)] leading-snug">{c.title}</span>
+                        <span className="block truncate text-[10px] text-[var(--dash-ink-faint)] leading-normal">{c.snippet}</span>
+                      </span>
+                      <span className="text-[10px] font-bold text-[var(--dash-sage)] bg-[var(--dash-sage-wash)] rounded px-1.5 py-0.5 shrink-0">
+                        {c.confidence}%
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="rounded-lg border dash-border-soft bg-white px-3 py-3.5 text-center">
+                  <BookOpen className="mx-auto mb-1.5 h-4.5 w-5 text-[var(--dash-ink-faint)] opacity-60" />
+                  <p className="text-[11px] leading-relaxed text-[var(--dash-ink-faint)]">
+                    Sources will appear here after a draft is grounded against the knowledge base.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <Link
+              href="/dashboard/tap-box"
+              className="mt-3.5 inline-flex items-center gap-1 text-[11px] font-bold text-[var(--dash-accent-deep)] hover:underline"
+            >
+              Open full Tap Box →
+            </Link>
           </section>
         </div>
       )}

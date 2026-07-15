@@ -6,7 +6,7 @@ import { useStore } from "zustand"
 import { ReactFlowProvider } from "@xyflow/react"
 import { toast } from "sonner"
 import {
-  PlayCircle, Save, CheckCircle2, Loader2, Undo2, Redo2, GitBranch, Sparkles, AlertTriangle, Pause, Info,
+  PlayCircle, Save, CheckCircle2, Loader2, Undo2, Redo2, GitBranch, Sparkles, AlertTriangle, Pause, Info, Lock,
 } from "lucide-react"
 import { api } from "@/lib/api/trpc-client"
 import { usePipelineStore } from "@/lib/pipeline/use-pipeline-store"
@@ -44,6 +44,8 @@ export function PipelineBuilder() {
 
   const workflows = api.orchestration.getWorkflows.useQuery()
   const save = api.orchestration.saveWorkflow.useMutation()
+  const { data: billing } = api.auth.getBillingStatus.useQuery()
+  const isBillingRestricted = billing?.subscriptionStatus === "past_due" || billing?.subscriptionStatus === "canceled"
   const preflight = api.orchestration.preflightPipeline.useMutation()
   const setWorkflowActive = api.orchestration.setWorkflowActive.useMutation({
     onSuccess: async (row) => {
@@ -106,14 +108,19 @@ export function PipelineBuilder() {
   // Debounced autosave on dirty.
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (!dirty) return
+    if (!dirty || isBillingRestricted) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => void doSave(true), 1500)
     return () => { if (timer.current) clearTimeout(timer.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty])
+  }, [dirty, isBillingRestricted])
 
   async function doSave(isAuto = false) {
+    if (isBillingRestricted) {
+      toast.error("Actions are locked due to past due invoice. Please update billing under settings.")
+      setSaveState("idle")
+      return
+    }
     setSaveState("saving")
     try {
       const definition = usePipelineStore.getState().toPipeline()
@@ -244,8 +251,26 @@ export function PipelineBuilder() {
             <button onClick={() => loadPipeline(ADVAN_COPILOT_PIPELINE)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border dash-border bg-[var(--dash-bg)] px-3 text-[12px] font-semibold text-[var(--dash-ink-soft)] transition hover:dash-shadow-sm">
               <Sparkles className="h-3.5 w-3.5" /> Advan Copilot
             </button>
-            <button onClick={() => void doSave(false)} disabled={saveState === "saving"} className="inline-flex h-8 items-center gap-1.5 rounded-lg border dash-border bg-[var(--dash-card)] px-3 text-[12px] font-semibold text-[var(--dash-ink-soft)] transition hover:dash-shadow-sm disabled:opacity-60">
-              {saveState === "saving" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveState === "saved" ? <CheckCircle2 className="h-3.5 w-3.5 text-[var(--dash-sage)]" /> : <Save className="h-3.5 w-3.5" />}
+            <button
+              onClick={() => {
+                if (isBillingRestricted) {
+                  toast.error("Actions are locked due to past due invoice. Please update billing under settings.")
+                } else {
+                  void doSave(false)
+                }
+              }}
+              disabled={saveState === "saving" || isBillingRestricted}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border dash-border bg-[var(--dash-card)] px-3 text-[12px] font-semibold text-[var(--dash-ink-soft)] transition hover:dash-shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isBillingRestricted ? (
+                <Lock className="h-3.5 w-3.5 text-amber-500" />
+              ) : saveState === "saving" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : saveState === "saved" ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-[var(--dash-sage)]" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
               Save
             </button>
             <button

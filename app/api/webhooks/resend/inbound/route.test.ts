@@ -17,6 +17,19 @@ vi.mock("@/lib/queue/queues", () => ({
   embeddingQueue: { add: vi.fn() },
 }))
 
+const mockLimit = vi.fn()
+vi.mock("@upstash/ratelimit", () => {
+  function RatelimitMock() {
+    return {
+      limit: (key: string) => mockLimit(key),
+    }
+  }
+  ;(RatelimitMock as any).slidingWindow = vi.fn().mockReturnValue({})
+  return {
+    Ratelimit: RatelimitMock,
+  }
+})
+
 const SECRET = `whsec_${Buffer.from("test-secret-for-svix-signing").toString("base64")}`
 const DOMAIN = "mail.example.com"
 const CONVERSATION_ID = "2d527dc9-828b-442d-9f8c-405287878169"
@@ -31,6 +44,9 @@ function seedEnv() {
   process.env.EMAIL_INBOUND_DOMAIN = DOMAIN
   process.env.RESEND_WEBHOOK_SECRET = SECRET
   delete process.env.ALLOW_UNVERIFIED_SENDER_DEV
+  delete process.env.UPSTASH_REDIS_REST_URL
+  delete process.env.UPSTASH_REDIS_REST_TOKEN
+  mockLimit.mockReset().mockResolvedValue({ success: true, limit: 60, remaining: 59, reset: Date.now() + 1000 })
   resetEmailConfigCache()
 }
 
@@ -121,6 +137,7 @@ async function makeDeps(
     verifyWebhook: route.productionDeps.verifyWebhook,
     fetchReceivedEmail: vi.fn(async () => receivedEmailFixture()),
     findExistingInboundEvent: vi.fn(async () => null),
+    resolveOrgByEmailAlias: vi.fn(async () => null),
     resolveOrgByReplyAddress: vi.fn(async () => ORG_ID),
     resolveOrgByStoredMessageIds: vi.fn(async () => null),
     resolveOrgByInboundDomain: vi.fn(async () => null),
@@ -200,6 +217,7 @@ describe("Resend inbound webhook route", () => {
   it("logs unresolved inbound email when no org can be resolved", async () => {
     const route = await loadRoute()
     const deps = await makeDeps({
+      resolveOrgByEmailAlias: vi.fn(async () => null),
       resolveOrgByReplyAddress: vi.fn(async () => null),
       resolveOrgByStoredMessageIds: vi.fn(async () => null),
     })
@@ -218,20 +236,69 @@ describe("Resend inbound webhook route", () => {
     )
   })
 
-  it("routes first-contact email via resolveOrgByInboundDomain when reply-to and message-id fail", async () => {
+  it("routes first-contact email via resolveOrgByEmailAlias when matching alias is found", async () => {
     const route = await loadRoute()
     const deps = await makeDeps({
+      resolveOrgByEmailAlias: vi.fn(async () => ORG_ID),
       resolveOrgByReplyAddress: vi.fn(async () => null),
       resolveOrgByStoredMessageIds: vi.fn(async () => null),
-      resolveOrgByInboundDomain: vi.fn(async () => ORG_ID),
     })
 
-    const res = await route.handleInboundRequest(signedRequest(webhookFixture()), deps)
+    const fixture = webhookFixture({
+      data: {
+        ...webhookFixture().data,
+        to: [`support+acme@${DOMAIN}`],
+        received_for: [`support+acme@${DOMAIN}`],
+      },
+    })
+    const emailFixture = receivedEmailFixture({
+      to: [`support+acme@${DOMAIN}`],
+      received_for: [`support+acme@${DOMAIN}`],
+    })
+    deps.fetchReceivedEmail = vi.fn(async () => emailFixture)
+
+    const res = await route.handleInboundRequest(signedRequest(fixture), deps)
 
     expect(res.status).toBe(200)
-    expect(deps.resolveOrgByInboundDomain).toHaveBeenCalled()
+    expect(deps.resolveOrgByEmailAlias).toHaveBeenCalled()
     expect(deps.resolveOrCreateIntake).toHaveBeenCalledWith(
       expect.objectContaining({ orgId: ORG_ID }),
+    )
+  })
+
+  it("logs unknown_org_alias and drops first-contact email when sent to inbound domain with unknown alias", async () => {
+    const route = await loadRoute()
+    const deps = await makeDeps({
+      resolveOrgByEmailAlias: vi.fn(async () => null),
+      resolveOrgByReplyAddress: vi.fn(async () => null),
+      resolveOrgByStoredMessageIds: vi.fn(async () => null),
+    })
+
+    const fixture = webhookFixture({
+      data: {
+        ...webhookFixture().data,
+        to: [`support+unknown@${DOMAIN}`],
+        received_for: [`support+unknown@${DOMAIN}`],
+      },
+    })
+    const emailFixture = receivedEmailFixture({
+      to: [`support+unknown@${DOMAIN}`],
+      received_for: [`support+unknown@${DOMAIN}`],
+    })
+    deps.fetchReceivedEmail = vi.fn(async () => emailFixture)
+
+    const res = await route.handleInboundRequest(signedRequest(fixture), deps)
+
+    expect(res.status).toBe(200)
+    expect(deps.resolveOrgByEmailAlias).toHaveBeenCalled()
+    expect(deps.resolveOrCreateIntake).not.toHaveBeenCalled()
+    expect(deps.logEmailEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: PROVIDER_ID,
+        status: "unknown_org_alias",
+        orgId: null,
+        conversationId: null,
+      }),
     )
   })
 
@@ -243,5 +310,54 @@ describe("Resend inbound webhook route", () => {
         "My email is customer@startup.io, phone is 555-123-4567, card is 4242 4242 4242 4242.",
       ),
     ).toBe("My email is [EMAIL], phone is [PHONE], card is [CREDIT_CARD].")
+  })
+
+  it("returns 429 when resolved organization is rate-limited", async () => {
+    // Re-enable Upstash for this test
+    process.env.UPSTASH_REDIS_REST_URL = "https://mock-redis.upstash.io"
+    process.env.UPSTASH_REDIS_REST_TOKEN = "mock-token"
+
+    // deps.rateLimit is stubbed to return null in makeDeps, so mockLimit is only called once for the orgId limit
+    mockLimit.mockResolvedValueOnce({
+      success: false,
+      limit: 60,
+      remaining: 0,
+      reset: Date.now() + 5000,
+    })
+
+    const route = await loadRoute()
+    const deps = await makeDeps({
+      resolveOrgByEmailAlias: vi.fn(async () => ORG_ID),
+    })
+
+    const fixture = webhookFixture({
+      data: {
+        ...webhookFixture().data,
+        to: [`support+acme@${DOMAIN}`],
+        received_for: [`support+acme@${DOMAIN}`],
+      },
+    })
+    const emailFixture = receivedEmailFixture({
+      to: [`support+acme@${DOMAIN}`],
+      received_for: [`support+acme@${DOMAIN}`],
+    })
+    deps.fetchReceivedEmail = vi.fn(async () => emailFixture)
+
+    const res = await route.handleInboundRequest(signedRequest(fixture), deps)
+
+    expect(res.status).toBe(429)
+    const body = await res.json() as { error: string }
+    expect(body.error).toContain("Rate limit exceeded for this organization")
+
+    expect(deps.resolveOrCreateIntake).not.toHaveBeenCalled()
+    expect(deps.logEmailEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: ORG_ID,
+        status: "rate_limited",
+      }),
+    )
+
+    delete process.env.UPSTASH_REDIS_REST_URL
+    delete process.env.UPSTASH_REDIS_REST_TOKEN
   })
 })

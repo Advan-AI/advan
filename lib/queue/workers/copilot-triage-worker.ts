@@ -1,7 +1,7 @@
 import { Worker, UnrecoverableError, type Job } from "bullmq"
 import { and, asc, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { auditLogs, conversations, hitlQueue, messages, tickets } from "@/lib/db/schema"
+import { auditLogs, conversations, hitlQueue, messages, tickets, usageEvents } from "@/lib/db/schema"
 import { SuggestionService } from "@/lib/copilot/suggestion-service"
 import {
   DrizzleAudit,
@@ -464,23 +464,33 @@ export async function processTriageJob(
     console.log(`[TriageWorker] No auto-reply for message=${messageId} decision=${decision}`)
   }
 
-  // ── 7. Stamp triage metadata on the original customer message ───────────────
-  await db
-    .update(messages)
-    .set({
-      metadata: {
-        ...(existing.metadata ?? {}),
-        triage: {
-          decision,
-          confidence: draft.confidence,
-          isComplaint: classification.isComplaint,
-          auditLogId: draft.auditLogId,
-          classifiedAt: new Date().toISOString(),
-          chatIntent: intent.intent,
+  // ── 7. Stamp triage metadata and write usage event atomically ───────────────
+  await db.transaction(async (tx) => {
+    await tx
+      .update(messages)
+      .set({
+        metadata: {
+          ...(existing.metadata ?? {}),
+          triage: {
+            decision,
+            confidence: draft.confidence,
+            isComplaint: classification.isComplaint,
+            auditLogId: draft.auditLogId,
+            classifiedAt: new Date().toISOString(),
+            chatIntent: intent.intent,
+          },
         },
-      },
-    })
-    .where(eq(messages.id, messageId))
+      })
+      .where(eq(messages.id, messageId))
+
+    await tx
+      .insert(usageEvents)
+      .values({
+        orgId,
+        type: "ai_message",
+        quantity: 1,
+      })
+  })
 
   console.log(
     `[TriageWorker] ✓ Done message=${messageId} decision=${decision} totalMs=${Date.now() - t0}`

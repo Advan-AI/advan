@@ -163,6 +163,7 @@ describe("Scenario A — no agents online: ticket created in offline mode, reply
       const deps: TriageDeps = {
         classifier: async () => NON_COMPLAINT,
         draftGenerator: async () => ({ ...HIGH_CONF_DRAFT, auditLogId: auditRow.id }),
+        retrieve: async () => [{ score: 0.9 }],
       }
 
       await processTriageJob(
@@ -234,13 +235,14 @@ describe("Scenario B — agent comes online mid-conversation: clearOfflineDelive
       // Visitor sends a second message (agent is now online — no offline flag).
       const [secondMsg] = await db
         .insert(messages)
-        .values({ conversationId: intake.conversationId, role: "user", content: "Great, I'm back!" })
+        .values({ conversationId: intake.conversationId, role: "user", content: "Great, I'm back! What are your business hours?" })
         .returning()
 
       const auditRow = await seedAuditLog(intake.ticketId, orgId)
       const deps: TriageDeps = {
         classifier: async () => NON_COMPLAINT,
         draftGenerator: async () => ({ ...HIGH_CONF_DRAFT, auditLogId: auditRow.id }),
+        retrieve: async () => [{ score: 0.9 }],
       }
 
       await processTriageJob(
@@ -284,6 +286,7 @@ describe("Scenario C — online chat: chatOfflineDelivery=false (default), reply
     const deps: TriageDeps = {
       classifier: async () => NON_COMPLAINT,
       draftGenerator: async () => ({ ...HIGH_CONF_DRAFT, auditLogId: auditRow.id }),
+      retrieve: async () => [{ score: 0.9 }],
     }
 
     await processTriageJob(

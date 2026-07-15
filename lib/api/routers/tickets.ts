@@ -130,6 +130,9 @@ export const ticketsRouter = router({
         .set({ status: input.status, updatedAt: new Date() })
         .where(and(eq(tickets.id, input.id), eq(tickets.orgId, ctx.user.orgId)))
         .returning()
+      if (!ticket) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" })
+      }
       return ticket
     }),
 
@@ -146,6 +149,9 @@ export const ticketsRouter = router({
         .set({ assignedTo: input.agentId, updatedAt: new Date() })
         .where(and(eq(tickets.id, input.id), eq(tickets.orgId, ctx.user.orgId)))
         .returning()
+      if (!ticket) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" })
+      }
       return ticket
     }),
 
@@ -167,6 +173,12 @@ export const ticketsRouter = router({
           )
         )
         .returning()
+      if (updated.length !== input.ids.length) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "One or more tickets not found",
+        })
+      }
       return updated
     }),
 

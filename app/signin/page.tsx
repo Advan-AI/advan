@@ -72,8 +72,8 @@ export default function SignInPage() {
         </Link>
         <div className="text-sm text-foreground/60">
           New to Advan?{" "}
-          <Link href="/" className="font-medium text-foreground hover:underline">
-            Book a demo
+          <Link href="/signup" className="font-medium text-[#6B5CD6] hover:underline">
+            Create an account
           </Link>
         </div>
       </header>

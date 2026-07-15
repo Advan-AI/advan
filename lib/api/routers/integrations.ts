@@ -5,7 +5,8 @@ import crypto from "crypto"
 
 import { router, protectedProcedure } from "../trpc"
 import { db } from "@/lib/db"
-import { widgetConfigs } from "@/lib/db/schema"
+import { widgetConfigs, organizations } from "@/lib/db/schema"
+import { requireEmailConfig } from "@/lib/email/config"
 
 function generateWidgetKey(): string {
   const buf = crypto.randomBytes(16)
@@ -13,6 +14,28 @@ function generateWidgetKey(): string {
 }
 
 export const integrationsRouter = router({
+  /**
+   * getOrganization:
+   * Returns the organization details for the current user's org.
+   */
+  getOrganization: protectedProcedure.query(async ({ ctx }) => {
+    const org = await db.query.organizations.findFirst({
+      where: eq(organizations.id, ctx.user.orgId),
+    })
+
+    let inboundDomain = "mail.yourdomain.com"
+    try {
+      const config = requireEmailConfig()
+      inboundDomain = config.inboundDomain
+    } catch {
+      // safe fallback for local/test context
+    }
+
+    return {
+      org: org ?? null,
+      inboundDomain,
+    }
+  }),
   /**
    * getWidgetConfig:
    * Returns the single widget config for the caller's organization, or null if it doesn't exist.

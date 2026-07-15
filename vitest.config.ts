@@ -1,5 +1,9 @@
 import path from "node:path"
 import { defineConfig } from "vitest/config"
+import dotenv from "dotenv"
+
+// Load env variables for unit and integration tests
+dotenv.config()
 
 export default defineConfig({
   test: {

@@ -1,33 +1,66 @@
 "use client"
 
 import { useState } from "react"
-import { Eye, EyeOff, Copy, RefreshCw, Trash2, Globe, Plus, X } from "lucide-react"
+import { Eye, EyeOff, Copy, RefreshCw, Trash2, Globe, Plus, X, AlertTriangle, Check } from "lucide-react"
+import { toast } from "sonner"
 import { api } from "@/lib/api/trpc-client"
 import { DashCard } from "@/components/dashboard/page-header"
 
 export function ChatWidgetSettings() {
-  const { data: config, isLoading, refetch } = api.integrations.getWidgetConfig.useQuery()
+  const { data: config, isLoading, refetch } = api.widgetConfig.get.useQuery()
 
-  const createMut = api.integrations.createWidgetConfig.useMutation({
-    onSuccess: () => refetch(),
+  const createMut = api.widgetConfig.create.useMutation({
+    onSuccess: () => {
+      toast.success("Chat widget set up successfully!")
+      refetch()
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to create widget config.")
+    },
   })
-  const updateMut = api.integrations.updateWidgetOrigins.useMutation({
-    onSuccess: () => refetch(),
+
+  const updateMut = api.widgetConfig.updateOrigins.useMutation({
+    onSuccess: () => {
+      toast.success("Allowed origins updated successfully.")
+      refetch()
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to update origins.")
+    },
   })
-  const rotateMut = api.integrations.rotateWidgetKey.useMutation({
-    onSuccess: () => refetch(),
+
+  const rotateMut = api.widgetConfig.rotateKey.useMutation({
+    onSuccess: () => {
+      toast.success("Widget key rotated successfully! Please update your embed snippets.")
+      refetch()
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to rotate key.")
+    },
   })
-  const deleteMut = api.integrations.deleteWidgetConfig.useMutation({
-    onSuccess: () => refetch(),
+
+  const deleteMut = api.widgetConfig.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Chat widget disabled and configuration removed.")
+      refetch()
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to disable widget.")
+    },
   })
 
   const [showKey, setShowKey] = useState(false)
   const [newOrigin, setNewOrigin] = useState("")
+  const [copiedKey, setCopiedKey] = useState(false)
+  const [copiedSnippet, setCopiedSnippet] = useState(false)
 
   if (isLoading) {
     return (
       <DashCard title="Chat Widget" icon={<Globe className="w-[18px] h-[18px]" />} padded>
-        <div className="text-[13px] text-muted-foreground">Loading widget settings...</div>
+        <div className="flex items-center gap-2 text-[13px] text-[var(--dash-ink-soft)] font-medium">
+          <RefreshCw className="w-4 h-4 animate-spin text-[var(--dash-accent)]" />
+          <span>Loading widget settings...</span>
+        </div>
       </DashCard>
     )
   }
@@ -35,37 +68,62 @@ export function ChatWidgetSettings() {
   if (!config) {
     return (
       <DashCard title="Chat Widget" icon={<Globe className="w-[18px] h-[18px]" />} padded>
-        <div className="flex flex-col items-start gap-3">
-          <p className="text-[13px] text-muted-foreground leading-relaxed max-w-lg">
-            Deploy the Advan Chat Widget to your website to engage visitors and generate tickets directly.
+        <div className="flex flex-col items-start gap-3.5 max-w-xl">
+          <p className="text-[13px] text-[var(--dash-ink-soft)] leading-relaxed">
+            Deploy the Advan Chat Widget to your website to engage visitors, run automated ground-truth AI triage, and generate tracking tickets directly in your inbox.
           </p>
           <button
             onClick={() => createMut.mutate()}
             disabled={createMut.isPending}
-            className="h-8 px-4 border border-input rounded-md text-[13px] font-medium hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50"
+            className="inline-flex h-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white shadow-[0_4px_12px_-5px_rgba(107,92,214,0.4)] hover:-translate-y-px transition active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {createMut.isPending ? "Creating..." : "Set up chat widget"}
+            {createMut.isPending ? "Configuring..." : "Set up chat widget"}
           </button>
         </div>
       </DashCard>
     )
   }
 
-  const handleCopy = (text: string) => {
+  const handleCopy = (text: string, isSnippet: boolean) => {
     navigator.clipboard.writeText(text)
+    if (isSnippet) {
+      setCopiedSnippet(true)
+      setTimeout(() => setCopiedSnippet(false), 2000)
+    } else {
+      setCopiedKey(true)
+      setTimeout(() => setCopiedKey(false), 2000)
+    }
+    toast.success(isSnippet ? "Embed snippet copied!" : "Widget key copied!")
   }
 
   const handleAddOrigin = (e: React.FormEvent) => {
     e.preventDefault()
+    let trimmed = newOrigin.trim()
+    if (!trimmed) return
+
+    // Normalise/Format check: Ensure it has protocol. Default to https:// if missing
+    if (!/^https?:\/\//i.test(trimmed)) {
+      trimmed = "https://" + trimmed
+    }
+
     try {
-      const url = new URL(newOrigin)
+      const url = new URL(trimmed)
       const origin = url.origin
-      if (!config.allowedOrigins.includes(origin)) {
-        updateMut.mutate({ allowedOrigins: [...config.allowedOrigins, origin] })
+      
+      // Basic validation: ensure it has a proper host (not just e.g. https://)
+      if (!url.hostname || url.hostname.indexOf(".") === -1 && url.hostname !== "localhost") {
+        throw new Error("Invalid hostname")
       }
+
+      if (config.allowedOrigins.includes(origin)) {
+        toast.error("This origin is already added.")
+        return
+      }
+
+      updateMut.mutate({ allowedOrigins: [...config.allowedOrigins, origin] })
       setNewOrigin("")
     } catch {
-      alert("Please enter a valid URL (e.g. https://example.com)")
+      toast.error("Please enter a valid domain origin (e.g. https://example.com)")
     }
   }
 
@@ -76,14 +134,14 @@ export function ChatWidgetSettings() {
   }
 
   const handleRotate = () => {
-    if (confirm("Are you sure? This will break your existing widget snippet immediately.")) {
+    if (confirm("WARNING: Rotating your Widget Key will IMMEDIATELY break any live website integrations running your current snippet. Are you sure you want to proceed?")) {
       rotateMut.mutate()
       setShowKey(true)
     }
   }
 
   const handleDelete = () => {
-    if (confirm("Are you sure? This will disable the widget entirely.")) {
+    if (confirm("WARNING: Disabling the Chat Widget will permanently delete its configuration and block any in-flight visitor sessions. Are you sure?")) {
       deleteMut.mutate()
     }
   }
@@ -95,107 +153,132 @@ export function ChatWidgetSettings() {
       <div className="space-y-6 max-w-2xl">
         {/* Widget Key */}
         <div className="space-y-2">
-          <label className="text-[13px] font-bold text-foreground">Widget Key</label>
+          <label className="text-[13px] font-bold text-[var(--dash-ink)]">Widget Key</label>
           <div className="flex items-center gap-2">
-            <div className="flex-1 flex items-center justify-between border border-input rounded-md px-3 py-2 bg-muted/30">
-              <span className="text-[13px] font-mono select-all">
+            <div className="flex-1 flex items-center justify-between border dash-border-soft rounded-lg px-3.5 py-2.5 bg-white shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]">
+              <span className="text-[13px] font-mono select-all text-[var(--dash-ink-soft)] tracking-tight">
                 {showKey ? config.widgetKey : "wk_live_••••••••••••••••••••••••••••••••"}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5 ml-3">
                 <button
+                  type="button"
                   onClick={() => setShowKey(!showKey)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  title="Reveal key"
+                  className="text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink)] transition-colors"
+                  title={showKey ? "Hide key" : "Reveal key"}
                 >
                   {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
                 <button
-                  onClick={() => handleCopy(config.widgetKey)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  type="button"
+                  onClick={() => handleCopy(config.widgetKey, false)}
+                  className="text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink)] transition-colors"
                   title="Copy key"
                 >
-                  <Copy className="w-4 h-4" />
+                  {copiedKey ? <Check className="w-4 h-4 text-[var(--dash-sage)]" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
             </div>
             <button
+              type="button"
               onClick={handleRotate}
               disabled={rotateMut.isPending}
-              className="px-3 py-2 text-[13px] font-medium border border-input rounded-md hover:bg-accent transition-colors disabled:opacity-50"
-              title="Rotate Key"
+              className="inline-flex h-[38px] w-[38px] items-center justify-center border dash-border-soft bg-white text-[var(--dash-ink-soft)] rounded-lg hover:bg-[var(--dash-bg-deep)] transition active:scale-95 disabled:opacity-50"
+              title="Rotate Key (Breaks old snippet)"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={`w-4 h-4 ${rotateMut.isPending ? "animate-spin text-[var(--dash-accent)]" : ""}`} />
             </button>
           </div>
-          <p className="text-[12px] text-muted-foreground">
-            Use this key in your embed snippet to identify your organization. Keep it safe.
+          <p className="text-[11.5px] text-[var(--dash-ink-faint)] leading-normal">
+            Your public key maps the widget's customer sessions straight to your organization account. Rotate only if your script is compromised.
           </p>
         </div>
 
         {/* Allowed Origins */}
         <div className="space-y-3">
-          <label className="text-[13px] font-bold text-foreground">Allowed Origins</label>
-          <div className="space-y-2">
+          <label className="text-[13px] font-bold text-[var(--dash-ink)]">Allowed Origins</label>
+          <div className="space-y-1.5">
             {config.allowedOrigins.length === 0 && (
-              <p className="text-[13px] text-muted-foreground italic">No origins added yet.</p>
+              <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-3.5 text-amber-800 text-[12.5px] leading-relaxed shadow-[0_2px_8px_-4px_rgba(245,158,11,0.15)]">
+                <AlertTriangle className="w-[18px] h-[18px] text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-900 block mb-0.5">Widget is Locked (Fails Closed)</span>
+                  No allowed origins have been specified. For security, the widget will block any incoming sessions and fail closed until you add at least one verified origin domain below (e.g. <code>https://example.com</code> or <code>http://localhost:3000</code>).
+                </div>
+              </div>
             )}
             {config.allowedOrigins.map((origin: string, i: number) => (
-              <div key={i} className="flex items-center justify-between border border-input rounded-md px-3 py-1.5 bg-background">
-                <span className="text-[13px] font-mono text-muted-foreground">{String(origin)}</span>
+              <div key={i} className="flex items-center justify-between border border-transparent hover:border-[var(--dash-line)] rounded-lg px-3 py-1.5 bg-[var(--dash-bg-deep)] transition">
+                <span className="text-[12.5px] font-mono text-[var(--dash-ink-soft)]">{String(origin)}</span>
                 <button
+                  type="button"
                   onClick={() => handleRemoveOrigin(i)}
-                  className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                  className="text-[var(--dash-ink-faint)] hover:text-[var(--dash-rose)] transition-colors p-1"
+                  title="Remove Origin"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             ))}
           </div>
+          
           <form onSubmit={handleAddOrigin} className="flex gap-2">
             <input
               type="text"
               placeholder="https://yourwebsite.com"
               value={newOrigin}
               onChange={(e) => setNewOrigin(e.target.value)}
-              className="flex-1 text-[13px] border border-input rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="flex-1 text-[13px] border border-input rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-[var(--dash-accent)] transition shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)]"
             />
             <button
               type="submit"
-              disabled={!newOrigin || updateMut.isPending}
-              className="flex items-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground rounded-md text-[13px] font-medium disabled:opacity-50 hover:bg-primary/90 transition-colors"
+              disabled={!newOrigin.trim() || updateMut.isPending}
+              className="flex items-center gap-1.5 px-4 h-9 bg-[var(--dash-accent)] text-white hover:bg-[var(--dash-accent-deep)] rounded-lg text-[13px] font-bold transition disabled:opacity-50"
             >
               <Plus className="w-4 h-4" /> Add
             </button>
           </form>
-          <p className="text-[12px] text-muted-foreground">
-            Strictly specify which domains are allowed to host your chat widget.
+          <p className="text-[11.5px] text-[var(--dash-ink-faint)] leading-normal">
+            Enforce a strict exact-match domain allowlist (e.g. <code>https://example.com</code> or <code>http://localhost:3000</code>) to block unauthorized embeds or session hijackers.
           </p>
         </div>
 
         {/* Embed Snippet */}
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between">
-            <label className="text-[13px] font-bold text-foreground">Embed Snippet</label>
+            <label className="text-[13px] font-bold text-[var(--dash-ink)]">Embed Snippet</label>
             <button
-              onClick={() => handleCopy(embedSnippet)}
-              className="text-[12px] font-medium text-primary hover:underline flex items-center gap-1"
+              type="button"
+              onClick={() => handleCopy(embedSnippet, true)}
+              className="text-[12px] font-bold text-[var(--dash-accent-deep)] hover:underline flex items-center gap-1"
             >
-              <Copy className="w-3.5 h-3.5" /> Copy code
+              {copiedSnippet ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[var(--dash-sage)]" /> Snippet copied
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" /> Copy code
+                </>
+              )}
             </button>
           </div>
-          <pre className="text-[12px] p-3 rounded-md bg-zinc-950 text-zinc-50 overflow-x-auto border border-zinc-900 leading-relaxed font-mono">
-            {embedSnippet}
-          </pre>
-          <p className="text-[12px] text-muted-foreground">
-            Paste this snippet into the <code>&lt;head&gt;</code> of your website.
+          <div className="relative">
+            <pre className="text-[11.5px] p-4 rounded-xl bg-zinc-950 text-zinc-50 overflow-x-auto border border-zinc-900 leading-relaxed font-mono">
+              {embedSnippet}
+            </pre>
+          </div>
+          <p className="text-[11.5px] text-[var(--dash-ink-faint)] leading-normal">
+            Paste this snippet into the HTML body or <code>&lt;head&gt;</code> script header of any allowed origin site.
           </p>
         </div>
 
-        <div className="pt-4 border-t border-border flex justify-end">
+        {/* Danger Zone */}
+        <div className="pt-5 border-t dash-border-soft flex justify-end">
           <button
+            type="button"
             onClick={handleDelete}
             disabled={deleteMut.isPending}
-            className="flex items-center gap-2 px-3 py-2 text-destructive border border-destructive/20 hover:bg-destructive/10 rounded-md text-[13px] font-medium transition-colors"
+            className="flex items-center gap-2 px-4 h-9 text-[var(--dash-rose)] border border-[var(--dash-rose)]/20 hover:bg-[var(--dash-rose-wash)] rounded-lg text-[13px] font-bold transition"
           >
             <Trash2 className="w-4 h-4" /> Disable widget
           </button>

@@ -5,14 +5,18 @@ import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { DashboardSidebar } from "./sidebar"
 import { DashboardTopbar } from "./topbar"
 import { Loader2 } from "lucide-react"
+import { useBillingRestriction } from "@/hooks/use-billing-restriction"
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { data: session, status } = useSession()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const { isRestricted, subscriptionStatus } = useBillingRestriction()
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -103,6 +107,22 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           user={session?.user ?? null}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
+        {isRestricted && (
+          <div className="mx-4 sm:mx-6 mt-4 p-4 rounded-xl border border-amber-200/50 bg-amber-50/70 dark:bg-amber-950/20 backdrop-blur-sm text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-start sm:items-center gap-3">
+              <span className="text-xl" role="img" aria-label="warning">⚠️</span>
+              <div className="text-[13px] leading-relaxed">
+                <span className="font-bold">Billing Alert:</span> Your subscription is <span className="font-semibold underline capitalize">{subscriptionStatus}</span>. Knowledge Base uploads, workflow editing, and team invites are locked. Inbound ticketing, chat triage, and copilot remain fully operational.
+              </div>
+            </div>
+            <Link
+              href="/dashboard/billing"
+              className="shrink-0 text-center text-[12.5px] font-bold px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition-colors"
+            >
+              Update Billing
+            </Link>
+          </div>
+        )}
         <motion.div
           key={pathname}
           initial={{ opacity: 0, y: 8 }}
