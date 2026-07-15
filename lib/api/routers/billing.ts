@@ -133,13 +133,31 @@ export const billingRouter = router({
       if (!hasPaymentMethod) {
         try {
           const returnUrl = `${process.env.NEXT_URL || "http://localhost:3000"}/billing/success?session_id={CHECKOUT_SESSION_ID}`
+          const flatPriceId = targetPlan.stripePriceId?.trim()
+          const meteredPriceId = targetPlan.stripeMeteredPriceId?.trim()
+
+          const lineItems = []
+          if (flatPriceId) {
+            lineItems.push({
+              price: flatPriceId,
+              quantity: 1,
+            })
+          }
+          if (meteredPriceId) {
+            lineItems.push({
+              price: meteredPriceId,
+            })
+          }
+
+          console.log(`[Stripe Checkout] Creating session for org=${orgId}, plan=${input.planKey}:`, {
+            customer: stripeCustomerId,
+            lineItems,
+          })
+
           const checkoutSession = await stripe.checkout.sessions.create({
             customer: stripeCustomerId,
             mode: "subscription",
-            line_items: [
-              { price: targetPlan.stripePriceId, quantity: 1 },
-              { price: targetPlan.stripeMeteredPriceId },
-            ],
+            line_items: lineItems,
             success_url: returnUrl,
             cancel_url: `${process.env.NEXT_URL || "http://localhost:3000"}/dashboard/billing`,
           })

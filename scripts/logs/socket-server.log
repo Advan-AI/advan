@@ -484,3 +484,6 @@ Node.js v24.14.0
 [Socket] /chat-widget namespace registered
 [Socket] HITL Socket.IO server running on port 3002
 [Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (kRiWgpd3HUomm40YAAAC)
+[Socket] Agent disconnected (kRiWgpd3HUomm40YAAAC)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (l3dfZZDPespA-hsyAAAF)

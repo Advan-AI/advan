@@ -154,14 +154,32 @@ export const authRouter = router({
       })
       if (!starterPlan) throw new Error("Starter plan not found")
 
+      const flatPriceId = starterPlan.stripePriceId?.trim()
+      const meteredPriceId = starterPlan.stripeMeteredPriceId?.trim()
+
+      const lineItems = []
+      if (flatPriceId) {
+        lineItems.push({
+          price: flatPriceId,
+          quantity: 1,
+        })
+      }
+      if (meteredPriceId) {
+        lineItems.push({
+          price: meteredPriceId,
+        })
+      }
+
+      console.log(`[Stripe Signup Checkout] Creating session for org=${user.orgId}:`, {
+        customer: stripeCustomerId,
+        lineItems,
+      })
+
       const session = await stripe.checkout.sessions.create({
         customer: stripeCustomerId,
         mode: "subscription",
         payment_method_collection: "always",
-        line_items: [
-          { price: starterPlan.stripePriceId, quantity: 1 },
-          { price: starterPlan.stripeMeteredPriceId },
-        ],
+        line_items: lineItems,
         subscription_data: { trial_period_days: 14 },
         success_url: `${process.env.NEXTAUTH_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.NEXTAUTH_URL}/signup`,

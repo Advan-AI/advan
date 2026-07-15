@@ -12,6 +12,7 @@ import { widgetConfigRouter } from "./routers/widget-config"
 import { authRouter } from "./routers/auth"
 import { teamRouter } from "./routers/team"
 import { billingRouter } from "./routers/billing"
+import { userRouter } from "./routers/user"
 
 /**
  * Advan AI Root tRPC Router — all procedures registered here.
@@ -20,6 +21,7 @@ export const appRouter = router({
   auth: authRouter,
   billing: billingRouter,
   team: teamRouter,
+  user: userRouter,
   governance: governanceRouter,
   orchestration: orchestrationRouter,
   copilot: copilotRouter,
