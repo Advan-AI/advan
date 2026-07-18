@@ -26,6 +26,46 @@ function getConnectionConfig() {
   }
 }
 
+/**
+ * Creates a lazy Queue instance using a Proxy.
+ * This prevents throwing an error at module load/import time when REDIS_URL is not set
+ * (e.g. during next build or static page generation).
+ * The connection configuration is evaluated and the Queue is instantiated only when
+ * the queue is first accessed/called at runtime.
+ */
+function createLazyQueue<T>(name: string, defaultOptions?: any): Queue<T> {
+  let queueInstance: Queue<T> | null = null
+
+  return new Proxy({} as Queue<T>, {
+    get(target, prop) {
+      if (!queueInstance) {
+        queueInstance = new Queue<T>(name, {
+          connection: getConnectionConfig(),
+          ...defaultOptions,
+        })
+      }
+      const val = (queueInstance as any)[prop]
+      if (typeof val === "function") {
+        return val.bind(queueInstance)
+      }
+      return val
+    },
+    set(target, prop, value) {
+      if (!queueInstance) {
+        queueInstance = new Queue<T>(name, {
+          connection: getConnectionConfig(),
+          ...defaultOptions,
+        })
+      }
+      ;(queueInstance as any)[prop] = value
+      return true
+    },
+    getPrototypeOf() {
+      return Queue.prototype
+    },
+  })
+}
+
 export type EmbedDocumentJob = {
   knowledgeSourceId: string
   orgId: string
@@ -50,8 +90,7 @@ export type NotificationJob = AgentReplyEmailJob | LegacyNotificationJob
  * Queue for generating pgvector embeddings (Ollama) when a KB document is added.
  * Processed by: lib/queue/workers/embedding-worker.ts
  */
-export const embeddingQueue = new Queue<EmbedDocumentJob>("embedding", {
-  connection: getConnectionConfig(),
+export const embeddingQueue = createLazyQueue<EmbedDocumentJob>("embedding", {
   defaultJobOptions: {
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
@@ -64,8 +103,7 @@ export const embeddingQueue = new Queue<EmbedDocumentJob>("embedding", {
  * Queue for async notifications (CSAT follow-ups, resolution emails).
  * Processed by: lib/queue/workers/notification-worker.ts
  */
-export const notificationQueue = new Queue<NotificationJob>("notification", {
-  connection: getConnectionConfig(),
+export const notificationQueue = createLazyQueue<NotificationJob>("notification", {
   defaultJobOptions: {
     attempts: 3,
     backoff: { type: "exponential", delay: 1000 },
@@ -90,8 +128,7 @@ export type CopilotTriageJob = {
  *
  * Processed by: lib/queue/workers/copilot-triage-worker.ts
  */
-export const copilotTriageQueue = new Queue<CopilotTriageJob>("copilot-triage", {
-  connection: getConnectionConfig(),
+export const copilotTriageQueue = createLazyQueue<CopilotTriageJob>("copilot-triage", {
   defaultJobOptions: {
     attempts: 2,
     backoff: { type: "exponential", delay: 5000 },
@@ -104,8 +141,7 @@ export const copilotTriageQueue = new Queue<CopilotTriageJob>("copilot-triage", 
  * Queue for handling scheduled and metered billing reporting tasks.
  * Processed by: lib/queue/workers/billing-worker.ts
  */
-export const billingQueue = new Queue<{ type: "report_usage" }>("billing", {
-  connection: getConnectionConfig(),
+export const billingQueue = createLazyQueue<{ type: "report_usage" }>("billing", {
   defaultJobOptions: {
     attempts: 3,
     backoff: { type: "exponential", delay: 5000 },
