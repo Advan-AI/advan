@@ -1,7 +1,6 @@
-import { ChatAnthropic } from "@langchain/anthropic"
-import { ChatOpenAI } from "@langchain/openai"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
-import { getLlmRuntimeConfig } from "@/lib/llm/config"
+import { and, desc, eq } from "drizzle-orm"
+import { getLlmRuntimeConfig, createAnthropicModel } from "@/lib/llm/config"
 import { createOllamaChatOpenAI } from "@/lib/llm/ollama-openai"
 import { getGroqOpenAIClient, getGroqChatModel } from "@/lib/llm/groq-client"
 import { embedWithOllama } from "@/lib/vector/ollama-embeddings"
@@ -11,7 +10,7 @@ import { HallucinationDetector } from "@/lib/governance/hallucination-detector"
 import { PolicyClient } from "@/lib/governance/policy-client"
 import { PIIMasker } from "@/lib/governance/pii-masker"
 import { db } from "@/lib/db"
-import { auditLogs, hitlQueue } from "@/lib/db/schema"
+import { auditLogs, hitlQueue, knowledgeSources, usageEvents } from "@/lib/db/schema"
 import { publishHitlNew } from "@/lib/realtime/event-bus"
 import type {
   AuditPort,
@@ -33,24 +32,93 @@ export class PgVectorRetrieval implements RetrievalPort {
     try {
       const vec = await embedWithOllama(query.slice(0, 8000))
       const matches = await queryEmbeddings(orgId, vec, k)
+      if (matches.length === 0) {
+        return keywordKnowledgeFallback(orgId, query, k)
+      }
       return matches.map((m) => ({
         id: m.id,
         title: (m.metadata?.title as string) ?? "Untitled",
         url: (m.metadata?.url as string) ?? undefined,
-        snippet: (m.metadata?.snippet as string) ?? "Referenced context chunk",
+        snippet:
+          (m.metadata?.snippet as string) ??
+          (m.metadata?.content as string) ??
+          "Referenced context chunk",
         score: m.score ?? 0,
       }))
     } catch {
-      return []
+      return keywordKnowledgeFallback(orgId, query, k)
     }
   }
 }
 
+async function keywordKnowledgeFallback(orgId: string, query: string, k: number): Promise<Source[]> {
+  const terms = meaningfulTerms(query)
+  if (terms.length === 0) return []
+
+  const rows = await db
+    .select({
+      id: knowledgeSources.id,
+      title: knowledgeSources.title,
+      content: knowledgeSources.content,
+      url: knowledgeSources.url,
+    })
+    .from(knowledgeSources)
+    .where(and(eq(knowledgeSources.orgId, orgId), eq(knowledgeSources.sourceType, "document")))
+    .orderBy(desc(knowledgeSources.createdAt))
+    .limit(50)
+
+  return rows
+    .map((row) => {
+      const haystack = `${row.title} ${row.content}`.toLowerCase()
+      const hits = terms.filter((term) => haystack.includes(term)).length
+      return { row, hits }
+    })
+    .filter(({ hits }) => hits > 0)
+    .sort((a, b) => b.hits - a.hits)
+    .slice(0, Math.max(1, k))
+    .map(({ row, hits }) => ({
+      id: row.id,
+      title: row.title,
+      url: row.url ?? undefined,
+      snippet: bestSnippet(row.content, terms),
+      score: Math.min(0.9, 0.55 + hits * 0.08),
+    }))
+}
+
+function meaningfulTerms(query: string): string[] {
+  const stop = new Set(["about", "after", "again", "customer", "message", "please", "policy", "support", "their", "there", "these", "those", "what", "when", "where", "with", "your"])
+  return Array.from(
+    new Set(
+      query
+        .toLowerCase()
+        .split(/\W+/)
+        .filter((term) => term.length > 3 && !stop.has(term))
+        .slice(0, 20)
+    )
+  )
+}
+
+function bestSnippet(content: string, terms: string[], maxLen = 1200): string {
+  const lower = content.toLowerCase()
+  const firstHit = terms
+    .map((term) => lower.indexOf(term))
+    .filter((idx) => idx >= 0)
+    .sort((a, b) => a - b)[0] ?? 0
+  const start = Math.max(0, firstHit - 180)
+  const snippet = content.slice(start, start + maxLen).trim()
+  return start > 0 ? `...${snippet}` : snippet
+}
+
 // ─── Composer (single-pass streaming) ───────────────────────────────────────────
 
-const SYSTEM_PREAMBLE = `You are Advan AI, a transparent customer support specialist.
-Base every answer on the provided knowledge sources. Never fabricate facts.
-If the sources don't cover the question, say so explicitly.`
+const SYSTEM_PREAMBLE = `You are a human customer support agent at Advan.
+Respond directly, professionally, and empathetically like a real human.
+Follow these strict support rules:
+1. HUMAN TONE: Keep replies concise (1-3 short sentences). Never use robotic preambles (do NOT say "As an AI...", "As a bot...", or "As a language model"). Speak as a real human support team member.
+2. STRICT COMPLIANCE: Strictly adhere to company policies (e.g., standard 30-day refund window; never offer exceptions or authorize actions outside rules without verifying details or escalating). Never fabricate or make up facts.
+3. DEEP TECHNICAL SUPPORT: When a technical issue arises (e.g., API keys, HMAC webhook signature verification, network timeouts, or code integrations), provide precise, expert-level debugging and configuration support based exclusively on the provided sources. Do not speculate.
+4. SOLUTION-ORIENTED: Always prioritize delivering an immediate, direct solution or actionable troubleshooting steps. Never loop on questions or ask a user for information you can infer or that they already provided.
+5. NO REPETITIVE QUESTIONS: Do not ask clarifying questions repeatedly. If a source or detail is missing, provide the best possible general solution or instructions based on what you know first, and only ask a single optional follow-up question if absolutely critical. Never ask the same question twice.`
 
 function buildSystemPrompt(sources: Source[], intent?: string): string {
   const ctx = sources.length
@@ -71,9 +139,9 @@ export class StreamingComposer implements ComposerPort {
     const system = buildSystemPrompt(args.sources, args.intent)
     const cfg = getLlmRuntimeConfig()
 
-    const model: ChatAnthropic | ChatOpenAI | null =
-      cfg.chatProvider === "anthropic" && cfg.anthropicApiKey
-        ? new ChatAnthropic({ modelName: "claude-3-5-sonnet-20240620", temperature: 0, apiKey: cfg.anthropicApiKey, streaming: true })
+    const model =
+      cfg.chatProvider === "anthropic" || cfg.chatProvider === "vertex-anthropic"
+        ? createAnthropicModel(cfg, "claude-3-5-sonnet-20240620", 0, true)
         : createOllamaChatOpenAI(cfg, cfg.ollamaChatModel)
 
     try {
@@ -162,24 +230,37 @@ export class OpaPolicy implements PolicyPort {
 
 export class DrizzleAudit implements AuditPort {
   async persist(args: Parameters<AuditPort["persist"]>[0]): Promise<string> {
-    const [row] = await db
-      .insert(auditLogs)
-      .values({
-        orgId: args.ctx.orgId,
-        ticketId: args.ctx.ticketId ?? null,
-        input: PIIMasker.mask(args.ctx.input),
-        output: args.answer,
-        metadata: {
-          confidence: args.confidence,
-          citations: args.citations.map((c) => ({ source: c.title, content: c.snippet, score: c.confidence, url: c.url })),
-          policyChecks: args.checks,
-          latencyMs: args.latencyMs,
-          hallucinationFlags: args.hallucinationFlags,
-          model: "advan-copilot-v1",
-        },
-      })
-      .returning({ id: auditLogs.id })
-    return row.id
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(auditLogs)
+        .values({
+          orgId: args.ctx.orgId,
+          ticketId: args.ctx.ticketId ?? null,
+          input: PIIMasker.mask(args.ctx.input),
+          output: args.answer,
+          metadata: {
+            confidence: args.confidence,
+            citations: args.citations.map((c) => ({ source: c.title, content: c.snippet, score: c.confidence, url: c.url })),
+            policyChecks: args.checks,
+            latencyMs: args.latencyMs,
+            hallucinationFlags: args.hallucinationFlags,
+            model: "advan-copilot-v1",
+          },
+        })
+        .returning({ id: auditLogs.id })
+
+      // Do not double-count usage when generated inside the automated triage worker.
+      // The triage worker records its own usage event atomically after stamping triage metadata.
+      if (args.ctx.userId !== "system:auto-triage") {
+        await tx.insert(usageEvents).values({
+          orgId: args.ctx.orgId,
+          type: "ai_message",
+          quantity: 1,
+        })
+      }
+
+      return row.id
+    })
   }
 }
 

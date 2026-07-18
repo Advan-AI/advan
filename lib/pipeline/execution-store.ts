@@ -89,8 +89,21 @@ export const usePipelineExecution = create<ExecutionState>()(
       }),
 
     applyStep: (step) => {
-      const active = get().activeTemporalWorkflowId
-      if (!active || step.temporalWorkflowId !== active) return
+      let active = get().activeTemporalWorkflowId
+      const currentStatus = get().runStatus
+
+      // Auto-bind to real-world executions from background workers if the UI is currently idle or done
+      if (!active || currentStatus !== "running") {
+        set({
+          activeTemporalWorkflowId: step.temporalWorkflowId,
+          runStatus: "running",
+          nodeStatuses: {},
+          trace: [],
+        })
+        active = step.temporalWorkflowId
+      }
+
+      if (step.temporalWorkflowId !== active) return
 
       const nodeStatus = toNodeStatus(step.status)
       const event: TraceEvent = {

@@ -1,7 +1,6 @@
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { ChatAnthropic } from '@langchain/anthropic';
-import { getLlmRuntimeConfig } from '@/lib/llm/config';
+import { createAnthropicModel, getLlmRuntimeConfig } from '@/lib/llm/config';
 import { createOllamaChatOpenAI } from '@/lib/llm/ollama-openai';
 import { PIIMasker } from '@/lib/governance/pii-masker';
 import { PolicyClient } from '@/lib/governance/policy-client';
@@ -34,16 +33,8 @@ const AgentState = Annotation.Root({
 // 2. Chat model — Anthropic Sonnet (legacy) or local Ollama (OpenAI-compatible /v1)
 const getModel = () => {
   const cfg = getLlmRuntimeConfig();
-  if (cfg.chatProvider === 'anthropic') {
-    const apiKey = cfg.anthropicApiKey;
-    if (!apiKey && process.env.NODE_ENV === 'production') {
-      console.warn('[AI] Warning: ANTHROPIC_API_KEY is missing. Using dummy key for build resilience.');
-    }
-    return new ChatAnthropic({
-      modelName: 'claude-3-5-sonnet-20240620',
-      temperature: 0,
-      apiKey: apiKey || 'dummy-key-for-build-resilience',
-    });
+  if (cfg.chatProvider === 'anthropic' || cfg.chatProvider === 'vertex-anthropic') {
+    return createAnthropicModel(cfg, 'claude-3-5-sonnet-20240620', 0);
   }
   return createOllamaChatOpenAI(cfg, cfg.ollamaChatModel);
 };

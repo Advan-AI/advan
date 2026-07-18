@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { io, type Socket } from "socket.io-client"
+import * as SocketIO from "socket.io-client"
 import { usePipelineExecution, type PipelineStepEvent } from "./execution-store"
 
 const SOCKET_URL =
@@ -21,9 +21,9 @@ export function usePipelineRealtime() {
   useEffect(() => {
     if (!orgId) return
 
-    let socket: Socket | null = null
+    let socket: ReturnType<typeof SocketIO.connect> | null = null
     try {
-      socket = io(SOCKET_URL, {
+      socket = SocketIO.connect(SOCKET_URL, {
         auth: { orgId },
         transports: ["websocket", "polling"],
         reconnection: true,

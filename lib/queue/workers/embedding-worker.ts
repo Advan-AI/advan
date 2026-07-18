@@ -27,6 +27,7 @@ function getConnectionConfig() {
     tls: url.startsWith("rediss://") ? {} : undefined,
     maxRetriesPerRequest: null as null,
     enableReadyCheck: false,
+    family: 0,
   }
 }
 
@@ -39,26 +40,35 @@ async function processEmbeddingJob(job: Job<EmbedDocumentJob>) {
     .set({ embeddingStatus: "processing" })
     .where(eq(knowledgeSources.id, knowledgeSourceId))
 
-  const source = await db.query.knowledgeSources.findFirst({
-    where: eq(knowledgeSources.id, knowledgeSourceId),
-  })
-
-  if (!source) {
-    throw new Error(`Knowledge source ${knowledgeSourceId} not found`)
-  }
-
-  const textToEmbed = `${source.title}\n\n${source.content}`
-  const embedding = await embedWithOllama(textToEmbed)
-
-  await db
-    .update(knowledgeSources)
-    .set({
-      embedding,
-      embeddingStatus: "completed",
+  try {
+    const source = await db.query.knowledgeSources.findFirst({
+      where: eq(knowledgeSources.id, knowledgeSourceId),
     })
-    .where(eq(knowledgeSources.id, knowledgeSourceId))
 
-  console.log(`[EmbeddingWorker] ✓ Embedded ${source.title}`)
+    if (!source) {
+      throw new Error(`Knowledge source ${knowledgeSourceId} not found`)
+    }
+
+    const textToEmbed = `${source.title}\n\n${source.content}`
+    const embedding = await embedWithOllama(textToEmbed)
+
+    await db
+      .update(knowledgeSources)
+      .set({
+        embedding,
+        embeddingStatus: "completed",
+      })
+      .where(eq(knowledgeSources.id, knowledgeSourceId))
+
+    console.log(`[EmbeddingWorker] ✓ Embedded ${source.title}`)
+  } catch (err: any) {
+    console.error(`[EmbeddingWorker] Error processing ${knowledgeSourceId}:`, err.message)
+    await db
+      .update(knowledgeSources)
+      .set({ embeddingStatus: "failed" })
+      .where(eq(knowledgeSources.id, knowledgeSourceId))
+    throw err
+  }
 }
 
 export function startEmbeddingWorker() {

@@ -44,6 +44,7 @@ export async function queryEmbeddings(
       id: knowledgeSources.id,
       score: sql<number>`(1 - (${knowledgeSources.embedding} <=> ${v}))::double precision`.as("score"),
       title: knowledgeSources.title,
+      content: knowledgeSources.content,
       url: knowledgeSources.url,
       sourceType: knowledgeSources.sourceType,
     })
@@ -59,10 +60,17 @@ export async function queryEmbeddings(
     score: typeof r.score === "number" ? r.score : 0,
     metadata: {
       title: r.title ?? "Untitled",
+      snippet: truncateSnippet(r.content ?? ""),
       url: r.url ?? undefined,
       sourceType: r.sourceType,
     },
   }))
+}
+
+function truncateSnippet(content: string, maxLen = 1200): string {
+  const trimmed = content.trim()
+  if (trimmed.length <= maxLen) return trimmed
+  return `${trimmed.slice(0, maxLen)}…`
 }
 
 /** Legacy hook: vectors live only in Postgres; row delete clears them. */

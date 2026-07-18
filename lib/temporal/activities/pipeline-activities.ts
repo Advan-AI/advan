@@ -103,15 +103,21 @@ async function enqueuePipelineHitl(args: {
   draftOutput: string
   reason: string
   temporalWorkflowId: string
+  ticketId?: string
+  conversationId?: string
 }): Promise<{ hitlId: string }> {
   const [row] = await db
     .insert(hitlQueue)
     .values({
       orgId: args.orgId,
+      ticketId: args.ticketId || null,
+      conversationId: args.conversationId || null,
       draftOutput: args.draftOutput,
       reason: args.reason,
       temporalWorkflowId: args.temporalWorkflowId,
       status: "pending",
+      priority: "low_confidence",
+      source: "workflow",
     })
     .returning({ id: hitlQueue.id })
   return { hitlId: row.id }

@@ -90,3 +90,36 @@ export async function exportAuditLog(
 export async function deleteKBDocument(s3Key: string): Promise<void> {
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: s3Key }))
 }
+
+/**
+ * Upload a user avatar to S3.
+ * @returns The S3 key for the uploaded avatar.
+ */
+export async function uploadAvatar(
+  userId: string,
+  buffer: Buffer,
+  contentType: string
+): Promise<string> {
+  const key = `avatars/${userId}-${Date.now()}`
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+      ServerSideEncryption: "AES256",
+    })
+  )
+  return key
+}
+
+/**
+ * Generate a presigned URL for downloading/displaying an avatar (7-day expiry).
+ */
+export async function getAvatarUrl(s3Key: string): Promise<string> {
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }),
+    { expiresIn: 604800 } // 7 days (maximum limit for S3 signature)
+  )
+}

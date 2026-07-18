@@ -11,9 +11,11 @@
     "temporal:worker": "npx tsx lib/temporal/worker.ts",
     "temporal:bundle": "npx tsx lib/temporal/scripts/bundle-workflows.ts",
     "test": "playwright test",
+    "test:unit": "vitest run",
     "test:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@anthropic-ai/vertex-sdk": "^0.19.0",
     "@aws-sdk/client-s3": "^3.1057.0",
     "@aws-sdk/s3-request-presigner": "^3.1057.0",
     "@hookform/resolvers": "^3.9.1",
@@ -78,6 +80,7 @@
     "cmdk": "1.1.1",
     "date-fns": "4.1.0",
     "drizzle-orm": "^0.45.2",
+    "email-reply-parser": "^2.3.5",
     "embla-carousel-react": "8.6.0",
     "framer-motion": "^12.38.0",
     "input-otp": "1.4.2",
@@ -97,9 +100,13 @@
     "react-hotkeys-hook": "^5.3.2",
     "react-resizable-panels": "^2.1.7",
     "recharts": "2.15.0",
+    "resend": "^6.16.0",
+    "sanitize-html": "^2.17.5",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "sonner": "^1.7.1",
+    "stripe": "^22.3.1",
+    "svix": "^1.96.1",
     "tailwind-merge": "^3.6.0",
     "vaul": "^1.1.2",
     "zod": "^3.24.1",
@@ -112,12 +119,14 @@
     "@types/pg": "^8.20.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@types/sanitize-html": "^2.16.1",
     "@types/socket.io-client": "^1.4.36",
     "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.10",
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
     "tw-animate-css": "1.3.3",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "vitest": "^4.1.9"
   }
 }

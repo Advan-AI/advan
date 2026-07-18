@@ -1,6 +1,7 @@
 "use client"
 
 import { z } from "zod"
+import { Copy, GitBranch, Trash2 } from "lucide-react"
 import { usePipelineStore } from "@/lib/pipeline/use-pipeline-store"
 import { nodeRegistry } from "@/lib/pipeline/registry"
 
@@ -13,8 +14,55 @@ import { nodeRegistry } from "@/lib/pipeline/registry"
  */
 export function PipelineInspector() {
   const selectedId = usePipelineStore((s) => s.selectedId)
+  const selectedEdgeId = usePipelineStore((s) => s.selectedEdgeId)
   const node = usePipelineStore((s) => s.nodes.find((n) => n.id === s.selectedId))
+  const edge = usePipelineStore((s) => s.edges.find((e) => e.id === s.selectedEdgeId))
+  const nodes = usePipelineStore((s) => s.nodes)
   const update = usePipelineStore((s) => s.updateNodeConfig)
+  const duplicateNode = usePipelineStore((s) => s.duplicateNode)
+  const deleteNode = usePipelineStore((s) => s.deleteNode)
+  const deleteEdge = usePipelineStore((s) => s.deleteEdge)
+  const reconnectEdgeToNode = usePipelineStore((s) => s.reconnectEdgeToNode)
+
+  if (selectedEdgeId && edge) {
+    return (
+      <div className="w-[260px] shrink-0 overflow-y-auto border-l dash-border-soft p-4 dash-bg-sidebar">
+        <div className="mb-1 flex items-center gap-1.5 text-[13px] font-bold text-[var(--dash-ink)]">
+          <GitBranch className="h-4 w-4 text-[var(--dash-accent)]" />
+          Wire connection
+        </div>
+        <p className="mb-3 text-[11px] leading-[1.5] text-[var(--dash-ink-faint)]">
+          Reassign either end of this wire, detach it, or drag an endpoint on the canvas.
+        </p>
+
+        <div className="space-y-3 rounded-xl border dash-border-soft bg-white p-3">
+          <WireSelect
+            label="From"
+            value={edge.source}
+            port={edge.sourceHandle ?? "out"}
+            nodes={nodes.filter((item) => item.id !== edge.target)}
+            onChange={(nodeId) => reconnectEdgeToNode(edge.id, "source", nodeId)}
+          />
+          <WireSelect
+            label="To"
+            value={edge.target}
+            port={edge.targetHandle ?? "in"}
+            nodes={nodes.filter((item) => item.id !== edge.source)}
+            onChange={(nodeId) => reconnectEdgeToNode(edge.id, "target", nodeId)}
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => deleteEdge(edge.id)}
+          className="mt-3 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border dash-border bg-white text-[12px] font-bold text-[var(--dash-rose)] transition hover:dash-shadow-sm"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Detach wire
+        </button>
+      </div>
+    )
+  }
 
   if (!selectedId || !node || !node.type || !nodeRegistry.has(node.type)) {
     return (
@@ -35,11 +83,70 @@ export function PipelineInspector() {
       <div className="mb-1 text-[13px] font-bold text-[var(--dash-ink)]">{def.label}</div>
       <p className="mb-3 text-[11px] leading-[1.5] text-[var(--dash-ink-faint)]">{def.description}</p>
 
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => duplicateNode(node.id)}
+          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border dash-border bg-white text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          Copy
+        </button>
+        <button
+          type="button"
+          onClick={() => deleteNode(node.id)}
+          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border dash-border bg-white text-[11.5px] font-bold text-[var(--dash-rose)] transition hover:dash-shadow-sm"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </button>
+      </div>
+
       <div className="flex flex-col gap-3">
         {Object.entries(shape).map(([key, fieldSchema]) => (
           <Field key={key} name={key} schema={fieldSchema} value={data[key]} onChange={(v) => setField(key, v)} />
         ))}
       </div>
+    </div>
+  )
+}
+
+function nodeLabel(node: { type?: string; id: string } | undefined): string {
+  if (!node?.type || !nodeRegistry.has(node.type)) return node?.id ?? "Missing node"
+  return nodeRegistry.get(node.type).label
+}
+
+function WireSelect({
+  label,
+  value,
+  port,
+  nodes,
+  onChange,
+}: {
+  label: string
+  value: string
+  port: string
+  nodes: { id: string; type?: string }[]
+  onChange: (nodeId: string) => void
+}) {
+  return (
+    <div>
+      <label htmlFor={`wire-${label}`} className="text-[10px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">
+        {label}
+      </label>
+      <select
+        id={`wire-${label}`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 h-8 w-full rounded-lg border dash-border bg-white px-2 text-[12px] font-bold text-[var(--dash-ink)] outline-none focus:border-[var(--dash-accent)]"
+      >
+        {nodes.map((node) => (
+          <option key={node.id} value={node.id}>
+            {nodeLabel(node)}
+          </option>
+        ))}
+      </select>
+      <div className="mt-0.5 font-mono text-[10.5px] text-[var(--dash-ink-faint)]">port: {port}</div>
     </div>
   )
 }

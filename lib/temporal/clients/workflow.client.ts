@@ -1,6 +1,6 @@
 import { Client } from "@temporalio/client"
 import { parseTemporalConfig } from "../config/environment.validator"
-import { TemporalConnectionManager } from "../services/connection.manager"
+import { TemporalClientConnectionManager } from "../services/client.connection"
 
 type GlobalWithTemporal = typeof globalThis & {
   __ADVAN_TEMPORAL_CLIENT__?: Client
@@ -13,7 +13,7 @@ function getGlobalStore(): GlobalWithTemporal {
 
 async function instantiateClient(): Promise<Client> {
   const envConfig = parseTemporalConfig()
-  const connectionManager = new TemporalConnectionManager(envConfig)
+  const connectionManager = new TemporalClientConnectionManager(envConfig)
   const connection = await connectionManager.createClientConnection()
   return new Client({
     connection,

@@ -49,7 +49,7 @@ nodeRegistry.register({
   category: "data",
   iconName: "BookOpen",
   tone: "blue",
-  inputs: [{ id: "in", dataType: "intent" }],
+  inputs: [{ id: "in", dataType: "any" }],
   outputs: [{ id: "out", label: "Documents", dataType: "documents" }],
   configSchema: z.object({
     topK: z.number().int().min(1).max(20).default(5),
