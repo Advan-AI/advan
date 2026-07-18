@@ -7,9 +7,9 @@ import { Linkedin, Youtube } from "lucide-react"
 
 const footerLinks = {
   Product: [
-    { label: "Workflow", href: "/#workflow" },
-    { label: "Copilot", href: "/#copilot" },
-    { label: "Cross-channel memory", href: "/#memory" },
+    { label: "How it works", href: "/#how" },
+    { label: "Every answer has receipts", href: "/#receipts" },
+    { label: "Why Advan", href: "/#why" },
   ],
   Company: [
     { label: "About", href: "/about" },
@@ -17,7 +17,7 @@ const footerLinks = {
     { label: "Book a demo", href: "https://cal.com/day-nguyen", external: true },
   ],
   Trust: [
-    { label: "Enterprise trust", href: "/#trust" },
+    { label: "Enterprise trust", href: "/#why" },
     { label: "Privacy", href: "/privacy" },
     { label: "Terms", href: "/terms" },
   ],
@@ -51,7 +51,7 @@ export function Footer() {
 
   return (
     <footer className="relative border-t border-black/[0.06] bg-background/60">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" aria-hidden />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#6B5CD6]/40 to-transparent" aria-hidden />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:py-20">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10 lg:gap-12">
           <div className="md:col-span-5">
@@ -78,7 +78,7 @@ export function Footer() {
                     href={social.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-9 h-9 rounded-lg glass flex items-center justify-center hover:border-cyan-500/40 transition-colors"
+                    className="w-9 h-9 rounded-lg glass flex items-center justify-center hover:border-[#6B5CD6]/40 transition-colors"
                     aria-label={social.label}
                   >
                     <Icon className="w-4 h-4 text-foreground/70" />
@@ -101,7 +101,7 @@ export function Footer() {
                         href={link.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-foreground/75 hover:text-cyan-600 transition-colors"
+                        className="text-sm text-foreground/75 hover:text-[#4E3FB6] transition-colors"
                       >
                         {link.label}
                       </a>
@@ -109,14 +109,14 @@ export function Footer() {
                       <a
                         href={link.href}
                         onClick={(e) => handleAnchorClick(e, link.href)}
-                        className="text-sm text-foreground/75 hover:text-cyan-600 transition-colors cursor-pointer"
+                        className="text-sm text-foreground/75 hover:text-[#4E3FB6] transition-colors cursor-pointer"
                       >
                         {link.label}
                       </a>
                     ) : (
                       <Link
                         href={link.href}
-                        className="text-sm text-foreground/75 hover:text-cyan-600 transition-colors"
+                        className="text-sm text-foreground/75 hover:text-[#4E3FB6] transition-colors"
                       >
                         {link.label}
                       </Link>

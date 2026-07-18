@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Handle, Position, NodeProps } from '@xyflow/react';
+import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { motion } from 'framer-motion';
 import { AgentDef, AgentState } from './types';
 import { Brain, BookOpen, Banknote, PhoneCall, ShieldCheck, Sparkles, UserCheck } from 'lucide-react';
@@ -23,7 +23,9 @@ const ICON_MAP: Record<string, any> = {
   human: UserCheck,
 };
 
-export const AgentNode = memo(({ data }: NodeProps<{ agent: AgentDef; state: AgentState }>) => {
+export type AgentFlowNode = Node<{ agent: AgentDef; state: AgentState }, 'agent'>;
+
+export const AgentNode = memo(({ data }: NodeProps<AgentFlowNode>) => {
   const { agent, state } = data;
   const Icon = ICON_MAP[agent.id] || Brain;
   const colors = TONE_COLORS[agent.tone];

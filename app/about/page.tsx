@@ -44,7 +44,7 @@ export default function AboutPage() {
       <main className="relative pt-32">
         <section className="relative py-16 lg:py-24">
           <div className="absolute inset-0 -z-10">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-cyan-500/10 blur-3xl" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-[#6B5CD6]/10 blur-3xl" />
           </div>
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <SectionHeader
@@ -136,10 +136,10 @@ export default function AboutPage() {
                     viewport={{ once: true }}
                     transition={{ duration: 0.5, delay: index * 0.08 }}
                   >
-                    <GlassCard glow="cyan" className="h-full">
+                    <GlassCard glow="violet" className="h-full">
                       <div className="flex items-start gap-4">
-                        <div className="w-11 h-11 rounded-xl glass flex items-center justify-center shrink-0">
-                          <Icon className="w-5 h-5 text-cyan-600" />
+                        <div className="w-11 h-11 rounded-xl bg-[#ECE9FB] flex items-center justify-center shrink-0">
+                          <Icon className="w-5 h-5 text-[#4E3FB6]" />
                         </div>
                         <div>
                           <h3 className="text-base font-semibold text-foreground mb-1.5">{value.title}</h3>

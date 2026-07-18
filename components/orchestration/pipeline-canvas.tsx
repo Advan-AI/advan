@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { ReactFlow, Background, Controls, Edge as FlowEdge, Node as FlowNode } from '@xyflow/react';
+import { ReactFlow, Background, Controls, Edge as FlowEdge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { AgentNode } from './agent-node';
+import { AgentNode, type AgentFlowNode } from './agent-node';
 import { AgentDef, AgentState, Edge } from './types';
 
 interface PipelineCanvasProps {
@@ -16,10 +16,10 @@ const nodeTypes = {
 
 export function PipelineCanvas({ agents, states, edges }: PipelineCanvasProps) {
   // Translate AgentDefs to React Flow nodes
-  const nodes: FlowNode[] = useMemo(() => 
+  const nodes: AgentFlowNode[] = useMemo(() =>
     agents.map((a) => ({
       id: a.id,
-      type: 'agent',
+      type: 'agent' as const,
       position: { x: a.x, y: a.y },
       data: { agent: a, state: states[a.id] || 'idle' },
     })), [agents, states]
