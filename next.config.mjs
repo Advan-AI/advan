@@ -15,6 +15,7 @@ const nextConfig = {
   devIndicators: {
     buildActivity: false,
   },
+  output: "standalone",
 
   /**
    * Security headers applied to every response.

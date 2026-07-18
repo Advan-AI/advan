@@ -698,3 +698,13 @@ Node.js v24.14.0
 [Socket] Subscribed to realtime event bus
 [Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (bHco1SKeDkhbTSPGAAAC)
 [Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (19_pqtFBqtN9W70qAAAF)
+[ChatWidget] Visitor disconnected (XHG6tODqBMckuEEpAAAH) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:dde2072d-00a6-457d-aa53-9ffa7f0f0f4c
+[Socket] Agent disconnected (bHco1SKeDkhbTSPGAAAC)
+[Socket] Agent disconnected (19_pqtFBqtN9W70qAAAF)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (2BdwzhGB2FWsLmpEAAAL)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (bKsRQuvrOqjAr3yaAAAN)
+[ChatWidget] Visitor disconnected (fDO7uL_U7r39e5M8AAAJ) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:dde2072d-00a6-457d-aa53-9ffa7f0f0f4c
+[Socket] Agent disconnected (2BdwzhGB2FWsLmpEAAAL)
+[Socket] Agent disconnected (bKsRQuvrOqjAr3yaAAAN)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (TY5OBL6FrMPe2fRwAAAR)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (4L_6xL4iGwjjpJpuAAAU)
