@@ -133,6 +133,22 @@ export const governanceRouter = router({
           .where(eq(hitlQueue.id, item.id))
       }
 
+      // Signal Temporal workflow if this HITL item was created by a custom visual orchestration pipeline
+      if (item.temporalWorkflowId) {
+        try {
+          const { getTemporalClient } = await import('@/lib/temporal/clients/workflow.client')
+          const temporalClient = await getTemporalClient()
+          const handle = temporalClient.workflow.getHandle(item.temporalWorkflowId)
+          await handle.signal('hitl-decision', {
+            approved: true,
+            editedOutput: content,
+          })
+          console.log(`[governance.approveHitl] Successfully signaled Temporal workflow=${item.temporalWorkflowId}`)
+        } catch (err) {
+          console.error('[governance.approveHitl] Failed to signal Temporal workflow:', err instanceof Error ? err.message : String(err))
+        }
+      }
+
       // 4. Broadcast resolution to other reviewers.
       try {
         const { publishHitlResolved } = await import('@/lib/realtime/event-bus')
@@ -179,6 +195,21 @@ export const governanceRouter = router({
           .update(hitlQueue)
           .set({ status: 'rejected', reviewedBy: ctx.user.id, reviewNote: input.reviewNote, resolvedAt: new Date() })
           .where(eq(hitlQueue.id, item.id))
+      }
+
+      // Signal Temporal workflow if this HITL item was created by a custom visual orchestration pipeline
+      if (item.temporalWorkflowId) {
+        try {
+          const { getTemporalClient } = await import('@/lib/temporal/clients/workflow.client')
+          const temporalClient = await getTemporalClient()
+          const handle = temporalClient.workflow.getHandle(item.temporalWorkflowId)
+          await handle.signal('hitl-decision', {
+            approved: false,
+          })
+          console.log(`[governance.rejectHitl] Successfully signaled Temporal workflow=${item.temporalWorkflowId}`)
+        } catch (err) {
+          console.error('[governance.rejectHitl] Failed to signal Temporal workflow:', err instanceof Error ? err.message : String(err))
+        }
       }
 
       try {

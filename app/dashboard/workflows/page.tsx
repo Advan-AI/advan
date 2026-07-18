@@ -8,6 +8,12 @@ import {
   AlertTriangle,
   Bot,
   CheckCircle2,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Play,
+  ChevronDown,
+  ChevronRight,
   Clipboard,
   Copy,
   GitBranch,
@@ -24,6 +30,7 @@ import {
   Trash2,
   Workflow,
   X,
+  FileCode,
 } from "lucide-react"
 import { DashCard, DashPageHeader } from "@/components/dashboard/page-header"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -61,8 +68,10 @@ export default function WorkflowsPage() {
   const utils = api.useUtils()
   const { isRestricted: isBillingRestricted } = useBillingRestriction()
 
+  const [activeTab, setActiveTab] = useState<"workflows" | "history">("workflows")
   const [search, setSearch] = useState("")
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<WorkflowRow | null>(null)
   const [runInput, setRunInput] = useState("Test run from workflows dashboard")
@@ -78,6 +87,22 @@ export default function WorkflowsPage() {
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
   })
+
+  const runsQuery = api.orchestration.getPipelineRuns.useQuery(undefined, {
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+    enabled: activeTab === "history",
+  })
+
+  const runs = runsQuery.data ?? []
+
+  const runDetailsQuery = api.orchestration.getPipelineRunDetails.useQuery(
+    { runId: selectedRunId ?? "" },
+    {
+      enabled: !!selectedRunId && activeTab === "history",
+      refetchInterval: (query) => (query.state.data?.run.status === "running" ? 3000 : false),
+    }
+  )
 
   const workflows = useMemo(() => ((workflowsQuery.data ?? []) as WorkflowRow[]), [workflowsQuery.data])
   const filtered = useMemo(() => {
@@ -113,6 +138,12 @@ export default function WorkflowsPage() {
       setActiveId(filtered[0]?.id ?? null)
     }
   }, [filtered, activeId])
+
+  useEffect(() => {
+    if (activeTab === "history" && runs.length > 0 && !selectedRunId) {
+      setSelectedRunId(runs[0].id)
+    }
+  }, [activeTab, runs, selectedRunId])
 
   const saveWorkflow = api.orchestration.saveWorkflow.useMutation({
     onSuccess: async (workflow) => {
@@ -238,66 +269,136 @@ export default function WorkflowsPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <DashCard
-          title="Workflow registry"
+          title={
+            <div className="flex items-center gap-1.5 -ml-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("workflows")}
+                className={cn(
+                  "px-3 py-1.5 text-[13.5px] font-bold rounded-lg transition",
+                  activeTab === "workflows"
+                    ? "bg-[#ECE9FB] text-[var(--dash-accent-deep)]"
+                    : "text-[var(--dash-ink-soft)] hover:text-[var(--dash-ink)]"
+                )}
+              >
+                Workflow registry
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("history")}
+                className={cn(
+                  "px-3 py-1.5 text-[13.5px] font-bold rounded-lg transition",
+                  activeTab === "history"
+                    ? "bg-[#ECE9FB] text-[var(--dash-accent-deep)]"
+                    : "text-[var(--dash-ink-soft)] hover:text-[var(--dash-ink)]"
+                )}
+              >
+                Execution logs
+              </button>
+            </div>
+          }
           icon={<LayoutGrid className="h-[18px] w-[18px]" />}
           right={
-            <label className="relative block w-[260px] max-w-full">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--dash-ink-faint)]" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search workflows, issues..."
-                className="h-9 w-full rounded-lg border dash-border bg-white pl-8 pr-3 text-[12px] text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
-              />
-            </label>
+            activeTab === "workflows" ? (
+              <label className="relative block w-[260px] max-w-full">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--dash-ink-faint)]" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search workflows, issues..."
+                  className="h-9 w-full rounded-lg border dash-border bg-white pl-8 pr-3 text-[12px] text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
+                />
+              </label>
+            ) : (
+              <button
+                type="button"
+                onClick={() => runsQuery.refetch()}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border dash-border bg-white px-3 text-[12px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", runsQuery.isFetching && "animate-spin")} />
+                Refresh logs
+              </button>
+            )
           }
           padded={false}
         >
-          <div className="grid grid-cols-1 gap-3 p-4 lg:grid-cols-2">
-            {workflowsQuery.isLoading ? (
-              Array.from({ length: 6 }).map((_, index) => <div key={index} className="skeleton h-[178px] rounded-xl" />)
-            ) : workflowsQuery.isError ? (
-              <div className="lg:col-span-2">
-                <EmptyState icon={<AlertTriangle className="h-5 w-5" />} title="Could not load workflows" body={workflowsQuery.error.message} />
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="lg:col-span-2">
+          {activeTab === "workflows" ? (
+            <div className="grid grid-cols-1 gap-3 p-4 lg:grid-cols-2">
+              {workflowsQuery.isLoading ? (
+                Array.from({ length: 6 }).map((_, index) => <div key={index} className="skeleton h-[178px] rounded-xl" />)
+              ) : workflowsQuery.isError ? (
+                <div className="lg:col-span-2">
+                  <EmptyState icon={<AlertTriangle className="h-5 w-5" />} title="Could not load workflows" body={workflowsQuery.error.message} />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="lg:col-span-2">
+                  <EmptyState
+                    icon={<Workflow className="h-5 w-5" />}
+                    title="No workflows found"
+                    body={search ? "Adjust the search to see more workflows." : "Create a workflow from a production-ready template or start blank."}
+                    action={<button type="button" onClick={() => setCreateOpen(true)} className="font-bold text-[var(--dash-accent-deep)] hover:underline">Create workflow</button>}
+                  />
+                </div>
+              ) : (
+                filtered.map((workflow) => (
+                  <WorkflowCard
+                    key={workflow.id}
+                    workflow={workflow}
+                    active={selected?.id === workflow.id}
+                    onSelect={() => setActiveId(workflow.id)}
+                    onToggle={() => setActive.mutate({ id: workflow.id, isActive: !workflow.isActive })}
+                    onDuplicate={() => duplicateWorkflow.mutate({ id: workflow.id })}
+                    onDelete={() => setDeleteTarget(workflow)}
+                    pending={setActive.isPending || duplicateWorkflow.isPending || deleteWorkflow.isPending}
+                  />
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col p-4 gap-3">
+              {runsQuery.isLoading ? (
+                Array.from({ length: 5 }).map((_, index) => <div key={index} className="skeleton h-[72px] rounded-xl" />)
+              ) : runsQuery.isError ? (
+                <EmptyState icon={<AlertTriangle className="h-5 w-5" />} title="Could not load runs" body={runsQuery.error.message} />
+              ) : runs.length === 0 ? (
                 <EmptyState
-                  icon={<Workflow className="h-5 w-5" />}
-                  title="No workflows found"
-                  body={search ? "Adjust the search to see more workflows." : "Create a workflow from a production-ready template or start blank."}
-                  action={<button type="button" onClick={() => setCreateOpen(true)} className="font-bold text-[var(--dash-accent-deep)] hover:underline">Create workflow</button>}
+                  icon={<Clock className="h-5 w-5" />}
+                  title="No execution runs found"
+                  body="Run a workflow using Temporal, and durable execution trace details will show up here."
                 />
-              </div>
-            ) : (
-              filtered.map((workflow) => (
-                <WorkflowCard
-                  key={workflow.id}
-                  workflow={workflow}
-                  active={selected?.id === workflow.id}
-                  onSelect={() => setActiveId(workflow.id)}
-                  onToggle={() => setActive.mutate({ id: workflow.id, isActive: !workflow.isActive })}
-                  onDuplicate={() => duplicateWorkflow.mutate({ id: workflow.id })}
-                  onDelete={() => setDeleteTarget(workflow)}
-                  pending={setActive.isPending || duplicateWorkflow.isPending || deleteWorkflow.isPending}
-                />
-              ))
-            )}
-          </div>
+              ) : (
+                runs.map((run) => (
+                  <RunHistoryCard
+                    key={run.id}
+                    run={run as any}
+                    active={selectedRunId === run.id}
+                    onSelect={() => setSelectedRunId(run.id)}
+                  />
+                ))
+              )}
+            </div>
+          )}
         </DashCard>
 
         <div className="flex flex-col gap-4">
-          <WorkflowInspector
-            workflow={selected}
-            runInput={runInput}
-            setRunInput={setRunInput}
-            onPreflight={() => selected && preflightWorkflow.mutate({ workflowId: selected.id, definition: selected.definition, input: runInput })}
-            preflightPending={preflightWorkflow.isPending}
-            onCopy={() => copyDefinition(selected)}
-            onToggle={() => selected && setActive.mutate({ id: selected.id, isActive: !selected.isActive })}
-            onDuplicate={() => selected && duplicateWorkflow.mutate({ id: selected.id })}
-            onDelete={() => selected && setDeleteTarget(selected)}
-          />
+          {activeTab === "workflows" ? (
+            <WorkflowInspector
+              workflow={selected}
+              runInput={runInput}
+              setRunInput={setRunInput}
+              onPreflight={() => selected && preflightWorkflow.mutate({ workflowId: selected.id, definition: selected.definition, input: runInput.trim() || "Test preflight run" })}
+              preflightPending={preflightWorkflow.isPending}
+              onCopy={() => copyDefinition(selected)}
+              onToggle={() => selected && setActive.mutate({ id: selected.id, isActive: !selected.isActive })}
+              onDuplicate={() => selected && duplicateWorkflow.mutate({ id: selected.id })}
+              onDelete={() => selected && setDeleteTarget(selected)}
+            />
+          ) : (
+            <RunDetailsInspector
+              runId={selectedRunId}
+              detailsQuery={runDetailsQuery}
+            />
+          )}
         </div>
       </div>
 
@@ -540,7 +641,7 @@ function WorkflowInspector({
           <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Test input</span>
           <textarea value={runInput} onChange={(event) => setRunInput(event.target.value)} className="min-h-[92px] w-full rounded-lg border dash-border bg-white px-3 py-2.5 text-[12.5px] leading-5 text-[var(--dash-ink)] outline-none focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15" />
         </label>
-        <button type="button" onClick={onPreflight} disabled={preflightPending || !workflow.analysis.deployable || !runInput.trim()} className="mt-3 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60">
+        <button type="button" onClick={onPreflight} disabled={preflightPending || workflow.analysis.errors > 0 || workflow.analysis.nodeCount === 0} className="mt-3 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60">
           {preflightPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
           Run preflight
         </button>
@@ -666,6 +767,350 @@ function EmptyState({ icon, title, body, action }: { icon: ReactNode; title: str
       <div className="text-[13px] font-bold text-[var(--dash-ink)]">{title}</div>
       <p className="mt-1 max-w-sm text-[12px] leading-5 text-[var(--dash-ink-soft)]">{body}</p>
       {action && <div className="mt-3 text-[12.5px]">{action}</div>}
+    </div>
+  )
+}
+
+type PipelineRunRow = {
+  id: string
+  workflowId: string | null
+  temporalWorkflowId: string
+  temporalRunId: string | null
+  status: "running" | "completed" | "failed" | "cancelled"
+  startedAt: string | Date
+  finishedAt: string | Date | null
+  workflowName: string | null
+}
+
+type PipelineRunStepRow = {
+  id: string
+  runId: string
+  nodeId: string
+  nodeType: string
+  status: "pending" | "running" | "completed" | "failed" | "skipped"
+  output: any
+  error: string | null
+  latencyMs: number | null
+  createdAt: string | Date
+}
+
+function RunHistoryCard({
+  run,
+  active,
+  onSelect,
+}: {
+  run: PipelineRunRow
+  active: boolean
+  onSelect: () => void
+}) {
+  const statusColor = {
+    running: "text-amber-500 bg-amber-50 border-amber-200",
+    completed: "text-emerald-500 bg-emerald-50 border-emerald-200",
+    failed: "text-rose-500 bg-rose-50 border-rose-200",
+    cancelled: "text-gray-500 bg-gray-50 border-gray-200",
+  }[run.status]
+
+  const statusIcon = {
+    running: <Loader2 className="h-4 w-4 animate-spin text-amber-500" />,
+    completed: <CheckCircle className="h-4 w-4 text-emerald-500" />,
+    failed: <XCircle className="h-4 w-4 text-rose-500" />,
+    cancelled: <Pause className="h-4 w-4 text-gray-500" />,
+  }[run.status]
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onSelect()
+        }
+      }}
+      className={cn(
+        "flex items-center gap-3 rounded-xl border p-3.5 text-left transition hover:dash-shadow-sm cursor-pointer",
+        active ? "border-[#9D91EA] bg-[#F6F4FF]" : "border-gray-100 bg-white"
+      )}
+    >
+      <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border", statusColor)}>
+        {statusIcon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[13px] font-bold text-[var(--dash-ink)]">
+            {run.workflowName ?? "Advan Conversation Flow"}
+          </span>
+          <span className="text-[10.5px] text-[var(--dash-ink-faint)] shrink-0 font-mono">
+            #{run.id.slice(0, 8)}
+          </span>
+        </div>
+        <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--dash-ink-soft)]">
+          <span>Started {formatRelativeTime(run.startedAt)}</span>
+          {run.finishedAt && (
+            <>
+              <span>•</span>
+              <span>Finished {formatRelativeTime(run.finishedAt)}</span>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <span className={cn(
+          "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border",
+          run.status === "completed" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+          run.status === "running" ? "bg-amber-50 text-amber-700 border-amber-100 animate-pulse" :
+          run.status === "failed" ? "bg-rose-50 text-rose-700 border-rose-100" :
+          "bg-gray-50 text-gray-700 border-gray-100"
+        )}>
+          {run.status}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function RunDetailsInspector({
+  runId,
+  detailsQuery,
+}: {
+  runId: string | null
+  detailsQuery: any
+}) {
+  if (!runId) {
+    return (
+      <DashCard title="Run details inspector" icon={<Clock className="h-[18px] w-[18px]" />}>
+        <EmptyState
+          icon={<Clock className="h-5 w-5" />}
+          title="No execution run selected"
+          body="Select any execution run from the timeline list to audit node step timings, latency, payloads, and error traces."
+        />
+      </DashCard>
+    )
+  }
+
+  if (detailsQuery.isLoading) {
+    return (
+      <DashCard title="Run details inspector" icon={<Clock className="h-[18px] w-[18px]" />}>
+        <div className="space-y-4">
+          <div className="skeleton h-[110px] rounded-xl" />
+          <div className="skeleton h-[280px] rounded-xl" />
+        </div>
+      </DashCard>
+    )
+  }
+
+  if (detailsQuery.isError || !detailsQuery.data) {
+    return (
+      <DashCard title="Run details inspector" icon={<Clock className="h-[18px] w-[18px]" />}>
+        <EmptyState
+          icon={<AlertTriangle className="h-5 w-5 text-[var(--dash-rose)]" />}
+          title="Could not load run details"
+          body={detailsQuery.error?.message ?? "Execution logs could not be fetched."}
+        />
+      </DashCard>
+    )
+  }
+
+  const { run, steps, workflow } = detailsQuery.data as {
+    run: PipelineRunRow
+    steps: PipelineRunStepRow[]
+    workflow: WorkflowRow | null
+  }
+
+  // Calculate total latency
+  const completedSteps = steps.filter((s) => s.status === "completed")
+  const totalLatencyMs = completedSteps.reduce((sum, s) => sum + (s.latencyMs ?? 0), 0)
+
+  return (
+    <>
+      <DashCard
+        title="Durable execution audit"
+        icon={<Clock className="h-[18px] w-[18px]" />}
+        right={
+          <span className={cn(
+            "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase border",
+            run.status === "completed" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+            run.status === "running" ? "bg-amber-50 text-amber-700 border-amber-100 animate-pulse" :
+            run.status === "failed" ? "bg-rose-50 text-rose-700 border-rose-100" :
+            "bg-gray-50 text-gray-700 border-gray-100"
+          )}>
+            {run.status}
+          </span>
+        }
+      >
+        <div className="text-[14px] font-bold text-[var(--dash-ink)]">
+          {workflow?.name ?? "Advan Conversation Flow"}
+        </div>
+        {workflow?.description && (
+          <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--dash-ink-soft)] line-clamp-2">
+            {workflow.description}
+          </p>
+        )}
+        <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+          <div className="flex items-center justify-between text-[11.5px]">
+            <span className="text-[var(--dash-ink-faint)]">Run ID</span>
+            <span className="font-mono text-[var(--dash-ink)] select-all bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 text-[10.5px]">
+              {run.id}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[11.5px]">
+            <span className="text-[var(--dash-ink-faint)]">Temporal ID</span>
+            <span className="font-mono text-[var(--dash-ink)] select-all truncate max-w-[200px] bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 text-[10.5px]">
+              {run.temporalWorkflowId}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[11.5px]">
+            <span className="text-[var(--dash-ink-faint)]">Total node duration</span>
+            <span className="font-semibold text-[var(--dash-ink)]">
+              {totalLatencyMs > 1000 ? `${(totalLatencyMs / 1000).toFixed(2)}s` : `${totalLatencyMs}ms`}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[11.5px]">
+            <span className="text-[var(--dash-ink-faint)]">Steps executed</span>
+            <span className="font-semibold text-[var(--dash-ink)]">
+              {steps.filter((s) => s.status === "completed").length} / {steps.length}
+            </span>
+          </div>
+        </div>
+        {workflow && (
+          <div className="mt-4 flex gap-2">
+            <Link
+              href="/dashboard/orchestration"
+              className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border dash-border bg-white text-[12.5px] font-semibold text-[var(--dash-accent-deep)] transition hover:dash-shadow-sm"
+            >
+              <GitBranch className="h-4 w-4" />
+              Open in builder
+            </Link>
+          </div>
+        )}
+      </DashCard>
+
+      <DashCard title="Execution step timeline" icon={<ShieldCheck className="h-[18px] w-[18px]" />} padded={false}>
+        <div className="max-h-[360px] overflow-y-auto p-4 space-y-3">
+          {steps.length === 0 ? (
+            <div className="text-center py-6 text-[12px] text-[var(--dash-ink-faint)]">
+              No step execution records recorded yet.
+            </div>
+          ) : (
+            steps.map((step) => <StepExecutionRow key={step.id} step={step} />)
+          )}
+        </div>
+      </DashCard>
+    </>
+  )
+}
+
+function StepExecutionRow({ step }: { step: PipelineRunStepRow }) {
+  const [expanded, setExpanded] = useState(false)
+
+  const statusIcon = {
+    pending: <Clock className="h-3.5 w-3.5 text-gray-400" />,
+    running: <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" />,
+    completed: <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />,
+    failed: <XCircle className="h-3.5 w-3.5 text-rose-500" />,
+    skipped: <X className="h-3.5 w-3.5 text-gray-400" />,
+  }[step.status]
+
+  const statusBg = {
+    pending: "bg-gray-50 border-gray-100",
+    running: "bg-amber-50 border-amber-100",
+    completed: "bg-emerald-50 border-emerald-100",
+    failed: "bg-rose-50 border-rose-100",
+    skipped: "bg-gray-50 border-gray-100",
+  }[step.status]
+
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white overflow-hidden transition-all duration-150 hover:border-gray-200">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            setExpanded(!expanded)
+          }
+        }}
+        className="flex items-center justify-between gap-2.5 p-3 cursor-pointer select-none"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border", statusBg)}>
+            {statusIcon}
+          </div>
+          <div className="min-w-0">
+            <div className="text-[12.5px] font-bold text-[var(--dash-ink)] truncate">
+              {step.nodeId}
+            </div>
+            <div className="text-[10px] text-[var(--dash-ink-faint)] uppercase tracking-wider font-mono mt-0.5">
+              {step.nodeType}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {step.latencyMs !== null && (
+            <span className="text-[11px] font-mono text-[var(--dash-ink-soft)] bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+              {step.latencyMs}ms
+            </span>
+          )}
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 text-[var(--dash-ink-faint)]" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-[var(--dash-ink-faint)]" />
+          )}
+        </div>
+      </div>
+
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0 }}
+            animate={{ height: "auto" }}
+            exit={{ height: 0 }}
+            className="overflow-hidden border-t border-gray-50 bg-gray-50/50"
+          >
+            <div className="p-3 space-y-2.5 text-[11px]">
+              {step.error && (
+                <div className="rounded-lg bg-rose-50 border border-rose-100 p-2.5 text-[11.5px] text-rose-800 leading-normal font-mono select-all break-words">
+                  <div className="font-bold mb-1 uppercase tracking-wide text-rose-900 text-[10px]">Error execution trace</div>
+                  {step.error}
+                </div>
+              )}
+
+              {step.output && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[var(--dash-ink-faint)] uppercase tracking-wide text-[9.5px]">
+                      Node Output Payload
+                    </span>
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        await navigator.clipboard.writeText(JSON.stringify(step.output, null, 2))
+                        toast.success("Payload copied to clipboard")
+                      }}
+                      className="text-[var(--dash-accent-deep)] hover:underline font-semibold"
+                    >
+                      Copy JSON
+                    </button>
+                  </div>
+                  <pre className="max-h-[220px] overflow-auto rounded-lg border border-gray-200 bg-gray-900 p-2.5 font-mono text-[10.5px] leading-relaxed text-emerald-400 select-all">
+                    {JSON.stringify(step.output, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {!step.output && !step.error && (
+                <div className="text-center py-2 text-[11px] text-[var(--dash-ink-faint)] font-medium italic">
+                  No execution output recorded or required for this node trigger.
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

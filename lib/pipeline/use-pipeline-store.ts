@@ -19,6 +19,26 @@ import { validatePipelineConnection } from "./connection-validation"
 import type { Pipeline } from "./schema"
 import "./nodes" // side-effect: populate the registry
 
+function safeRandomUUID(): string {
+  if (typeof window !== "undefined" && typeof window.crypto !== "undefined" && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID()
+  }
+  if (typeof window !== "undefined" && typeof window.crypto !== "undefined" && typeof window.crypto.getRandomValues === "function") {
+    return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+      (
+        Number(c) ^
+        (window.crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(c) / 4)))
+      ).toString(16)
+    )
+  }
+  // Standard Math.random fallback
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === "x" ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 export interface PipelineStore {
   nodes: Node[]
   edges: Edge[]
@@ -39,7 +59,7 @@ export interface PipelineStore {
   updateNodeConfig: (id: string, data: Record<string, unknown>) => void
   select: (id: string | null) => void
   selectEdge: (id: string | null) => void
-  loadPipeline: (p: Pipeline) => void
+  loadPipeline: (p: Pipeline, options?: { dirty?: boolean }) => void
   toPipeline: () => Pipeline
   clearError: () => void
   markSaved: () => void
@@ -61,38 +81,91 @@ export const usePipelineStore = create<PipelineStore>()(
 
       onConnect: (conn) => {
         if (!conn.source || !conn.target) return
+        let source = conn.source
+        let target = conn.target
+        let sourceHandle = conn.sourceHandle
+        let targetHandle = conn.targetHandle
+
+        const sNode = get().nodes.find((n) => n.id === source)
+        const tNode = get().nodes.find((n) => n.id === target)
+        if (sNode && tNode && nodeRegistry.has(sNode.type) && nodeRegistry.has(tNode.type)) {
+          const sReg = nodeRegistry.get(sNode.type)
+          const isSourceInput = sReg.inputs.some((p) => p.id === sourceHandle)
+          if (isSourceInput) {
+            source = conn.target!
+            target = conn.source!
+            sourceHandle = conn.targetHandle
+            targetHandle = conn.sourceHandle
+          }
+        }
+
         const validation = validatePipelineConnection({
           nodes: get().nodes.map((node) => ({ id: node.id, type: node.type ?? "unknown" })),
           edges: get().edges as never,
-          source: conn.source,
-          target: conn.target,
-          sourceHandle: conn.sourceHandle,
-          targetHandle: conn.targetHandle,
-        })
-        if (!validation.ok) {
-          set({ lastConnectionError: validation.reason })
-          return
-        }
-        set({ edges: addEdge({ ...conn, id: crypto.randomUUID() }, get().edges), dirty: true, lastConnectionError: null })
-      },
-
-      onReconnect: (edge, conn) => {
-        if (!conn.source || !conn.target) return
-        const remainingEdges = get().edges.filter((item) => item.id !== edge.id)
-        const validation = validatePipelineConnection({
-          nodes: get().nodes.map((node) => ({ id: node.id, type: node.type ?? "unknown" })),
-          edges: remainingEdges as never,
-          source: conn.source,
-          target: conn.target,
-          sourceHandle: conn.sourceHandle,
-          targetHandle: conn.targetHandle,
+          source,
+          target,
+          sourceHandle,
+          targetHandle,
         })
         if (!validation.ok) {
           set({ lastConnectionError: validation.reason })
           return
         }
         set({
-          edges: xyReconnectEdge(edge, conn, get().edges),
+          edges: addEdge(
+            {
+              id: safeRandomUUID(),
+              source,
+              target,
+              sourceHandle: sourceHandle ?? null,
+              targetHandle: targetHandle ?? null,
+            },
+            get().edges
+          ),
+          dirty: true,
+          lastConnectionError: null,
+        })
+      },
+
+      onReconnect: (edge, conn) => {
+        if (!conn.source || !conn.target) return
+        let source = conn.source
+        let target = conn.target
+        let sourceHandle = conn.sourceHandle
+        let targetHandle = conn.targetHandle
+
+        const sNode = get().nodes.find((n) => n.id === source)
+        const tNode = get().nodes.find((n) => n.id === target)
+        if (sNode && tNode && nodeRegistry.has(sNode.type) && nodeRegistry.has(tNode.type)) {
+          const sReg = nodeRegistry.get(sNode.type)
+          const isSourceInput = sReg.inputs.some((p) => p.id === sourceHandle)
+          if (isSourceInput) {
+            source = conn.target!
+            target = conn.source!
+            sourceHandle = conn.targetHandle
+            targetHandle = conn.sourceHandle
+          }
+        }
+
+        const remainingEdges = get().edges.filter((item) => item.id !== edge.id)
+        const validation = validatePipelineConnection({
+          nodes: get().nodes.map((node) => ({ id: node.id, type: node.type ?? "unknown" })),
+          edges: remainingEdges as never,
+          source,
+          target,
+          sourceHandle,
+          targetHandle,
+        })
+        if (!validation.ok) {
+          set({ lastConnectionError: validation.reason })
+          return
+        }
+        set({
+          edges: xyReconnectEdge(
+            edge,
+            { source, target, sourceHandle, targetHandle },
+            get().edges
+          ),
           dirty: true,
           selectedEdgeId: edge.id,
           selectedId: null,
@@ -149,7 +222,7 @@ export const usePipelineStore = create<PipelineStore>()(
       addNode: (type, position) => {
         const def = nodeRegistry.get(type)
         const node: Node = {
-          id: crypto.randomUUID(),
+          id: safeRandomUUID(),
           type,
           position,
           data: { ...def.defaults },
@@ -162,7 +235,7 @@ export const usePipelineStore = create<PipelineStore>()(
         if (!node) return
         const copy: Node = {
           ...node,
-          id: crypto.randomUUID(),
+          id: safeRandomUUID(),
           position: { x: node.position.x + 36, y: node.position.y + 36 },
           selected: false,
           data: { ...(node.data ?? {}) },
@@ -195,7 +268,7 @@ export const usePipelineStore = create<PipelineStore>()(
 
       selectEdge: (selectedEdgeId) => set({ selectedEdgeId, selectedId: null }),
 
-      loadPipeline: (p) =>
+      loadPipeline: (p, options) =>
         set({
           nodes: p.nodes.map((n) => ({ id: n.id, type: n.type, position: n.position, data: n.data })),
           edges: p.edges.map((e) => ({
@@ -205,7 +278,7 @@ export const usePipelineStore = create<PipelineStore>()(
             sourceHandle: e.sourceHandle ?? null,
             targetHandle: e.targetHandle ?? null,
           })),
-          dirty: false,
+          dirty: options?.dirty ?? false,
           selectedId: null,
           selectedEdgeId: null,
         }),

@@ -95,6 +95,7 @@ export const users = pgTable("users", {
    * existing agents remain available without any migration action.
    */
   chatAvailable: boolean("chat_available").default(true).notNull(),
+  image: text("image"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
@@ -249,11 +250,15 @@ export const messages = pgTable("messages", {
         | "hitl_complaint"
         | "hitl_collaborative"
         | "hitl_low_confidence"
+        | "orchestrated"
       confidence: number
-      isComplaint: boolean
-      auditLogId: string
+      isComplaint?: boolean
+      auditLogId?: string
       classifiedAt: string
       chatIntent?: string
+      activeWorkflowId?: string
+      temporalWorkflowId?: string
+      temporalRunId?: string
     }
     /**
      * True when this agent-role message was inserted by the background
@@ -427,6 +432,9 @@ export const hitlQueue = pgTable("hitl_queue", {
       reasoning?: string
       draftConfidence?: number
       auditLogId?: string
+      chatIntent?: string
+      collaborative?: boolean
+      escalationSignals?: string[]
     }>(),
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   reviewNote: text("review_note"),

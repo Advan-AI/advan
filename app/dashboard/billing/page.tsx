@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   HelpCircle,
 } from "lucide-react"
+import { toast } from "sonner"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
 
@@ -43,12 +44,17 @@ export default function BillingPage() {
   const changePlanMutation = api.billing.changeSubscriptionPlan.useMutation({
     onSuccess: (data) => {
       if (data?.checkoutUrl) {
+        toast.loading("Redirecting to Stripe Checkout...")
         window.location.href = data.checkoutUrl
         return
       }
+      toast.success("Subscription tier upgraded successfully!")
       setConfirmingChange(false)
       setSelectedPlan(null)
       utils.billing.getBillingInfo.invalidate()
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to change subscription plan. Please try again.")
     },
   })
 
@@ -65,6 +71,7 @@ export default function BillingPage() {
       }
     } catch (err) {
       console.error("Failed to load customer portal session:", err)
+      toast.error("Failed to open billing portal. Please try again.")
     } finally {
       setLoadingPortal(false)
     }
@@ -81,7 +88,7 @@ export default function BillingPage() {
     try {
       await changePlanMutation.mutateAsync({ planKey: selectedPlan.key })
     } catch (err) {
-      console.error("Failed to change subscription plan:", err)
+      // Handled by mutation's onError hook
     }
   }
 
@@ -118,11 +125,15 @@ export default function BillingPage() {
   const isTrialing = org.subscriptionStatus === "trialing"
   const isPastDue = org.subscriptionStatus === "past_due"
   let trialDaysRemaining = 0
-  if (isTrialing && org.trialEndsAt) {
+  if (org.trialEndsAt) {
     const end = new Date(org.trialEndsAt).getTime()
     const diff = end - Date.now()
     trialDaysRemaining = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
   }
+
+  const trialEndsDateFormatted = org.trialEndsAt
+    ? new Date(org.trialEndsAt).toLocaleDateString(undefined, { dateStyle: "medium" })
+    : null
 
   const percentSeats = currentPlan ? Math.min(100, (seatsUsed / currentPlan.seatLimit) * 100) : 0
   const percentMessages = currentPlan ? Math.min(100, (messagesUsed / currentPlan.includedMessages) * 100) : 0
@@ -181,15 +192,33 @@ export default function BillingPage() {
         {/* Plan Overview Card */}
         <DashCard
           title="Current Subscription"
-          icon={<Crown className="w-[18px] h-[18px]" />}
+          icon={<Crown className="w-[18px] h-[18px] text-[var(--dash-accent)]" />}
           className="lg:col-span-1"
         >
           <div className="space-y-4">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--dash-ink-faint)]">Plan Tier</div>
-              <div className="text-lg font-black text-[var(--dash-ink)] tracking-tight capitalize mt-0.5">
-                {currentPlan?.name ?? "No Plan active"}
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--dash-ink-faint)]">Plan Tier</div>
+                <div className="text-[17px] font-black text-[var(--dash-ink)] tracking-tight capitalize mt-0.5 flex flex-wrap items-center gap-1.5 leading-tight">
+                  {currentPlan?.name ?? "No Plan active"}
+                  {currentPlan?.key === "pro" && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/50">
+                      ⚡ Popular
+                    </span>
+                  )}
+                </div>
               </div>
+              <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 shrink-0 ${
+                org.subscriptionStatus === "active"
+                  ? "bg-[var(--dash-sage-wash)] text-[#2f5d3f] border border-[rgba(47,93,63,0.15)]"
+                  : org.subscriptionStatus === "trialing"
+                    ? "bg-amber-100 text-amber-800 border border-amber-200"
+                    : "bg-rose-100 text-rose-700 border border-rose-200"
+              }`}>
+                {org.subscriptionStatus === "active" && <span className="w-1.5 h-1.5 rounded-full bg-[#2f5d3f] animate-pulse" />}
+                {org.subscriptionStatus === "trialing" && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
+                {org.subscriptionStatus}
+              </span>
             </div>
 
             <div>
@@ -202,23 +231,38 @@ export default function BillingPage() {
 
             <div>
               <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--dash-ink-faint)]">Billing Cycle</div>
-              <div className="text-[12.5px] font-medium text-[var(--dash-ink-soft)] mt-0.5 leading-relaxed">
-                {new Date(currentPeriodStart).toLocaleDateString()} to {new Date(currentPeriodEnd).toLocaleDateString()}
+              <div className="text-[12.5px] font-semibold text-[var(--dash-ink-soft)] mt-0.5 leading-relaxed">
+                {new Date(currentPeriodStart).toLocaleDateString(undefined, { dateStyle: "medium" })} to {new Date(currentPeriodEnd).toLocaleDateString(undefined, { dateStyle: "medium" })}
               </div>
             </div>
 
-            <div className="pt-2 border-t border-[rgba(0,0,0,0.06)]">
-              <div className="flex items-center justify-between text-[12px] font-bold text-[var(--dash-ink-soft)]">
-                <span>Status</span>
-                <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-extrabold uppercase tracking-wide ${
-                  org.subscriptionStatus === "active" || org.subscriptionStatus === "trialing"
-                    ? "bg-[var(--dash-sage-wash)] text-[#2f5d3f]"
-                    : "bg-rose-100 text-rose-700"
-                }`}>
-                  {org.subscriptionStatus}
-                </span>
+            {/* Trial Information Section */}
+            {org.trialEndsAt && (
+              <div className="pt-3.5 border-t border-[rgba(0,0,0,0.06)] space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--dash-ink-faint)]">Trial Details</div>
+                <div className="grid grid-cols-2 gap-2 bg-black/[0.02] dark:bg-white/[0.02] p-2.5 rounded-lg border border-[rgba(0,0,0,0.04)]">
+                  <div>
+                    <div className="text-[10px] text-[var(--dash-ink-soft)] font-medium">Expire Date</div>
+                    <div className="text-[12px] font-bold text-[var(--dash-ink)] mt-0.5">
+                      {trialEndsDateFormatted}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-[var(--dash-ink-soft)] font-medium">Days Left</div>
+                    <div className={`text-[12px] font-bold mt-0.5 ${
+                      org.subscriptionStatus === "trialing"
+                        ? trialDaysRemaining <= 3 ? "text-rose-600 animate-pulse" : "text-amber-600"
+                        : "text-[var(--dash-ink-soft)]"
+                    }`}>
+                      {org.subscriptionStatus === "trialing" 
+                        ? `${trialDaysRemaining} days` 
+                        : "Trial converted"
+                      }
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </DashCard>
 

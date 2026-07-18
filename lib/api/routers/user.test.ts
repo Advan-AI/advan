@@ -16,10 +16,6 @@ vi.mock("@/lib/db", () => ({
   },
 }))
 
-vi.mock("bcryptjs", () => ({
-  hash: vi.fn().mockResolvedValue("new_hashed_password" as never),
-}))
-
 vi.mock("bcryptjs", () => {
   return {
     hash: vi.fn().mockResolvedValue("new_hashed_password"),

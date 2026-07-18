@@ -32,6 +32,15 @@ import {
 import { DashCard, DashPageHeader } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
 import { cn } from "@/lib/utils"
+import { useSession } from "next-auth/react"
+import * as SocketIO from "socket.io-client"
+
+const DASH_SOCKET_URL =
+  typeof process !== "undefined" && process.env.NEXT_PUBLIC_SOCKET_URL
+    ? (process.env.NEXT_PUBLIC_SOCKET_URL as string)
+    : typeof window !== "undefined"
+      ? `${window.location.protocol}//${window.location.hostname}:3002`
+      : "http://localhost:3002"
 
 // ─── Review-queue types ────────────────────────────────────────────────────────
 
@@ -98,6 +107,33 @@ const CONFIDENCE_GATE = 85
 
 export default function TapBoxPage() {
   const utils = api.useUtils()
+  const { data: session } = useSession()
+  const orgId = session?.user?.orgId
+
+  useEffect(() => {
+    if (!orgId) return
+
+    const sock = SocketIO.connect(DASH_SOCKET_URL, {
+      auth: { orgId },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 8,
+    })
+
+    sock.on("hitl:new", async () => {
+      await utils.governance.pendingHitl.invalidate()
+    })
+
+    sock.on("hitl:resolved", async () => {
+      await utils.governance.pendingHitl.invalidate()
+      await utils.analytics.auditLogs.invalidate()
+    })
+
+    return () => {
+      sock.disconnect()
+    }
+  }, [orgId, utils])
+
   const [open, setOpen] = useState(true)
   const [query, setQuery] = useState("")
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("all")
@@ -106,6 +142,7 @@ export default function TapBoxPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [ringValue, setRingValue] = useState(0)
   const [editingHitl, setEditingHitl] = useState<Record<string, string>>({})
+  const [activeTab, setActiveTab] = useState<"pending" | "audits">("pending")
 
   const logsQuery = api.analytics.auditLogs.useQuery(
     { limit: 50, offset: 0 },
@@ -278,389 +315,469 @@ export default function TapBoxPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label="Decisions" value={stats.total} icon={<History className="h-4 w-4" />} />
-        <StatCard label="Avg confidence" value={`${stats.avgConfidence}%`} icon={<ShieldCheck className="h-4 w-4" />} tone={stats.avgConfidence >= CONFIDENCE_GATE ? "sage" : "amber"} />
-        <StatCard label="Source cited" value={`${stats.sourced}/${stats.total}`} icon={<BookOpen className="h-4 w-4" />} />
-        <StatCard label="Needs review" value={stats.review} icon={<AlertTriangle className="h-4 w-4" />} tone={stats.review ? "amber" : "sage"} />
-        <StatCard label="Blocked" value={stats.blocked} icon={<ShieldAlert className="h-4 w-4" />} tone={stats.blocked ? "rose" : "sage"} />
+      {/* ── Tabs Selector ── */}
+      <div className="mb-5 flex border-b border-[var(--dash-bg-deep)]">
+        <button
+          onClick={() => setActiveTab("pending")}
+          className={cn(
+            "flex items-center gap-2 border-b-2 px-4 py-3 text-[13px] font-bold transition-all duration-200 outline-none",
+            activeTab === "pending"
+              ? "border-[var(--dash-accent)] text-[var(--dash-accent-deep)]"
+              : "border-transparent text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)]"
+          )}
+        >
+          <Inbox className="h-4 w-4" />
+          Pending Reviews
+          {hitlItems.length > 0 && (
+            <span className={cn(
+              "ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-extrabold leading-none",
+              complaintCount > 0 
+                ? "bg-[var(--dash-rose-wash)] text-[var(--dash-rose)]" 
+                : "bg-[var(--dash-amber-wash)] text-[var(--dash-amber)]"
+            )}>
+              {hitlItems.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("audits")}
+          className={cn(
+            "flex items-center gap-2 border-b-2 px-4 py-3 text-[13px] font-bold transition-all duration-200 outline-none",
+            activeTab === "audits"
+              ? "border-[var(--dash-accent)] text-[var(--dash-accent-deep)]"
+              : "border-transparent text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)]"
+          )}
+        >
+          <History className="h-4 w-4" />
+          Audit Trail &amp; Telemetry
+          <span className="ml-1.5 rounded-full bg-[var(--dash-bg)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--dash-ink-faint)] leading-none">
+            {stats.total}
+          </span>
+        </button>
       </div>
 
-      {/* ── Review Queue ────────────────────────────────────────────────────── */}
-      <DashCard
-        title="Review queue"
-        icon={<Inbox className="h-[18px] w-[18px]" />}
-        className="mb-4"
-        right={
-          complaintCount > 0 ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--dash-rose-wash)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--dash-rose)]">
-              <AlertTriangle className="h-3 w-3" />
-              {complaintCount} complaint{complaintCount !== 1 ? "s" : ""}
-            </span>
-          ) : hitlItems.length > 0 ? (
-            <span className="rounded-full bg-[var(--dash-amber-wash)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--dash-amber)]">
-              {hitlItems.length} pending
-            </span>
-          ) : undefined
-        }
-        padded={false}
-      >
-        {hitlQuery.isLoading ? (
-          <div className="p-4 space-y-2">
-            {[1, 2, 3].map((i) => <div key={i} className="skeleton h-24 rounded-xl" />)}
-          </div>
-        ) : hitlItems.length === 0 ? (
-          <div className="flex min-h-[120px] flex-col items-center justify-center gap-2 p-6 text-center">
-            <CheckCircle2 className="h-8 w-8 text-[var(--dash-sage)] opacity-60" />
-            <div className="text-[13px] font-semibold text-[var(--dash-ink-soft)]">No items pending review</div>
-            <p className="text-[12px] text-[var(--dash-ink-faint)]">All AI-triage decisions have been resolved.</p>
-          </div>
-        ) : (
-          <div className="divide-y dash-border-soft">
-            {hitlItems.map((item) => {
-              const isComplaint = item.priority === "complaint"
-              const editedText = editingHitl[item.id] ?? item.draftOutput
-              const isPending = approveHitl.isPending || rejectHitl.isPending
-              return (
-                <div
-                  key={item.id}
-                  className={cn(
-                    "p-4 transition",
-                    isComplaint
-                      ? "bg-[var(--dash-rose-wash)] border-l-4 border-[var(--dash-rose)]"
-                      : item.priority === "low_confidence"
-                      ? "bg-[var(--dash-amber-wash)] border-l-4 border-[var(--dash-amber)]"
-                      : "bg-white",
-                  )}
-                >
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    {isComplaint ? (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-[var(--dash-rose)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
-                        <AlertTriangle className="h-3 w-3" /> Complaint
-                      </span>
-                    ) : item.priority === "low_confidence" ? (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-[var(--dash-amber)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
-                        <ShieldAlert className="h-3 w-3" /> Low confidence
-                      </span>
-                    ) : null}
-                    {item.source === "auto_triage" && (
-                      <span className="rounded-md bg-[var(--dash-accent-wash)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--dash-accent-deep)]">
-                        AI triage
-                      </span>
-                    )}
-                    {item.classificationMetadata?.draftConfidence != null && (
-                      <span className={cn(
-                        "ml-auto rounded-md px-1.5 py-0.5 text-[10px] font-bold",
-                        (item.classificationMetadata.draftConfidence ?? 0) >= 85
-                          ? "bg-[var(--dash-sage-wash)] text-[var(--dash-sage)]"
-                          : "bg-[var(--dash-amber-wash)] text-[var(--dash-amber)]"
-                      )}>
-                        {item.classificationMetadata.draftConfidence}% conf
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 text-[10.5px] text-[var(--dash-ink-faint)]">
-                      <Clock className="h-3 w-3" />
-                      {new Date(item.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                    </span>
-                  </div>
-
-                  {item.reason && (
-                    <p className="mb-2 text-[12px] italic text-[var(--dash-ink-soft)]">{item.reason}</p>
-                  )}
-
-                  {item.classificationMetadata?.reasoning && isComplaint && (
-                    <div className="mb-2 rounded-lg border border-[#F0CBCB] bg-white/60 px-3 py-2 text-[11.5px] leading-5 text-[#7a3535]">
-                      <span className="font-bold">Classifier reasoning:</span> {item.classificationMetadata.reasoning}
-                    </div>
-                  )}
-
-                  <div className="mb-3">
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Draft reply</div>
-                    <textarea
-                      value={editedText}
-                      onChange={(e) => setEditingHitl((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                      rows={4}
-                      className="w-full resize-none rounded-lg border dash-border bg-white px-3 py-2 text-[12.5px] leading-5 text-[var(--dash-ink)] outline-none transition focus:border-[var(--dash-accent)] focus:ring-2 focus:ring-[var(--dash-accent-wash)]"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => rejectHitl.mutate({ hitlId: item.id })}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border dash-border bg-white px-3 text-[12px] font-semibold text-[var(--dash-rose)] transition hover:dash-shadow-sm disabled:opacity-50"
-                    >
-                      <ThumbsDown className="h-3.5 w-3.5" /> Reject
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isPending || !editedText.trim()}
-                      onClick={() => approveHitl.mutate({ hitlId: item.id, finalText: editedText })}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-3 text-[12px] font-semibold text-white shadow-[0_8px_20px_-10px_rgba(107,92,214,0.6)] transition hover:-translate-y-px disabled:translate-y-0 disabled:opacity-50"
-                    >
-                      {approveHitl.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                      Approve &amp; Send
-                    </button>
-                  </div>
+      <AnimatePresence mode="wait">
+        {activeTab === "pending" ? (
+          <motion.div
+            key="pending"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+          >
+            {/* Explanatory Context Card */}
+            <div className="mb-4 rounded-xl border border-[var(--dash-line)] bg-gradient-to-br from-[#FEFDFB] to-[#F8F5ED] p-4.5 shadow-sm">
+              <div className="flex items-start gap-3.5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]">
+                  <Sparkles className="h-5 w-5" />
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </DashCard>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[390px_minmax(0,1fr)_320px]">
-        <DashCard
-          title="Decision queue"
-          icon={<Filter className="h-[18px] w-[18px]" />}
-          right={
-            <span className="rounded-md bg-[var(--dash-bg)] px-2 py-1 text-[10.5px] font-bold text-[var(--dash-ink-faint)]">
-              {filteredLogs.length} shown
-            </span>
-          }
-          className="xl:sticky xl:top-5 xl:max-h-[calc(100vh-112px)]"
-          padded={false}
-        >
-          <div className="border-b dash-border-soft p-3">
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dash-ink-faint)]" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search inputs, outputs, sources..."
-                className="h-10 w-full rounded-lg border dash-border bg-white pl-9 pr-3 text-[13px] text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
-              />
-            </label>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <FilterSelect label="Risk" value={riskFilter} onChange={(value) => setRiskFilter(value as RiskFilter)} options={[
-                ["all", "All risk"],
-                ["autopass", "Auto-pass"],
-                ["review", "Review"],
-                ["blocked", "Blocked"],
-              ]} />
-              <FilterSelect label="Sources" value={sourceFilter} onChange={(value) => setSourceFilter(value as SourceFilter)} options={[
-                ["all", "All sources"],
-                ["sourced", "Sourced"],
-                ["unsourced", "Unsourced"],
-              ]} />
-              <FilterSelect label="Origin" value={originFilter} onChange={(value) => setOriginFilter(value as OriginFilter)} options={[
-                ["all", "All origins"],
-                ["auto_triage", "Auto-triage"],
-                ["manual", "Manual"],
-              ]} />
-            </div>
-          </div>
-
-          <div className="max-h-[620px] overflow-y-auto p-2">
-            {logsQuery.isLoading ? (
-              <DecisionSkeleton />
-            ) : logsQuery.isError ? (
-              <StateMessage
-                icon={<XCircle className="h-5 w-5" />}
-                title="Audit trail unavailable"
-                body={logsQuery.error.message}
-              />
-            ) : filteredLogs.length === 0 ? (
-              <StateMessage
-                icon={<Search className="h-5 w-5" />}
-                title="No matching decisions"
-                body="Clear the search or loosen the filters to inspect more audit records."
-              />
-            ) : (
-              <div className="space-y-2">
-                {filteredLogs.map((log) => (
-                  <DecisionListItem
-                    key={log.id}
-                    log={log}
-                    active={selectedLog?.id === log.id}
-                    onSelect={() => setSelectedId(log.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </DashCard>
-
-        <div className="min-w-0 rounded-2xl border dash-border bg-gradient-to-b from-white/95 to-[#F8F5ED]/95 shadow-[0_24px_80px_-50px_rgba(38,35,28,0.55)] backdrop-blur">
-          <div className="flex items-center gap-2.5 border-b dash-border-soft px-4 py-3.5" style={{ background: "linear-gradient(135deg, rgba(236,233,251,.7), transparent)" }}>
-            <div className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6]">
-              <Box className="h-[16px] w-[16px] text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[14px] font-bold text-[var(--dash-ink)]">Decision inspector</div>
-              <div className="truncate text-[10.5px] text-[var(--dash-ink-faint)]">
-                {selectedLog ? `Audit ${selectedLog.id.slice(0, 8)} · ${formatDate(selectedLog.createdAt)}` : "Select an audit log"}
+                <div>
+                  <h4 className="text-[13.5px] font-bold text-[var(--dash-ink)]">Human-in-the-Loop (HITL) Governance Center</h4>
+                  <p className="mt-1 text-[12px] leading-relaxed text-[var(--dash-ink-soft)]">
+                    Advan's AI triage backend routes customer tickets here when automated drafts trigger safety risks. This includes messages classified as high-severity <span className="font-semibold text-[var(--dash-rose)]">customer complaints</span>, violation of guardrail policy rules, or text confidence scores falling below the minimum <span className="font-semibold text-[var(--dash-accent-deep)]">{CONFIDENCE_GATE}% production gate</span>. Review, adjust, and authorize these replies before they send.
+                  </p>
+                </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={copyDecision}
-              disabled={!selectedLog}
-              className="hidden h-8 items-center gap-1.5 rounded-md border dash-border bg-white px-2.5 text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] disabled:opacity-50 sm:inline-flex"
-            >
-              <Clipboard className="h-3.5 w-3.5" />
-              Copy
-            </button>
-            <button
-              type="button"
-              onClick={exportDecision}
-              disabled={!selectedLog}
-              className="hidden h-8 items-center gap-1.5 rounded-md border dash-border bg-white px-2.5 text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] disabled:opacity-50 sm:inline-flex"
-            >
-              <Download className="h-3.5 w-3.5" />
-              JSON
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen((value) => !value)}
-              aria-expanded={open}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--dash-ink-faint)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)]"
-            >
-              <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
-            </button>
-          </div>
 
-          <AnimatePresence initial={false}>
-            {open && (
-              <motion.div
-                key="body"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-                className="overflow-hidden"
-              >
-                <div className="p-4 sm:p-5">
-                  {logsQuery.isLoading ? (
-                    <div className="space-y-3">
-                      <div className="skeleton h-28 w-full rounded-xl" />
-                      <div className="skeleton h-24 w-full rounded-xl" />
-                      <div className="skeleton h-36 w-full rounded-xl" />
-                    </div>
-                  ) : !selectedLog ? (
-                    <StateMessage
-                      icon={<FileJson className="h-5 w-5" />}
-                      title="No AI decisions recorded yet"
-                      body="Generate a Copilot draft to create a sourced audit trail for Tap Box."
-                      action={<Link href="/dashboard/copilot" className="font-bold text-[var(--dash-accent-deep)] hover:underline">Open Copilot</Link>}
-                    />
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-                        <div className="flex items-center gap-4 rounded-xl border dash-border-soft bg-white p-4">
-                          <ConfidenceRing value={ringValue} />
-                          <div className="min-w-0 flex-1">
-                            <StatusPill blocked={blocked} needsReview={needsHumanReview} />
-                            <p className="mt-2 text-[12.5px] leading-5 text-[var(--dash-ink-soft)]">
-                              {blocked
-                                ? "This decision has blocking policy or grounding issues and should not be sent without remediation."
-                                : needsHumanReview
-                                  ? "This decision is below the production confidence gate or requires a human reviewer."
-                                  : "This decision is source grounded and eligible for the approved support workflow."}
-                            </p>
-                          </div>
+            {/* ── Review Queue ── */}
+            <DashCard
+              title="Review queue"
+              icon={<Inbox className="h-[18px] w-[18px]" />}
+              className="mb-4"
+              right={
+                complaintCount > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--dash-rose-wash)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--dash-rose)]">
+                    <AlertTriangle className="h-3 w-3" />
+                    {complaintCount} complaint{complaintCount !== 1 ? "s" : ""}
+                  </span>
+                ) : hitlItems.length > 0 ? (
+                  <span className="rounded-full bg-[var(--dash-amber-wash)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--dash-amber)]">
+                    {hitlItems.length} pending
+                  </span>
+                ) : undefined
+              }
+              padded={false}
+            >
+              {hitlQuery.isLoading ? (
+                <div className="p-4 space-y-2">
+                  {[1, 2, 3].map((i) => <div key={i} className="skeleton h-24 rounded-xl" />)}
+                </div>
+              ) : hitlItems.length === 0 ? (
+                <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 p-8 text-center">
+                  <CheckCircle2 className="h-9 w-9 text-[var(--dash-sage)] opacity-80" />
+                  <div className="text-[13.5px] font-bold text-[var(--dash-ink)]">All pending reviews resolved</div>
+                  <p className="max-w-md text-[12px] leading-relaxed text-[var(--dash-ink-faint)]">
+                    The Human-in-the-Loop queue is completely empty. Outstanding automated triage suggestions have been cleared or approved.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[var(--dash-line)]">
+                  {hitlItems.map((item) => {
+                    const isComplaint = item.priority === "complaint"
+                    const editedText = editingHitl[item.id] ?? item.draftOutput
+                    const isPending = approveHitl.isPending || rejectHitl.isPending
+                    return (
+                      <div
+                        key={item.id}
+                        className={cn(
+                          "p-4 transition",
+                          isComplaint
+                            ? "bg-[var(--dash-rose-wash)] border-l-4 border-[var(--dash-rose)]"
+                            : item.priority === "low_confidence"
+                            ? "bg-[var(--dash-amber-wash)] border-l-4 border-[var(--dash-amber)]"
+                            : "bg-white",
+                        )}
+                      >
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          {isComplaint ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--dash-rose)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
+                              <AlertTriangle className="h-3 w-3" /> Complaint
+                            </span>
+                          ) : item.priority === "low_confidence" ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--dash-amber)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
+                              <ShieldAlert className="h-3 w-3" /> Low confidence
+                            </span>
+                          ) : null}
+                          {item.source === "auto_triage" && (
+                            <span className="rounded-md bg-[var(--dash-accent-wash)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--dash-accent-deep)]">
+                              AI triage
+                            </span>
+                          )}
+                          {item.classificationMetadata?.draftConfidence != null && (
+                            <span className={cn(
+                              "ml-auto rounded-md px-1.5 py-0.5 text-[10px] font-bold",
+                              (item.classificationMetadata.draftConfidence ?? 0) >= 85
+                                ? "bg-[var(--dash-sage-wash)] text-[var(--dash-sage)]"
+                                : "bg-[var(--dash-amber-wash)] text-[var(--dash-amber)]"
+                            )}>
+                              {item.classificationMetadata.draftConfidence}% conf
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 text-[10.5px] text-[var(--dash-ink-faint)]">
+                            <Clock className="h-3 w-3" />
+                            {new Date(item.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          </span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <MiniMetric label="Sources" value={citations.length} />
-                          <MiniMetric label="Policies" value={`${policyChecks.filter((p) => p.passed).length}/${policyChecks.length}`} tone={failedPolicies.length ? "rose" : "sage"} />
-                          <MiniMetric label="Flags" value={hallucinationFlags.length} tone={hallucinationFlags.length ? "rose" : "sage"} />
-                          <MiniMetric label="Latency" value={selectedMetadata.latencyMs ? `${selectedMetadata.latencyMs}ms` : "n/a"} />
+
+                        {item.reason && (
+                          <p className="mb-2 text-[12px] italic text-[var(--dash-ink-soft)]">{item.reason}</p>
+                        )}
+
+                        {item.classificationMetadata?.reasoning && isComplaint && (
+                          <div className="mb-2 rounded-lg border border-[#F0CBCB] bg-white/60 px-3 py-2 text-[11.5px] leading-5 text-[#7a3535]">
+                            <span className="font-bold">Classifier reasoning:</span> {item.classificationMetadata.reasoning}
+                          </div>
+                        )}
+
+                        <div className="mb-3">
+                          <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Draft reply</div>
+                          <textarea
+                            value={editedText}
+                            onChange={(e) => setEditingHitl((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            rows={4}
+                            className="w-full resize-none rounded-lg border dash-border bg-white px-3 py-2 text-[12.5px] leading-5 text-[var(--dash-ink)] outline-none transition focus:border-[var(--dash-accent)] focus:ring-2 focus:ring-[var(--dash-accent-wash)]"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => rejectHitl.mutate({ hitlId: item.id })}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-lg border dash-border bg-white px-3 text-[12px] font-semibold text-[var(--dash-rose)] transition hover:dash-shadow-sm disabled:opacity-50"
+                          >
+                            <ThumbsDown className="h-3.5 w-3.5" /> Reject
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isPending || !editedText.trim()}
+                            onClick={() => approveHitl.mutate({ hitlId: item.id, finalText: editedText })}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-3 text-[12px] font-semibold text-white shadow-[0_8px_20px_-10px_rgba(107,92,214,0.6)] transition hover:-translate-y-px disabled:translate-y-0 disabled:opacity-50"
+                          >
+                            {approveHitl.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                            Approve &amp; Send
+                          </button>
                         </div>
                       </div>
+                    )
+                  })}
+                </div>
+              )}
+            </DashCard>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="audits"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+          >
+            {/* Stat Cards Grid */}
+            <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <StatCard label="Decisions" value={stats.total} icon={<History className="h-4 w-4" />} />
+              <StatCard label="Avg confidence" value={`${stats.avgConfidence}%`} icon={<ShieldCheck className="h-4 w-4" />} tone={stats.avgConfidence >= CONFIDENCE_GATE ? "sage" : "amber"} />
+              <StatCard label="Source cited" value={`${stats.sourced}/${stats.total}`} icon={<BookOpen className="h-4 w-4" />} />
+              <StatCard label="Needs review" value={stats.review} icon={<AlertTriangle className="h-4 w-4" />} tone={stats.review ? "amber" : "sage"} />
+              <StatCard label="Blocked" value={stats.blocked} icon={<ShieldAlert className="h-4 w-4" />} tone={stats.blocked ? "rose" : "sage"} />
+            </div>
 
-                      <Section icon={<BookOpen className="h-3.5 w-3.5" />} label="Knowledge sources" empty={citations.length === 0 ? "No citations were attached to this decision." : undefined}>
-                        {citations.map((citation, index) => (
-                          <SourceRow key={`${citation.source}-${index}`} citation={citation} />
-                        ))}
-                      </Section>
+            {/* Decision Queue and Inspector Grid */}
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[390px_minmax(0,1fr)_320px]">
+              <DashCard
+                title="Decision queue"
+                icon={<Filter className="h-[18px] w-[18px]" />}
+                right={
+                  <span className="rounded-md bg-[var(--dash-bg)] px-2 py-1 text-[10.5px] font-bold text-[var(--dash-ink-faint)]">
+                    {filteredLogs.length} shown
+                  </span>
+                }
+                className="xl:sticky xl:top-5 xl:max-h-[calc(100vh-112px)]"
+                padded={false}
+              >
+                <div className="border-b dash-border-soft p-3">
+                  <label className="relative block">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dash-ink-faint)]" />
+                    <input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="Search inputs, outputs, sources..."
+                      className="h-10 w-full rounded-lg border dash-border bg-white pl-9 pr-3 text-[13px] text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
+                    />
+                  </label>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    <FilterSelect label="Risk" value={riskFilter} onChange={(value) => setRiskFilter(value as RiskFilter)} options={[
+                      ["all", "All risk"],
+                      ["autopass", "Auto-pass"],
+                      ["review", "Review"],
+                      ["blocked", "Blocked"],
+                    ]} />
+                    <FilterSelect label="Sources" value={sourceFilter} onChange={(value) => setSourceFilter(value as SourceFilter)} options={[
+                      ["all", "All sources"],
+                      ["sourced", "Sourced"],
+                      ["unsourced", "Unsourced"],
+                    ]} />
+                    <FilterSelect label="Origin" value={originFilter} onChange={(value) => setOriginFilter(value as OriginFilter)} options={[
+                      ["all", "All origins"],
+                      ["auto_triage", "Auto-triage"],
+                      ["manual", "Manual"],
+                    ]} />
+                  </div>
+                </div>
 
-                      <Section icon={<ShieldCheck className="h-3.5 w-3.5" />} label="Policy checks" empty={policyChecks.length === 0 ? "No policy checks were recorded." : undefined}>
-                        {policyChecks.map((policy, index) => (
-                          <PolicyRow key={`${policy.rule}-${index}`} policy={policy} />
-                        ))}
-                      </Section>
-
-                      <Section icon={<AlertTriangle className="h-3.5 w-3.5" />} label="Hallucination and grounding flags" empty={hallucinationFlags.length === 0 ? "No hallucination flags detected." : undefined}>
-                        {hallucinationFlags.map((flag, index) => (
-                          <div key={`${flag}-${index}`} className="flex items-start gap-2 rounded-lg border border-[#F0CBCB] bg-[var(--dash-rose-wash)] px-3 py-2 text-[12px] leading-5 text-[#8a3e3e]">
-                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                            <span>{flag}</span>
-                          </div>
-                        ))}
-                      </Section>
-
-                      <Section icon={<Sparkles className="h-3.5 w-3.5" />} label="AI input and output">
-                        <div className="grid gap-3 lg:grid-cols-2">
-                          <TraceBlock label="Input" text={selectedLog.input} />
-                          <TraceBlock label="Output" text={selectedLog.output} />
-                        </div>
-                      </Section>
+                <div className="max-h-[620px] overflow-y-auto p-2">
+                  {logsQuery.isLoading ? (
+                    <DecisionSkeleton />
+                  ) : logsQuery.isError ? (
+                    <StateMessage
+                      icon={<XCircle className="h-5 w-5" />}
+                      title="Audit trail unavailable"
+                      body={logsQuery.error.message}
+                    />
+                  ) : filteredLogs.length === 0 ? (
+                    <StateMessage
+                      icon={<Search className="h-5 w-5" />}
+                      title="No matching decisions"
+                      body="Clear the search or loosen the filters to inspect more audit records."
+                    />
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredLogs.map((log) => (
+                        <DecisionListItem
+                          key={log.id}
+                          log={log}
+                          active={selectedLog?.id === log.id}
+                          onSelect={() => setSelectedId(log.id)}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+              </DashCard>
 
-        <div className="flex flex-col gap-4">
-          <DashCard title="Decision metadata" icon={<ShieldCheck className="h-[18px] w-[18px]" />}>
-            {logsQuery.isLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 7 }).map((_, index) => (
-                  <div key={index} className="skeleton h-4 w-full rounded" />
-                ))}
-              </div>
-            ) : selectedLog ? (
-              <div className="space-y-3 text-[12.5px]">
-                <Row k="Confidence" v={`${confidence}%`} tone={confidence >= CONFIDENCE_GATE ? "sage" : "amber"} />
-                <Row k="Gate" v={`${CONFIDENCE_GATE}% minimum`} />
-                <Row k="Model" v={selectedMetadata.model ?? "Advan Trust Engine"} />
-                <Row k="Origin" v={selectedMetadata.source === "auto_triage" ? "Auto-triage" : "Manual"} />
-                <Row k="Channel" v={selectedLog.channel ? channelLabel(selectedLog.channel) : "—"} />
-                <Row k="Ticket" v={selectedLog.ticketId ? selectedLog.ticketId.slice(0, 8) : "none"} />
-                <Row k="Workflow" v={selectedLog.workflowId ? selectedLog.workflowId.slice(0, 8) : "none"} />
-                <Row k="Created" v={formatDate(selectedLog.createdAt)} />
-                <Row k="Decision" v={decisionLabel(selectedMetadata.decision?.action)} tone={selectedMetadata.decision?.action === "reject" ? "rose" : undefined} />
-              </div>
-            ) : (
-              <p className="text-[13px] text-[var(--dash-ink-faint)]">No audit log selected.</p>
-            )}
-          </DashCard>
+              <div className="min-w-0 rounded-2xl border dash-border bg-gradient-to-b from-white/95 to-[#F8F5ED]/95 shadow-[0_24px_80px_-50px_rgba(38,35,28,0.55)] backdrop-blur">
+                <div className="flex items-center gap-2.5 border-b dash-border-soft px-4 py-3.5" style={{ background: "linear-gradient(135deg, rgba(236,233,251,.7), transparent)" }}>
+                  <div className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6]">
+                    <Box className="h-[16px] w-[16px] text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[14px] font-bold text-[var(--dash-ink)]">Decision inspector</div>
+                    <div className="truncate text-[10.5px] text-[var(--dash-ink-faint)]">
+                      {selectedLog ? `Audit ${selectedLog.id.slice(0, 8)} · ${formatDate(selectedLog.createdAt)}` : "Select an audit log"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={copyDecision}
+                    disabled={!selectedLog}
+                    className="hidden h-8 items-center gap-1.5 rounded-md border dash-border bg-white px-2.5 text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] disabled:opacity-50 sm:inline-flex"
+                  >
+                    <Clipboard className="h-3.5 w-3.5" />
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportDecision}
+                    disabled={!selectedLog}
+                    className="hidden h-8 items-center gap-1.5 rounded-md border dash-border bg-white px-2.5 text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] disabled:opacity-50 sm:inline-flex"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpen((value) => !value)}
+                    aria-expanded={open}
+                    className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--dash-ink-faint)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)]"
+                  >
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+                  </button>
+                </div>
 
-          <DashCard title="Production actions" icon={<Ticket className="h-[18px] w-[18px]" />}>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={copyDecision}
-                disabled={!selectedLog}
-                className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-left text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Clipboard className="h-4 w-4" />
-                Copy full trace
-              </button>
-              <button
-                type="button"
-                onClick={exportDecision}
-                disabled={!selectedLog}
-                className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-left text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Download className="h-4 w-4" />
-                Export audit JSON
-              </button>
-              <Link href="/dashboard/analytics" className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-[12.5px] font-semibold text-[var(--dash-accent-deep)] transition hover:dash-shadow-sm">
-                <ExternalLink className="h-4 w-4" />
-                Open analytics
-              </Link>
-              <Link href="/dashboard/knowledge-base" className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-[12.5px] font-semibold text-[var(--dash-accent-deep)] transition hover:dash-shadow-sm">
-                <BookOpen className="h-4 w-4" />
-                Manage sources
-              </Link>
+                <AnimatePresence initial={false}>
+                  {open && (
+                    <motion.div
+                      key="body"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-4 sm:p-5">
+                        {logsQuery.isLoading ? (
+                          <div className="space-y-3">
+                            <div className="skeleton h-28 w-full rounded-xl" />
+                            <div className="skeleton h-24 w-full rounded-xl" />
+                            <div className="skeleton h-36 w-full rounded-xl" />
+                          </div>
+                        ) : !selectedLog ? (
+                          <StateMessage
+                            icon={<FileJson className="h-5 w-5" />}
+                            title="No AI decisions recorded yet"
+                            body="Generate a Copilot draft to create a sourced audit trail for Tap Box."
+                            action={<Link href="/dashboard/copilot" className="font-bold text-[var(--dash-accent-deep)] hover:underline">Open Copilot</Link>}
+                          />
+                        ) : (
+                          <div className="space-y-4">
+                            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+                              <div className="flex items-center gap-4 rounded-xl border dash-border-soft bg-white p-4">
+                                <ConfidenceRing value={ringValue} />
+                                <div className="min-w-0 flex-1">
+                                  <StatusPill blocked={blocked} needsReview={needsHumanReview} />
+                                  <p className="mt-2 text-[12.5px] leading-5 text-[var(--dash-ink-soft)]">
+                                    {blocked
+                                      ? "This decision has blocking policy or grounding issues and should not be sent without remediation."
+                                      : needsHumanReview
+                                        ? "This decision is below the production confidence gate or requires a human reviewer."
+                                        : "This decision is source grounded and eligible for the approved support workflow."}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <MiniMetric label="Sources" value={citations.length} />
+                                <MiniMetric label="Policies" value={`${policyChecks.filter((p) => p.passed).length}/${policyChecks.length}`} tone={failedPolicies.length ? "rose" : "sage"} />
+                                <MiniMetric label="Flags" value={hallucinationFlags.length} tone={hallucinationFlags.length ? "rose" : "sage"} />
+                                <MiniMetric label="Latency" value={selectedMetadata.latencyMs ? `${selectedMetadata.latencyMs}ms` : "n/a"} />
+                              </div>
+                            </div>
+
+                            <Section icon={<BookOpen className="h-3.5 w-3.5" />} label="Knowledge sources" empty={citations.length === 0 ? "No citations were attached to this decision." : undefined}>
+                              {citations.map((citation, index) => (
+                                <SourceRow key={`${citation.source}-${index}`} citation={citation} />
+                              ))}
+                            </Section>
+
+                            <Section icon={<ShieldCheck className="h-3.5 w-3.5" />} label="Policy checks" empty={policyChecks.length === 0 ? "No policy checks were recorded." : undefined}>
+                              {policyChecks.map((policy, index) => (
+                                <PolicyRow key={`${policy.rule}-${index}`} policy={policy} />
+                              ))}
+                            </Section>
+
+                            <Section icon={<AlertTriangle className="h-3.5 w-3.5" />} label="Hallucination and grounding flags" empty={hallucinationFlags.length === 0 ? "No hallucination flags detected." : undefined}>
+                              {hallucinationFlags.map((flag, index) => (
+                                <div key={`${flag}-${index}`} className="flex items-start gap-2 rounded-lg border border-[#F0CBCB] bg-[var(--dash-rose-wash)] px-3 py-2 text-[12px] leading-5 text-[#8a3e3e]">
+                                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                  <span>{flag}</span>
+                                </div>
+                              ))}
+                            </Section>
+
+                            <Section icon={<Sparkles className="h-3.5 w-3.5" />} label="AI input and output">
+                              <div className="grid gap-3 lg:grid-cols-2">
+                                <TraceBlock label="Input" text={selectedLog.input} />
+                                <TraceBlock label="Output" text={selectedLog.output} />
+                              </div>
+                            </Section>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                <DashCard title="Decision metadata" icon={<ShieldCheck className="h-[18px] w-[18px]" />}>
+                  {logsQuery.isLoading ? (
+                    <div className="space-y-2">
+                      {Array.from({ length: 7 }).map((_, index) => (
+                        <div key={index} className="skeleton h-4 w-full rounded" />
+                      ))}
+                    </div>
+                  ) : selectedLog ? (
+                    <div className="space-y-3 text-[12.5px]">
+                      <Row k="Confidence" v={`${confidence}%`} tone={confidence >= CONFIDENCE_GATE ? "sage" : "amber"} />
+                      <Row k="Gate" v={`${CONFIDENCE_GATE}% minimum`} />
+                      <Row k="Model" v={selectedMetadata.model ?? "Advan Trust Engine"} />
+                      <Row k="Origin" v={selectedMetadata.source === "auto_triage" ? "Auto-triage" : "Manual"} />
+                      <Row k="Channel" v={selectedLog.channel ? channelLabel(selectedLog.channel) : "—"} />
+                      <Row k="Ticket" v={selectedLog.ticketId ? selectedLog.ticketId.slice(0, 8) : "none"} />
+                      <Row k="Workflow" v={selectedLog.workflowId ? selectedLog.workflowId.slice(0, 8) : "none"} />
+                      <Row k="Created" v={formatDate(selectedLog.createdAt)} />
+                      <Row k="Decision" v={decisionLabel(selectedMetadata.decision?.action)} tone={selectedMetadata.decision?.action === "reject" ? "rose" : undefined} />
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-[var(--dash-ink-faint)]">No audit log selected.</p>
+                  )}
+                </DashCard>
+
+                <DashCard title="Production actions" icon={<Ticket className="h-[18px] w-[18px]" />}>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={copyDecision}
+                      disabled={!selectedLog}
+                      className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-left text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Clipboard className="h-4 w-4" />
+                      Copy full trace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={exportDecision}
+                      disabled={!selectedLog}
+                      className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-left text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Download className="h-4 w-4" />
+                      Export audit JSON
+                    </button>
+                    <Link href="/dashboard/analytics" className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-[12.5px] font-semibold text-[var(--dash-accent-deep)] transition hover:dash-shadow-sm">
+                      <ExternalLink className="h-4 w-4" />
+                      Open analytics
+                    </Link>
+                    <Link href="/dashboard/knowledge-base" className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-[12.5px] font-semibold text-[var(--dash-accent-deep)] transition hover:dash-shadow-sm">
+                      <BookOpen className="h-4 w-4" />
+                      Manage sources
+                    </Link>
+                  </div>
+                </DashCard>
+              </div>
             </div>
-          </DashCard>
-        </div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

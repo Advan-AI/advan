@@ -82,6 +82,17 @@ function lsSet(k: string, v: string) {
   try { localStorage.setItem(k, v) } catch { /* ignore */ }
 }
 
+function getValidSessionId(): string | undefined {
+  const id = lsGet(LS_SESSION)
+  if (!id) return undefined
+  const isValid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  if (!isValid) {
+    try { localStorage.removeItem(LS_SESSION) } catch {}
+    return undefined
+  }
+  return id
+}
+
 function localId() {
   return `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
@@ -187,20 +198,37 @@ export default function ChatWidgetFrame() {
         body: JSON.stringify({
           widgetKey,
           origin: embeddingOrigin,
-          visitorSessionId: lsGet(LS_SESSION) ?? undefined,
+          visitorSessionId: getValidSessionId(),
         }),
       })
       if (!r.ok) { fail("Session error. Please refresh."); return null }
-      const { token, visitorSessionId } = await r.json()
+      const { token, visitorSessionId, conversationId, previousMessages } = await r.json()
       const { orgId } = jwtPayload(token) as { orgId: string }
       const sess: SessionState = { token, visitorSessionId, orgId }
       sessionRef.current = sess
       lsSet(LS_SESSION, visitorSessionId)
 
       // Reconnect: restore previous conversationId if available.
-      const storedCid = lsGet(LS_CONV) ?? undefined
-      convIdRef.current = storedCid ?? null
-      connectSocket(token, storedCid)
+      const activeCid = conversationId || lsGet(LS_CONV) || undefined
+      convIdRef.current = activeCid ?? null
+      if (activeCid) {
+        lsSet(LS_CONV, activeCid)
+      }
+
+      if (Array.isArray(previousMessages) && previousMessages.length > 0) {
+        setMessages(
+          previousMessages.map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            ts: new Date(m.ts),
+          }))
+        )
+      } else {
+        setMessages([])
+      }
+
+      connectSocket(token, activeCid)
       setPhase("chatting")
       return sess
     } catch {
@@ -239,7 +267,7 @@ export default function ChatWidgetFrame() {
 
     chatNs.on("triage:pending", () => {
       addMessage({
-        id: localId(),
+        id: "triage-pending",
         role: "agent",
         content: "Someone from the team will reply shortly.",
         ts: new Date(),
@@ -272,7 +300,10 @@ export default function ChatWidgetFrame() {
   }
 
   function addMessage(m: Message) {
-    setMessages((prev) => [...prev, m])
+    setMessages((prev) => {
+      if (prev.some((msg) => msg.id === m.id)) return prev
+      return [...prev, m]
+    })
   }
 
   function emitTypingStart() {
@@ -347,7 +378,7 @@ export default function ChatWidgetFrame() {
         body: JSON.stringify({
           widgetKey,
           origin: embeddingOrigin,
-          visitorSessionId: lsGet(LS_SESSION) ?? undefined,
+          visitorSessionId: getValidSessionId(),
         }),
       })
       if (!sr.ok) { fail("Session failed."); return }
@@ -525,7 +556,7 @@ export default function ChatWidgetFrame() {
                 <div className="flex items-start gap-2">
                   <AgentAvatar initials={agents[0]?.initials} name={agents[0]?.name} />
                   <div className="max-w-[80%] bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 text-sm shadow-sm">
-                    Hi! How can I help you today?
+                    How can we help?
                   </div>
                 </div>
               )}

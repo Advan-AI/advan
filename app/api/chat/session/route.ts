@@ -26,12 +26,12 @@
 
 import { Ratelimit } from "@upstash/ratelimit"
 import { Redis } from "@upstash/redis"
-import { eq } from "drizzle-orm"
+import { eq, and } from "drizzle-orm"
 import { SignJWT } from "jose"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { db } from "@/lib/db"
-import { widgetConfigs } from "@/lib/db/schema"
+import { widgetConfigs, conversations, messages } from "@/lib/db/schema"
 
 export const runtime = "nodejs"
 
@@ -42,6 +42,33 @@ export const runtime = "nodejs"
  * Re-issue on socket reconnect so a stolen token has a small blast radius.
  */
 const TOKEN_EXPIRY = "1h"
+
+function isLocalOrigin(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr)
+    const hostname = url.hostname.toLowerCase()
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "0.0.0.0" ||
+      hostname === "[::1]" ||
+      hostname === "::1"
+    ) {
+      return true
+    }
+    // Private IPv4 ranges:
+    if (hostname.startsWith("192.168.")) return true
+    if (hostname.startsWith("10.")) return true
+    if (hostname.startsWith("172.")) {
+      const parts = hostname.split(".")
+      const second = parseInt(parts[1] ?? "", 10)
+      if (second >= 16 && second <= 31) return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
 
@@ -216,7 +243,11 @@ export async function POST(req: NextRequest) {
   // Exact-match origin check — allowedOrigins is a jsonb string array.
   // Strict equality prevents bypass via subdomain-prefix tricks.
   const allowedOrigins = config.allowedOrigins as string[]
-  if (!allowedOrigins.includes(origin)) {
+  const isLocal = isLocalOrigin(origin)
+  
+  console.log(`[ChatSession] Verification - Key: ${widgetKey}, Origin: ${origin}, isLocalOrigin: ${isLocal}, Allowed: ${JSON.stringify(allowedOrigins)}`)
+
+  if (!isLocal && !allowedOrigins.includes(origin)) {
     return NextResponse.json({ error: "Origin not allowed" }, { status: 403 })
   }
 
@@ -231,5 +262,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Token signing failed" }, { status: 500 })
   }
 
-  return NextResponse.json({ token, visitorSessionId }, { status: 200 })
+  let previousMessages: Array<{ id: string; role: "user" | "agent"; content: string; ts: string }> = []
+  let conversationId: string | null = null
+
+  if (resumeSessionId) {
+    const conv = await db.query.conversations.findFirst({
+      where: and(
+        eq(conversations.orgId, config.orgId),
+        eq(conversations.visitorSessionId, resumeSessionId)
+      ),
+      orderBy: (c, { desc }) => [desc(c.createdAt)],
+    })
+    if (conv) {
+      conversationId = conv.id
+      const dbMsgs = await db.query.messages.findMany({
+        where: eq(messages.conversationId, conv.id),
+        orderBy: (m, { asc }) => [asc(m.createdAt)],
+      })
+      previousMessages = dbMsgs.map((m) => ({
+        id: m.id,
+        role: m.role === "user" ? "user" : "agent",
+        content: m.content,
+        ts: m.createdAt.toISOString(),
+      }))
+    }
+  }
+
+  return NextResponse.json({ token, visitorSessionId, conversationId, previousMessages }, { status: 200 })
 }

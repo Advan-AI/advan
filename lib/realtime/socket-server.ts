@@ -12,6 +12,7 @@ import {
   PIPELINE_RUN_FINISHED_CHANNEL,
   CHAT_AGENT_REPLY_CHANNEL,
   CHAT_TRIAGE_PENDING_CHANNEL,
+  CUSTOMER_MESSAGE_CHANNEL,
   trackAgentOnline,
   trackAgentOffline,
 } from "@/lib/realtime/event-bus"
@@ -225,6 +226,7 @@ if (subscriber) {
     PIPELINE_RUN_FINISHED_CHANNEL,
     CHAT_AGENT_REPLY_CHANNEL,
     CHAT_TRIAGE_PENDING_CHANNEL,
+    CUSTOMER_MESSAGE_CHANNEL,
     (err) => {
     if (err) console.error("[Socket] Redis subscribe failed:", err.message)
     else console.log("[Socket] Subscribed to realtime event bus")
@@ -267,6 +269,15 @@ if (subscriber) {
         chatWidgetNs?.to(widgetRoom(msg.conversationId as string)).emit("triage:pending", {
           conversationId: msg.conversationId,
           priority: msg.priority,
+        })
+      } else if (channel === CUSTOMER_MESSAGE_CHANNEL && msg.conversationId) {
+        io.to(orgRoom).emit("customer:message", {
+          conversationId: msg.conversationId,
+          messageId: msg.messageId,
+          channel: msg.channel,
+          content: msg.content,
+          customerName: msg.customerName,
+          customerEmail: msg.customerEmail,
         })
       }
     } catch {

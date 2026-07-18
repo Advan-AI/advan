@@ -18,6 +18,8 @@ import {
   Eye,
   EyeOff,
   UserCheck,
+  Camera,
+  UploadCloud,
 } from "lucide-react"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
@@ -83,6 +85,40 @@ export default function SettingsPage() {
         chatAvailable: profileChatAvailable,
       })
     } catch (err) {}
+  }
+
+  // -- Avatar Upload --
+  const [avatarUploading, setAvatarUploading] = useState(false)
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setAvatarUploading(true)
+    setProfileError(null)
+    setProfileSuccess(false)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const res = await fetch("/api/user/avatar", {
+        method: "POST",
+        body: formData,
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to upload profile picture.")
+      }
+
+      setProfileSuccess(true)
+      await utils.user.getProfile.invalidate()
+    } catch (err: any) {
+      setProfileError(err.message || "Something went wrong uploading picture.")
+    } finally {
+      setAvatarUploading(false)
+    }
   }
 
   // -- Security Form --
@@ -337,18 +373,55 @@ export default function SettingsPage() {
             <div className="flex flex-col gap-6">
               <DashCard title="Personal Details" icon={<User className="w-4 h-4" />}>
                 <div className="flex flex-col sm:flex-row items-center gap-5 pb-6 border-b dash-border-soft mb-6">
-                  <div
-                    className="w-16 h-16 rounded-full flex items-center justify-center text-[22px] font-bold text-white shadow-md relative group shrink-0"
-                    style={{
-                      background: "linear-gradient(135deg,#8E80E5,#5C4DC1)",
-                    }}
-                  >
-                    {(profile?.name || "SJ")
-                      .split(" ")
-                      .map((p) => p[0])
-                      .slice(0, 2)
-                      .join("")
-                      .toUpperCase()}
+                  <div className="relative shrink-0">
+                    <label
+                      htmlFor="avatar-input"
+                      className={`w-16 h-16 rounded-full flex items-center justify-center text-[22px] font-bold text-white shadow-md relative group shrink-0 overflow-hidden cursor-pointer ${
+                        avatarUploading ? "opacity-75" : ""
+                      }`}
+                      style={{
+                        background: profile?.image ? "none" : "linear-gradient(135deg,#8E80E5,#5C4DC1)",
+                      }}
+                    >
+                      {profile?.image ? (
+                        <img
+                          src={profile.image}
+                          alt={profile?.name || "Avatar"}
+                          className="w-full h-full object-cover transition group-hover:scale-105"
+                        />
+                      ) : (
+                        (profile?.name || "SJ")
+                          .split(" ")
+                          .map((p) => p[0])
+                          .slice(0, 2)
+                          .join("")
+                          .toUpperCase()
+                      )}
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/45 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition duration-200">
+                        {avatarUploading ? (
+                          <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        ) : (
+                          <Camera className="w-5 h-5 text-white" />
+                        )}
+                        <span className="text-[8px] text-white/90 font-medium mt-0.5">Upload</span>
+                      </div>
+
+                      {avatarUploading && (
+                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                          <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        </div>
+                      )}
+                    </label>
+                    <input
+                      id="avatar-input"
+                      type="file"
+                      accept="image/*"
+                      disabled={avatarUploading}
+                      onChange={handleAvatarUpload}
+                      className="hidden"
+                    />
                   </div>
                   <div className="text-center sm:text-left min-w-0">
                     <h3 className="text-[15px] font-bold text-[var(--dash-ink)] truncate">{profile?.name}</h3>

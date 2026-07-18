@@ -27,6 +27,8 @@ export interface PipelineExecutionInput {
   workflowId?: string
   plan: ExecutionPlan
   trigger: { message: string }
+  ticketId?: string
+  conversationId?: string
 }
 
 export interface PipelineExecutionResult {
@@ -120,6 +122,8 @@ async function runNode(
         draftOutput: String((output as { draft?: string }).draft ?? ""),
         reason: "Pipeline confidence below threshold",
         temporalWorkflowId: workflowInfo().workflowId,
+        ticketId: input.ticketId,
+        conversationId: input.conversationId,
       })
       const resolved = await condition(() => getDecision() !== null, `${timeoutMin} minutes`)
       const decision = getDecision()

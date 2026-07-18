@@ -1,7 +1,7 @@
 import { ChatAnthropic } from "@langchain/anthropic"
 import { ChatOpenAI } from "@langchain/openai"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
-import { getLlmRuntimeConfig } from "@/lib/llm/config"
+import { getLlmRuntimeConfig, createAnthropicModel } from "@/lib/llm/config"
 import { createOllamaChatOpenAI } from "@/lib/llm/ollama-openai"
 import { getGroqOpenAIClient, getGroqChatModel } from "@/lib/llm/groq-client"
 
@@ -123,13 +123,9 @@ async function invokeLlm(content: string, conversationHistory?: string[]): Promi
   // Use a smaller/faster model for triage classification than for draft composition.
   // Anthropic: Haiku (cheapest, ~100ms) vs Sonnet used for drafting.
   // Ollama: ollamaTriageModel (defaults to "llama3.2") vs ollamaChatModel for drafts.
-  const model: ChatAnthropic | ChatOpenAI =
-    cfg.chatProvider === "anthropic" && cfg.anthropicApiKey
-      ? new ChatAnthropic({
-          modelName: "claude-3-haiku-20240307",
-          temperature: 0,
-          apiKey: cfg.anthropicApiKey,
-        })
+  const model =
+    cfg.chatProvider === "anthropic" || cfg.chatProvider === "vertex-anthropic"
+      ? createAnthropicModel(cfg, "claude-3-haiku-20240307", 0)
       : createOllamaChatOpenAI(cfg, cfg.ollamaTriageModel)
 
   try {

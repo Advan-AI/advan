@@ -72,7 +72,7 @@ Often needed by specific systems:
 - Temporal: `TEMPORAL_ADDRESS` and related TLS settings
 - Ollama embeddings/chat: `OLLAMA_BASE_URL`, embedding config in `lib/vector/embedding-config.ts`
 - Email: `RESEND_API_KEY` and email config in `lib/email/config.ts`
-- Resend inbound webhooks: `RESEND_WEBHOOK_SECRET`; route is `/api/webhooks/resend/inbound`
+- Resend inbound webhooks: `RESEND_WEBHOOK_SECRET`; canonical route is `/api/webhooks/resend/inbound`. Compatibility alias `/api/v1/webhooks/inbound/resend` calls the same `handleInboundRequest` handler for existing Resend webhook configs.
 - AWS S3: storage config used by `lib/storage/s3-client.ts`
 
 Security notes:
@@ -127,7 +127,7 @@ Use this map before broad exploration:
 - Auto-triage pipeline: `lib/queue/workers/copilot-triage-worker.ts` processes `copilotTriageQueue` jobs (one per inbound message). Runs classifier + draft generation in parallel (Promise.all), gates on isComplaint and 85% confidence threshold, uses `NoOpHitl` so the SuggestionService never double-enqueues. Auto-send path uses `lib/conversations/insert-agent-message.ts` shared helper. Enqueue happens in `lib/tickets/auto-intake.ts` after message insert (non-fatal try/catch). Tests: `lib/queue/workers/copilot-triage-worker.test.ts`, `lib/queue/workers/copilot-triage-worker.e2e.test.ts`. Dev: start with `DEV_ALL_SKIP_TRIAGE=1` to skip. Complaint HITL reason format: `[COMPLAINT] severity — reasoning` (the `[COMPLAINT]` prefix is required — test and code must match).
 - Tap Box/audit review: `app/dashboard/tap-box/page.tsx`, `lib/api/routers/analytics.ts`, `lib/copilot/decision-service.ts`, `auditLogs` and `hitlQueue`. Tap Box has three filters: Risk (auto-pass/review/blocked), Sources (sourced/unsourced KB citations), and Origin (auto-triage/manual). The Origin filter reads `auditLogs.metadata.source` which is set to `"auto_triage"` by the triage worker.
 - Customers: `app/dashboard/customers/page.tsx`, `lib/api/routers/customers.ts`.
-- Knowledge base: `app/dashboard/knowledge-base/page.tsx`, `lib/api/routers/knowledge.ts`, `lib/queue/workers/embedding-worker.ts`, `lib/vector/*`, `lib/storage/s3-client.ts`.
+- Knowledge base: `app/dashboard/knowledge-base/page.tsx`, `lib/api/routers/knowledge.ts`, `lib/queue/workers/embedding-worker.ts`, `lib/vector/*`, `lib/storage/s3-client.ts`. *Embedding-worker uses try-catch to mark status as 'failed' in DB if processing fails, and fetch uses a generous 30s timeout to support slower local Ollama setups.*
 - Analytics: `app/dashboard/analytics/page.tsx`, `lib/api/routers/analytics.ts`, `lib/analytics/org-overview.ts`, `lib/analytics/triage-breakdown.ts`. The analytics dashboard now includes an "Auto-triage resolution rate" card showing % auto-resolved vs escalated, broken out by channel and by complaint vs non-complaint type. Backed by `analytics.triageBreakdown` tRPC procedure which reads from `messages.metadata.triage` (stamped by the triage worker) joined with `conversations` for channel. Tests: `lib/analytics/triage-breakdown.test.ts`.
 - Workflow registry/control plane: `app/dashboard/workflows/page.tsx`, `lib/api/routers/orchestration.ts`, `lib/workflows/analyzer.ts`, `lib/workflows/lifecycle.ts`.
 - Visual pipeline builder: `app/dashboard/orchestration/page.tsx`, `components/pipeline/*`, `lib/pipeline/*`.
@@ -163,7 +163,9 @@ Use this map before broad exploration:
 - Conversations page socket connection: agents join the default namespace with `auth: { orgId }`. Subscribes to `visitor:typing:start`, `visitor:typing:stop`, `visitor:online`, `visitor:offline`. Displays a visitor-online badge in the thread header (chat channel only) and an animated typing-dots bubble in the message list.
 - Agent typing emit: when the agent types in the composer for a chat conversation, emits `agent:typing:start { conversationId }` / `agent:typing:stop` to the socket server (which relays to the widget visitor). Stops automatically before send.
 - Single code path confirmed: `conversations.addMessage` (tRPC) → `insertAgentMessage` (shared helper) → email queue OR `publishChatAgentReply` Redis pub/sub → socket server → visitor widget. Auto-triage worker uses the same `insertAgentMessage`. No separate path for manual vs auto replies.
+- Dashboard customer-message notifications: chat still emits `visitor:message` directly from the widget namespace; inbound email publishes `CUSTOMER_MESSAGE_CHANNEL` (`advan:customer:message`) via Redis after `resolveOrCreateIntake`, and `socket-server.ts` relays it to dashboard agents as `customer:message`. Requires `REDIS_URL` + socket server for cross-process email notification fan-out.
 - Conversation list triage badges (AI Replied / Complaint Review / Pending Review) now work for ALL channels: `messages.metadata` is included in the `conversations.list` query, `ConvItem.lastMessage.metadata` is typed, and `threadToConvItem` passes the metadata through. The `triage.*` and `isAutoTriaged` metadata fields are stamped by the copilot-triage-worker regardless of channel.
+- Copilot source citations: `PgVectorRetrieval` first uses Ollama + pgvector, then falls back to tenant-scoped keyword matching over recent KB documents when embeddings are missing/unavailable. This lets newly added docs (e.g. refund policy) appear in "Sources cited" even before the embedding worker completes.
 
 ## Chat Widget Embed
 

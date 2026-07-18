@@ -14,10 +14,18 @@ export const userRouter = router({
   getProfile: protectedProcedure.query(async ({ ctx }) => {
     const user = await db.query.users.findFirst({
       where: eq(users.id, ctx.user.id),
-      columns: { id: true, name: true, email: true, role: true, chatAvailable: true, createdAt: true },
+      columns: { id: true, name: true, email: true, role: true, chatAvailable: true, image: true, createdAt: true },
     })
     if (!user) {
       throw new TRPCError({ code: "NOT_FOUND", message: "User not found" })
+    }
+    if (user.image && user.image.startsWith("avatars/")) {
+      try {
+        const { getAvatarUrl } = await import("@/lib/storage/s3-client")
+        user.image = await getAvatarUrl(user.image)
+      } catch (err) {
+        console.error("Failed to sign avatar URL:", err)
+      }
     }
     return user
   }),
@@ -31,6 +39,7 @@ export const userRouter = router({
         name: z.string().min(1, "Name cannot be empty"),
         email: z.string().email("Invalid email address"),
         chatAvailable: z.boolean().optional(),
+        image: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -42,13 +51,19 @@ export const userRouter = router({
         throw new TRPCError({ code: "CONFLICT", message: "A user with this email address already exists" })
       }
 
+      const updateData: any = {
+        name: input.name.trim(),
+        email: emailLower,
+        chatAvailable: input.chatAvailable ?? true,
+      }
+
+      if (input.image !== undefined) {
+        updateData.image = input.image
+      }
+
       await db
         .update(users)
-        .set({
-          name: input.name.trim(),
-          email: emailLower,
-          chatAvailable: input.chatAvailable ?? true,
-        })
+        .set(updateData)
         .where(eq(users.id, ctx.user.id))
 
       return { success: true }

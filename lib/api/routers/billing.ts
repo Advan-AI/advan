@@ -160,6 +160,16 @@ export const billingRouter = router({
             line_items: lineItems,
             success_url: returnUrl,
             cancel_url: `${process.env.NEXT_URL || "http://localhost:3000"}/dashboard/billing`,
+            metadata: {
+              orgId,
+              planKey: input.planKey,
+            },
+            subscription_data: {
+              metadata: {
+                orgId,
+                planKey: input.planKey,
+              },
+            },
           })
           return { success: true, checkoutUrl: checkoutSession.url }
         } catch (checkoutErr: any) {

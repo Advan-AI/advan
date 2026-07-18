@@ -167,7 +167,7 @@ describe("startSubscription", () => {
       ],
       trial_period_days: 14,
       trial_settings: {
-        end_behavior: { missing_payment_method: "pause" },
+        end_behavior: { missing_payment_method: "create_invoice" },
       },
     })
 

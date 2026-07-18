@@ -59,9 +59,8 @@ async function main() {
   console.log(`Queueing ${rows.length} embedding job(s)…`)
   for (const row of rows) {
     await embeddingQueue.add(
-      `reindex-${row.id}`,
-      { knowledgeSourceId: row.id, orgId: row.orgId },
-      { jobId: `reindex-${row.id}` },
+      `reindex-${row.id}-${Date.now()}`,
+      { knowledgeSourceId: row.id, orgId: row.orgId }
     )
     console.log(`  ✓ ${row.title}`)
   }

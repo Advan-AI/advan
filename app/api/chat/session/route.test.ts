@@ -14,6 +14,12 @@ vi.mock("@/lib/db", () => ({
       widgetConfigs: {
         findFirst: vi.fn(),
       },
+      conversations: {
+        findFirst: vi.fn(),
+      },
+      messages: {
+        findMany: vi.fn(),
+      },
     },
   },
 }))
@@ -36,6 +42,8 @@ import { POST } from "./route"
 
 // Typed reference to the mock for per-test setup.
 const mockFindFirst = vi.mocked(db.query.widgetConfigs.findFirst)
+const mockConvFindFirst = vi.mocked(db.query.conversations.findFirst)
+const mockMessagesFindMany = vi.mocked(db.query.messages.findMany)
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -94,6 +102,8 @@ beforeEach(() => {
   delete process.env.UPSTASH_REDIS_REST_TOKEN
   mockLimit.mockReset().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: Date.now() + 1000 })
   mockFindFirst.mockReset()
+  mockConvFindFirst.mockReset()
+  mockMessagesFindMany.mockReset()
 })
 
 afterEach(() => {

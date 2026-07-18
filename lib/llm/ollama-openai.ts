@@ -17,7 +17,8 @@ export function createOllamaChatOpenAI(config: LlmRuntimeConfig, modelName: stri
     model: modelName,
     temperature: 0,
     apiKey: "ollama",
-    maxRetries: 2,
+    maxRetries: 0, // Fail fast to fallback to Groq instantly
+    timeout: 4000, // 4-second timeout limit for local CPU runs
     configuration: {
       baseURL: ollamaOpenAiCompatibleBaseUrl(config.ollamaBaseUrl),
     },

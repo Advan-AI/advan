@@ -77,7 +77,7 @@ export async function startSubscription(orgId: string, planKey: string): Promise
     trial_period_days: 14,
     trial_settings: {
       end_behavior: {
-        missing_payment_method: "pause", // pause if no card added by end of trial
+        missing_payment_method: "create_invoice", // pause is not allowed by Stripe for plans with metered prices
       },
     },
   })
@@ -137,22 +137,22 @@ export async function changePlan(orgId: string, newPlanKey: string): Promise<any
   // Fetch the subscription from Stripe to obtain item IDs
   const sub = await stripe.subscriptions.retrieve(org.stripeSubscriptionId)
 
-  // Map existing items to their replacement price IDs
+  // Map existing items to their replacement price IDs based on native Stripe usage_type or old plan fallback
   const itemsToUpdate = sub.items.data.map((item) => {
-    if (oldPlan && item.price.id === oldPlan.stripePriceId) {
+    const usageType = item.price.recurring?.usage_type
+    const isMetered = usageType === "metered" || (oldPlan && item.price.id === oldPlan.stripeMeteredPriceId)
+
+    if (isMetered) {
+      return {
+        id: item.id,
+        price: newPlan.stripeMeteredPriceId,
+      }
+    } else {
       return {
         id: item.id,
         price: newPlan.stripePriceId,
       }
     }
-    if (oldPlan && item.price.id === oldPlan.stripeMeteredPriceId) {
-      return {
-        id: item.id,
-        price: newPlan.stripeMeteredPriceId,
-      }
-    }
-    // Fallback/safeguard: if prices aren't resolved or match, let them stand
-    return { id: item.id }
   })
 
   // Update Stripe subscription with prorations enabled

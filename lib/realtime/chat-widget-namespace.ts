@@ -278,6 +278,11 @@ export function registerChatWidgetNamespace(
             conversationId: data.conversationId,
             content: data.content,
           })
+          // Broadcast to default namespace (all dashboard agents) in real-time
+          io.to(`org:${orgId}`).emit("visitor:message", {
+            conversationId: data.conversationId,
+            content: data.content,
+          })
         } catch (err) {
           console.error("[ChatWidget] visitor:message error:", (err as Error).message)
           socket.emit("error", { code: "MESSAGE_FAILED" })

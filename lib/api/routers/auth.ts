@@ -231,4 +231,53 @@ export const authRouter = router({
       }
       return org
     }),
+
+  getOnboardingStatus: protectedProcedure
+    .query(async ({ ctx }) => {
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, ctx.user.orgId),
+      })
+      if (!org) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Organization not found" })
+      }
+      const isPending = org.slug.startsWith("pending-") || org.name === "Pending Onboarding"
+      return {
+        isPending,
+        orgName: org.name === "Pending Onboarding" ? "" : org.name,
+        orgSlug: org.slug.startsWith("pending-") ? "" : org.slug,
+      }
+    }),
+
+  completeOnboarding: protectedProcedure
+    .input(
+      z.object({
+        orgName: z.string().min(2, "Workspace name must be at least 2 characters."),
+        orgSlug: z
+          .string()
+          .min(2, "Subdomain/slug must be at least 2 characters.")
+          .regex(/^[a-z0-9-]+$/, "Slug must only contain lowercase letters, numbers, and hyphens."),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const slugLower = input.orgSlug.toLowerCase().trim()
+      const nameTrimmed = input.orgName.trim()
+
+      const existingOrg = await db.query.organizations.findFirst({
+        where: eq(organizations.slug, slugLower),
+      })
+      if (existingOrg && existingOrg.id !== ctx.user.orgId) {
+        throw new TRPCError({ code: "CONFLICT", message: "This workspace subdomain is already taken." })
+      }
+
+      await db
+        .update(organizations)
+        .set({
+          name: nameTrimmed,
+          slug: slugLower,
+          inboundEmailAlias: `support+${slugLower}`,
+        })
+        .where(eq(organizations.id, ctx.user.orgId))
+
+      return { success: true }
+    }),
 })

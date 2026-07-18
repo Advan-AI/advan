@@ -32,6 +32,7 @@ export const PIPELINE_RUN_FINISHED_CHANNEL = "advan:pipeline:run:finished"
  */
 export const CHAT_AGENT_REPLY_CHANNEL = "advan:chat:agent_reply"
 export const CHAT_TRIAGE_PENDING_CHANNEL = "advan:chat:triage_pending"
+export const CUSTOMER_MESSAGE_CHANNEL = "advan:customer:message"
 
 type GlobalBus = typeof globalThis & { __ADVAN_REDIS_PUB__?: Redis | null }
 
@@ -109,6 +110,20 @@ export function publishChatTriagePending(
   data: { conversationId: string; priority: "complaint" | "low_confidence" }
 ): Promise<void> {
   return publish(CHAT_TRIAGE_PENDING_CHANNEL, { orgId, ...data })
+}
+
+export function publishCustomerMessage(
+  orgId: string,
+  data: {
+    conversationId: string
+    messageId: string
+    channel: "email" | "chat" | "voice" | "slack" | "portal"
+    content: string
+    customerName?: string | null
+    customerEmail?: string | null
+  }
+): Promise<void> {
+  return publish(CUSTOMER_MESSAGE_CHANNEL, { orgId, ...data })
 }
 
 /** Create a dedicated subscriber connection (caller owns its lifecycle). */

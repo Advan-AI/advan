@@ -24,10 +24,10 @@ function typesCompatible(sourceType: string | null, targetType: string | null) {
 export function validatePipelineConnection({
   nodes,
   edges,
-  source,
-  target,
-  sourceHandle,
-  targetHandle,
+  source: origSource,
+  target: origTarget,
+  sourceHandle: origSourceHandle,
+  targetHandle: origTargetHandle,
 }: {
   nodes: Pick<PipelineNode, "id" | "type">[]
   edges: Pick<PipelineEdge, "source" | "target" | "sourceHandle" | "targetHandle">[]
@@ -36,7 +36,27 @@ export function validatePipelineConnection({
   sourceHandle?: string | null
   targetHandle?: string | null
 }): ConnectionValidationResult {
-  if (!source || !target) return { ok: false, reason: "Connection needs both a source and a target node." }
+  if (!origSource || !origTarget) return { ok: false, reason: "Connection needs both a source and a target node." }
+
+  let source = origSource
+  let target = origTarget
+  let sourceHandle = origSourceHandle
+  let targetHandle = origTargetHandle
+
+  // Normalize inverted connections (e.g. from input to output port dragging in ConnectionMode.Loose)
+  const sNodeCheck = nodes.find((n) => n.id === source)
+  const tNodeCheck = nodes.find((n) => n.id === target)
+  if (sNodeCheck && tNodeCheck && nodeRegistry.has(sNodeCheck.type) && nodeRegistry.has(tNodeCheck.type)) {
+    const sReg = nodeRegistry.get(sNodeCheck.type)
+    const isSourceInput = sReg.inputs.some((p) => p.id === sourceHandle)
+    if (isSourceInput) {
+      source = origTarget
+      target = origSource
+      sourceHandle = origTargetHandle
+      targetHandle = origSourceHandle
+    }
+  }
+
   if (source === target) return { ok: false, reason: "A node cannot connect to itself." }
   if (wouldCreateCycle(edges, source, target)) {
     return { ok: false, reason: "That connection would create a cycle. Pipelines must stay acyclic." }

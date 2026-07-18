@@ -45,6 +45,7 @@ import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
 import { useCopilot } from "@/lib/copilot/store"
 import { useCopilotStream } from "@/lib/copilot/use-copilot-stream"
+import { useNotifications } from "@/lib/realtime/notifications-store"
 
 // ─── Socket URL (mirrors use-pipeline-realtime.ts) ────────────────────────────
 const DASH_SOCKET_URL =
@@ -237,6 +238,46 @@ export default function ConversationsPage() {
   const copilotCitations = useCopilot((s) => s.citations)
   const copilotError = useCopilot((s) => s.error)
 
+  const [displayedDraft, setDisplayedDraft] = useState("")
+
+  const isCopilotTyping =
+    copilotStatus === "streaming" ||
+    copilotStatus === "grounding" ||
+    (copilotDraft.length > 0 && displayedDraft.length < copilotDraft.length)
+
+  useEffect(() => {
+    if (!copilotDraft) {
+      setDisplayedDraft("")
+      return
+    }
+
+    let intervalId: NodeJS.Timeout | null = null
+
+    const typeCharacter = () => {
+      setDisplayedDraft((prev) => {
+        if (prev.length >= copilotDraft.length) {
+          if (intervalId) clearInterval(intervalId)
+          return prev
+        }
+        // Smoothly catch up to the copilot draft.
+        // For short additions, type 1 character. For large chunks (like from Groq),
+        // type a fraction of the remaining content so it completes quickly but smoothly.
+        const remaining = copilotDraft.length - prev.length
+        const step = remaining > 10 ? Math.ceil(remaining / 15) : 1
+        const nextLen = Math.min(prev.length + step, copilotDraft.length)
+        return copilotDraft.slice(0, nextLen)
+      })
+    }
+
+    if (displayedDraft.length < copilotDraft.length) {
+      intervalId = setInterval(typeCharacter, 15)
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [copilotDraft, displayedDraft.length])
+
   // ── Chat realtime: visitor presence + typing ───────────────────────────────
   /** Set of conversationIds whose visitor widget is currently connected. */
   const [visitorOnline, setVisitorOnline] = useState<Set<string>>(new Set())
@@ -246,6 +287,141 @@ export default function ConversationsPage() {
    */
   const [visitorTyping, setVisitorTyping] = useState<Record<string, boolean>>({})
 
+  // ── Amazon Connect Style Incoming Chime & Alert state ───────────────────
+  type IncomingAlertData = {
+    conversationId: string
+    content: string
+    customerName?: string | null
+    customerEmail?: string | null
+  }
+  const [activeAlert, setActiveAlert] = useState<IncomingAlertData | null>(null)
+
+  // ── Facebook Messenger-Style Floating Chat Tabs State ────────────────────
+  type ChatTabState = {
+    conversationId: string
+    customerName: string
+    customerEmail: string | null
+    isMinimized: boolean
+    unreadCount: number
+    initialMessage?: string
+  }
+  const [chatTabs, setChatTabs] = useState<ChatTabState[]>([])
+  const [flashTitle, setFlashTitle] = useState(false)
+
+  // Web Audio synth for the Facebook Messenger "bloop-pop" sound
+  const playSocialAlertSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const now = ctx.currentTime
+
+      // Crisp bubble-pop sound start
+      const osc1 = ctx.createOscillator()
+      const gain1 = ctx.createGain()
+      osc1.type = "sine"
+      osc1.frequency.setValueAtTime(320, now)
+      osc1.frequency.exponentialRampToValueAtTime(640, now + 0.08)
+
+      gain1.gain.setValueAtTime(0, now)
+      gain1.gain.linearRampToValueAtTime(0.12, now + 0.01)
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
+
+      osc1.connect(gain1)
+      gain1.connect(ctx.destination)
+      osc1.start(now)
+      osc1.stop(now + 0.12)
+
+      // Sparkling ping release
+      const osc2 = ctx.createOscillator()
+      const gain2 = ctx.createGain()
+      osc2.type = "sine"
+      osc2.frequency.setValueAtTime(880, now + 0.05)
+      osc2.frequency.exponentialRampToValueAtTime(1100, now + 0.12)
+
+      gain2.gain.setValueAtTime(0, now + 0.05)
+      gain2.gain.linearRampToValueAtTime(0.1, now + 0.07)
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.28)
+
+      osc2.connect(gain2)
+      gain2.connect(ctx.destination)
+      osc2.start(now + 0.05)
+      osc2.stop(now + 0.3)
+    } catch (e) {
+      console.error("Audio synth failed:", e)
+    }
+  }, [])
+
+  // Browser tab title flashing effect
+  useEffect(() => {
+    const originalTitle = "Advan Support Workspace"
+    let interval: NodeJS.Timeout | null = null
+    let state = false
+
+    if (flashTitle) {
+      interval = setInterval(() => {
+        document.title = state ? originalTitle : "💬 (1) New Message!"
+        state = !state
+      }, 1200)
+    } else {
+      document.title = originalTitle
+    }
+
+    const handleFocus = () => {
+      setFlashTitle(false)
+    }
+
+    window.addEventListener("focus", handleFocus)
+    return () => {
+      if (interval) clearInterval(interval)
+      window.removeEventListener("focus", handleFocus)
+      document.title = originalTitle
+    }
+  }, [flashTitle])
+
+  const playIncomingAlertChime = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const now = ctx.currentTime
+      
+      // Amazon Connect / Zendesk style warm, distinct dual-tone chime
+      const osc1 = ctx.createOscillator()
+      const gain1 = ctx.createGain()
+      osc1.type = "sine"
+      osc1.frequency.setValueAtTime(523.25, now) // C5
+      gain1.gain.setValueAtTime(0, now)
+      gain1.gain.linearRampToValueAtTime(0.18, now + 0.05)
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4)
+      osc1.connect(gain1)
+      gain1.connect(ctx.destination)
+      osc1.start(now)
+      osc1.stop(now + 0.45)
+
+      const osc2 = ctx.createOscillator()
+      const gain2 = ctx.createGain()
+      osc2.type = "sine"
+      osc2.frequency.setValueAtTime(659.25, now + 0.12) // E5
+      gain2.gain.setValueAtTime(0, now + 0.12)
+      gain2.gain.linearRampToValueAtTime(0.18, now + 0.17)
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.52)
+      osc2.connect(gain2)
+      gain2.connect(ctx.destination)
+      osc2.start(now + 0.12)
+      osc2.stop(now + 0.55)
+    } catch (e) {
+      console.error("Web Audio playback failed:", e)
+    }
+  }, [])
+
+  // Chime persistent looping effect (loops every 3.5s while alert is unanswered)
+  useEffect(() => {
+    if (activeAlert) {
+      playIncomingAlertChime()
+      const interval = setInterval(() => {
+        playIncomingAlertChime()
+      }, 3500)
+      return () => clearInterval(interval)
+    }
+  }, [activeAlert, playIncomingAlertChime])
+
   const dashSocketRef   = useRef<ReturnType<typeof SocketIO.connect> | null>(null)
   const agentTypingRef  = useRef(false)
   const agentTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -254,6 +430,9 @@ export default function ConversationsPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const deepLinkCreateAttempted = useRef(false)
   const utils = api.useUtils()
+
+  // Keep convList up-to-date in a ref to avoid stale closures in socket events without reconnections
+  const convListRef = useRef<ConvItem[]>([])
 
   // ── Agent socket connection ────────────────────────────────────────────────
   useEffect(() => {
@@ -303,17 +482,87 @@ export default function ConversationsPage() {
       })
     })
 
+    // Listen to real-time incoming visitor messages for Amazon Connect style alerts
+    sock.on("visitor:message", (d: { conversationId: string; content: string }) => {
+      void utils.conversations.list.invalidate()
+      
+      const match = convListRef.current.find(c => c.id === d.conversationId)
+      const customerName = match?.customerName || "Web Visitor"
+      const customerEmail = match?.customerEmail || null
+
+      setSelectedId((currSelected) => {
+        if (currSelected !== d.conversationId) {
+          playSocialAlertSound()
+          setFlashTitle(true)
+
+          setActiveAlert({
+            conversationId: d.conversationId,
+            content: d.content,
+            customerName,
+            customerEmail,
+          })
+
+          setChatTabs((prevTabs) => {
+            const exists = prevTabs.some((t) => t.conversationId === d.conversationId)
+            if (exists) {
+              return prevTabs.map((t) =>
+                t.conversationId === d.conversationId
+                  ? { ...t, unreadCount: t.unreadCount + 1 }
+                  : t
+              )
+            } else {
+              const filtered = prevTabs.filter((t) => t.conversationId !== d.conversationId)
+              const newTab: ChatTabState = {
+                conversationId: d.conversationId,
+                customerName,
+                customerEmail,
+                isMinimized: false,
+                unreadCount: 1,
+                initialMessage: d.content,
+              }
+              return [...filtered.slice(-2), newTab] // keep up to 3 tabs max
+            }
+          })
+        } else {
+          // Play a single soft tap/alert sound when the current chat gets a new message
+          try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+            const osc = ctx.createOscillator()
+            const gain = ctx.createGain()
+            osc.type = "sine"
+            osc.frequency.setValueAtTime(440, ctx.currentTime)
+            gain.gain.setValueAtTime(0, ctx.currentTime)
+            gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.03)
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2)
+            osc.connect(gain)
+            gain.connect(ctx.destination)
+            osc.start()
+            osc.stop(ctx.currentTime + 0.22)
+          } catch {}
+        }
+        return currSelected
+      })
+    })
+
     return () => {
       sock.disconnect()
       dashSocketRef.current = null
     }
-  }, [orgId])
+  }, [orgId, utils.conversations.list, playSocialAlertSound])
 
-  // Deep-link from tickets queue: /dashboard/conversations?ticketId=<uuid>
+  // Deep-link from tickets queue or direct conversation: /dashboard/conversations?ticketId=<uuid> or ?conversationId=<uuid>
   useEffect(() => {
-    const ticketId = new URLSearchParams(window.location.search).get("ticketId")
-    setTicketIdFromUrl(ticketId)
-    if (!ticketId) setDeepLinkResolved(true)
+    const params = new URLSearchParams(window.location.search)
+    const ticketId = params.get("ticketId")
+    const convId = params.get("conversationId")
+
+    if (convId) {
+      setSelectedId(convId)
+      setDeepLinkResolved(true)
+    } else {
+      setTicketIdFromUrl(ticketId)
+      if (!ticketId) setDeepLinkResolved(true)
+    }
   }, [])
 
   // ── Queries ────────────────────────────────────────────────────────────────
@@ -323,6 +572,10 @@ export default function ConversationsPage() {
     { refetchInterval: 15_000 }
   )
   const convList = (convListRaw ?? []) as ConvItem[]
+
+  useEffect(() => {
+    convListRef.current = convList
+  }, [convList])
 
   const {
     data: ticketConversation,
@@ -426,12 +679,17 @@ export default function ConversationsPage() {
   )
   const thread = (threadRaw ?? null) as ThreadData | null
 
-  // Reset copilot state when selected conversation changes
+  // Synchronize active conversation with the copilot store, persist existing drafts, and mark notifications as read
   useEffect(() => {
     stopCopilot()
-    useCopilot.getState().reset()
-    setShowCopilot(false)
+    useCopilot.getState().setActiveConversationId(activeId)
+    const currentDraft = useCopilot.getState().draft
+    setShowCopilot(!!currentDraft)
     setCopilotGuidance("")
+
+    if (activeId) {
+      useNotifications.getState().markAsRead(activeId)
+    }
   }, [activeId, stopCopilot])
 
   const handleGenerateCopilotDraft = () => {
@@ -463,11 +721,12 @@ export default function ConversationsPage() {
   const addMessage = api.conversations.addMessage.useMutation({
     onMutate: async (vars) => {
       setSendError(null)
-      if (!activeId) return
-      await utils.conversations.getById.cancel({ id: activeId })
-      const prev = utils.conversations.getById.getData({ id: activeId })
+      const targetId = vars.conversationId || activeId
+      if (!targetId) return
+      await utils.conversations.getById.cancel({ id: targetId })
+      const prev = utils.conversations.getById.getData({ id: targetId })
 
-      utils.conversations.getById.setData({ id: activeId }, (old) => {
+      utils.conversations.getById.setData({ id: targetId }, (old) => {
         if (!old) return old
         const optimistic = {
           id: `optimistic-${Date.now()}`,
@@ -475,6 +734,7 @@ export default function ConversationsPage() {
           role: vars.role as DbRole,
           content: vars.content,
           metadata: (
+            thread?.id === targetId &&
             thread?.channel === "email" &&
             vars.role === "agent" &&
             !vars.metadata?.isInternal
@@ -488,20 +748,21 @@ export default function ConversationsPage() {
           messages: [...(old as unknown as ThreadData).messages, optimistic],
         } as typeof old
       })
-      return { prev }
+      return { prev, targetId }
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev && activeId) {
-        utils.conversations.getById.setData({ id: activeId }, ctx.prev)
+      if (ctx?.prev && ctx?.targetId) {
+        utils.conversations.getById.setData({ id: ctx.targetId }, ctx.prev)
       }
       setSendError("Failed to send. Please try again.")
     },
-    onSettled: () => {
-      if (activeId) {
-        utils.conversations.getById.invalidate({ id: activeId })
-        utils.conversations.list.invalidate()
-        utils.analytics.overview.invalidate()
+    onSettled: (_data, _error, vars) => {
+      const targetId = vars.conversationId || activeId
+      if (targetId) {
+        utils.conversations.getById.invalidate({ id: targetId })
       }
+      utils.conversations.list.invalidate()
+      utils.analytics.overview.invalidate()
     },
   })
 
@@ -680,6 +941,116 @@ export default function ConversationsPage() {
 
   return (
     <div>
+      {/* Real-time Amazon Connect-style floating incoming call/chat alert banner */}
+      <AnimatePresence>
+        {activeAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -30, scale: 0.95 }}
+            transition={{ type: "spring", duration: 0.4, bounce: 0.15 }}
+            className="fixed top-6 right-6 z-[9999] w-full max-w-[420px] rounded-xl border border-rose-200/60 bg-[#FAF9F5]/95 p-4 shadow-[0_12px_36px_rgba(153,27,27,0.14)] backdrop-blur-md select-none outline-none ring-1 ring-rose-500/10"
+          >
+            {/* Soft background pulse glow */}
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-rose-50/20 to-orange-50/20 animate-pulse pointer-events-none" />
+
+            <div className="relative flex gap-4">
+              {/* Dynamic ringer icon/wave animation */}
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white shadow-md relative overflow-hidden">
+                <motion.div 
+                  animate={{ scale: [1, 1.4, 1] }} 
+                  transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+                  className="absolute inset-0 rounded-xl bg-rose-400 opacity-30" 
+                />
+                <MessageSquare className="w-5 h-5 relative z-10 animate-bounce" />
+              </div>
+
+              {/* Inbound content details */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold tracking-wider text-rose-600 uppercase">Incoming Live Chat</span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-ping" />
+                </div>
+                <h4 className="mt-0.5 text-sm font-bold text-slate-950 truncate">
+                  {activeAlert.customerName || "Web Visitor"}
+                </h4>
+                {activeAlert.customerEmail && (
+                  <p className="text-[11px] text-slate-500 truncate -mt-0.5">{activeAlert.customerEmail}</p>
+                )}
+                <p className="mt-1.5 text-xs text-slate-700 italic border-l-2 border-rose-200 pl-2 line-clamp-2">
+                  "{activeAlert.content}"
+                </p>
+              </div>
+
+              {/* Close/decline button */}
+              <button
+                onClick={() => setActiveAlert(null)}
+                className="h-6 w-6 shrink-0 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Actions (Accept vs Decline) */}
+            <div className="relative mt-4 flex items-center justify-end gap-2.5">
+              <button
+                onClick={() => setActiveAlert(null)}
+                className="h-8 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+              >
+                Decline
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedId(activeAlert.conversationId)
+                  setActiveAlert(null)
+                  // Highlight input field
+                  setTimeout(() => {
+                    textareaRef.current?.focus()
+                  }, 100)
+                }}
+                className="h-8 px-4 rounded-lg bg-gradient-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-xs font-bold text-white shadow-md shadow-rose-500/10 hover:shadow-rose-500/20 hover:-translate-y-px transition-all duration-200"
+              >
+                Accept Chat
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Facebook-style Docked Messenger Chat Tabs Container */}
+      <div className="fixed bottom-0 right-6 z-50 flex gap-4 items-end pointer-events-none">
+        <div className="flex gap-3 items-end pointer-events-auto">
+          <AnimatePresence>
+            {chatTabs.map((tab) => (
+              <FloatingChatTabWindow
+                key={tab.conversationId}
+                tab={tab}
+                onClose={() => {
+                  setChatTabs((prev) => prev.filter((t) => t.conversationId !== tab.conversationId))
+                }}
+                onToggleMinimize={() => {
+                  setChatTabs((prev) =>
+                    prev.map((t) =>
+                      t.conversationId === tab.conversationId
+                        ? { ...t, isMinimized: !t.isMinimized, unreadCount: 0 }
+                        : t
+                    )
+                  )
+                }}
+                onSelect={() => {
+                  setSelectedId(tab.conversationId)
+                  setChatTabs((prev) => prev.filter((t) => t.conversationId !== tab.conversationId))
+                  setTimeout(() => {
+                    textareaRef.current?.focus()
+                  }, 150)
+                }}
+                addMessageMutation={addMessage}
+              />
+            ))}
+          </AnimatePresence>
+        </div>
+      </div>
+
       {/* Keyframes for typing dot animation */}
       <style>{`
         @keyframes dash-bounce {
@@ -698,15 +1069,24 @@ export default function ConversationsPage() {
             </button>
             <button
               onClick={() => setShowCopilot((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-semibold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] hover:-translate-y-px transition"
+              className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-semibold text-white transition-all duration-300 ${
+                isCopilotTyping
+                  ? "bg-gradient-to-br from-[#8E80E5] to-[#6B5CD6] animate-pulse shadow-[0_0_15px_rgba(107,92,214,0.4)]"
+                  : "bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] hover:-translate-y-px"
+              }`}
             >
-              <Sparkles className="w-4 h-4" /> Ask Copilot
+              {isCopilotTyping ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              {isCopilotTyping ? "Copilot Drafting..." : "Ask Copilot"}
             </button>
           </>
         }
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[300px_1fr_290px] gap-4 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-[300px_1fr_290px] gap-4 xl:h-[calc(100vh-210px)] min-h-[550px] items-stretch">
         {/* ── Left: Conversation list ── */}
         <ConversationList
           convs={filteredConvs}
@@ -718,6 +1098,7 @@ export default function ConversationsPage() {
             setSelectedId(id)
             setTab("All")
           }}
+          className="xl:h-full flex flex-col"
         />
 
         {/* ── Center: Message thread ── */}
@@ -751,6 +1132,7 @@ export default function ConversationsPage() {
             </div>
           }
           padded={false}
+          className="xl:h-full flex flex-col"
         >
           {!activeId ? (
             <EmptySelect />
@@ -789,7 +1171,7 @@ export default function ConversationsPage() {
               </div>
 
               {/* Messages */}
-              <div className="px-4 py-4 flex flex-col gap-4 overflow-y-auto max-h-[420px] min-h-[200px]">
+              <div className="px-4 py-4 flex-1 flex flex-col gap-4 overflow-y-auto min-h-0">
                 {threadLoading ? (
                   <ThreadSkeleton />
                 ) : filteredMsgs.length === 0 ? (
@@ -894,15 +1276,15 @@ export default function ConversationsPage() {
                         <button
                           type="button"
                           onClick={handleGenerateCopilotDraft}
-                          disabled={copilotStatus === "streaming" || copilotStatus === "grounding"}
+                          disabled={isCopilotTyping}
                           className="h-9 px-3.5 rounded-lg text-[12px] font-bold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_4px_14px_-4px_rgba(107,92,214,0.5)] hover:opacity-95 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-60"
                         >
-                          {copilotStatus === "streaming" || copilotStatus === "grounding" ? (
+                          {isCopilotTyping ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
                             <Sparkles className="w-3.5 h-3.5" />
                           )}
-                          {copilotStatus === "streaming" || copilotStatus === "grounding"
+                          {isCopilotTyping
                             ? "Drafting..."
                             : copilotDraft
                             ? "Regenerate"
@@ -932,14 +1314,23 @@ export default function ConversationsPage() {
 
                           {copilotError ? (
                             <p className="text-[12px] text-[var(--dash-rose)]">{copilotError}</p>
-                          ) : (
+                          ) : displayedDraft ? (
                             <p className="text-[13px] leading-[1.65] text-[var(--dash-ink-soft)] whitespace-pre-wrap select-text">
-                              {copilotDraft}
-                              {(copilotStatus === "streaming" || copilotStatus === "grounding") && (
+                              {displayedDraft}
+                              {(copilotStatus === "streaming" || copilotStatus === "grounding" || displayedDraft.length < copilotDraft.length) && (
                                 <span className="inline-block w-1.5 h-3.5 bg-[var(--dash-accent)] ml-1 animate-pulse align-middle" />
                               )}
                             </p>
-                          )}
+                          ) : (copilotStatus === "streaming" || copilotStatus === "grounding") ? (
+                            <div className="flex flex-col gap-2 py-1">
+                              <div className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--dash-accent-deep)]/70 animate-pulse">
+                                <Sparkles className="w-3.5 h-3.5 animate-spin text-[var(--dash-accent)]" />
+                                Connecting to knowledge base...
+                              </div>
+                              <div className="h-3.5 bg-[var(--dash-accent-wash)]/40 rounded w-11/12 animate-pulse" />
+                              <div className="h-3.5 bg-[var(--dash-accent-wash)]/40 rounded w-8/12 animate-pulse" />
+                            </div>
+                          ) : null}
 
                           {/* Citations */}
                           {copilotCitations.length > 0 && (
@@ -960,7 +1351,7 @@ export default function ConversationsPage() {
                           )}
 
                           {/* Action Buttons */}
-                          {copilotStatus === "ready" && (
+                          {copilotStatus === "ready" && displayedDraft.length === copilotDraft.length && (
                             <div className="mt-4 flex items-center justify-end gap-2 border-t border-[var(--dash-accent)]/10 pt-3">
                               <button
                                 type="button"
@@ -1030,13 +1421,14 @@ export default function ConversationsPage() {
                 destinationEmail={thread?.customerEmail ?? null}
                 showCopilot={showCopilot}
                 onToggleCopilot={() => setShowCopilot((prev) => !prev)}
+                isCopilotTyping={isCopilotTyping}
               />
             </>
           )}
         </DashCard>
 
         {/* ── Right: Details ── */}
-        <DetailsPanel thread={thread ?? null} loading={!!activeId && threadLoading} />
+        <DetailsPanel thread={thread ?? null} loading={!!activeId && threadLoading} className="xl:h-full flex flex-col" />
       </div>
     </div>
   )
@@ -1074,6 +1466,7 @@ function ConversationList({
   search,
   onSearch,
   onSelect,
+  className,
 }: {
   convs: ConvItem[]
   activeId: string | null
@@ -1081,6 +1474,7 @@ function ConversationList({
   search: string
   onSearch: (s: string) => void
   onSelect: (id: string) => void
+  className?: string
 }) {
   return (
     <DashCard
@@ -1094,6 +1488,7 @@ function ConversationList({
         ) : undefined
       }
       padded={false}
+      className={className}
     >
       {/* Search bar */}
       <div className="px-3 py-2.5 border-b dash-border-soft">
@@ -1116,7 +1511,7 @@ function ConversationList({
         </div>
       </div>
 
-      <ul className="overflow-y-auto max-h-[600px]">
+      <ul className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
             <li
@@ -1497,6 +1892,7 @@ function Composer({
   destinationEmail,
   showCopilot = false,
   onToggleCopilot,
+  isCopilotTyping = false,
 }: {
   mode: ComposeMode
   onModeChange: (m: ComposeMode) => void
@@ -1512,6 +1908,7 @@ function Composer({
   destinationEmail: string | null
   showCopilot?: boolean
   onToggleCopilot?: () => void
+  isCopilotTyping?: boolean
 }) {
   const isNote = mode === "note"
   const showEmailDestination = channel === "email" && mode === "reply"
@@ -1608,14 +2005,20 @@ function Composer({
             <button
               type="button"
               onClick={onToggleCopilot}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
-                showCopilot
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all shrink-0 ${
+                isCopilotTyping
+                  ? "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)] animate-pulse border border-[var(--dash-accent)]/20 shadow-sm"
+                  : showCopilot
                   ? "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]"
                   : "text-[var(--dash-ink-faint)] hover:text-[var(--dash-accent)] hover:bg-[var(--dash-bg-deep)]"
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-[var(--dash-accent)] animate-pulse" />
-              Ask Copilot
+              {isCopilotTyping ? (
+                <Loader2 className="w-3.5 h-3.5 text-[var(--dash-accent)] animate-spin" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-[var(--dash-accent)] animate-pulse" />
+              )}
+              {isCopilotTyping ? "Copilot Drafting…" : "Ask Copilot"}
             </button>
           </>
         )}
@@ -1644,12 +2047,26 @@ function Composer({
   )
 }
 
-function ConfidenceRing({ value, provisional }: { value: number; provisional: boolean }) {
+function ConfidenceRing({
+  value,
+  provisional,
+  loading = false,
+}: {
+  value: number
+  provisional: boolean
+  loading?: boolean
+}) {
   const reduce = useReducedMotion()
   const R = 28
   const circ = 2 * Math.PI * R
   const offset = circ - (value / 100) * circ
-  const color = value >= 85 ? ["#76B98C", "#4A8A60"] : value >= 70 ? ["#E5A84F", "#B07A2A"] : ["#E58080", "#A04040"]
+  const color = loading
+    ? ["#6B5CD6", "#4E3FB6"]
+    : value >= 85
+    ? ["#76B98C", "#4A8A60"]
+    : value >= 70
+    ? ["#E5A84F", "#B07A2A"]
+    : ["#E58080", "#A04040"]
 
   return (
     <div
@@ -1658,9 +2075,19 @@ function ConfidenceRing({ value, provisional }: { value: number; provisional: bo
       aria-valuenow={value}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label={`AI confidence ${value} percent${provisional ? " provisional" : ""}`}
+      aria-label={
+        loading
+          ? "AI computing confidence score"
+          : `AI confidence ${value} percent${provisional ? " provisional" : ""}`
+      }
     >
-      <svg width={66} height={66} viewBox="0 0 66 66" className="-rotate-90">
+      <svg
+        width={66}
+        height={66}
+        viewBox="0 0 66 66"
+        className={`-rotate-90 ${loading ? "animate-spin" : ""}`}
+        style={{ transformOrigin: "center" }}
+      >
         <defs>
           <linearGradient id="copilot-ring-conversations" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor={color[0]} />
@@ -1669,16 +2096,35 @@ function ConfidenceRing({ value, provisional }: { value: number; provisional: bo
         </defs>
         <circle cx="33" cy="33" r={R} stroke="var(--dash-line)" strokeWidth="7" fill="none" />
         <motion.circle
-          cx="33" cy="33" r={R}
-          stroke="url(#copilot-ring-conversations)" strokeWidth="7" fill="none" strokeLinecap="round"
+          cx="33"
+          cy="33"
+          r={R}
+          stroke="url(#copilot-ring-conversations)"
+          strokeWidth="7"
+          fill="none"
+          strokeLinecap="round"
           strokeDasharray={circ}
           initial={false}
-          animate={{ strokeDashoffset: offset, opacity: provisional ? 0.55 : 1 }}
-          transition={reduce ? { duration: 0 } : { duration: 0.9, ease: [0.34, 1.2, 0.64, 1] }}
+          animate={
+            loading
+              ? { strokeDashoffset: circ * 0.3, opacity: 1 }
+              : { strokeDashoffset: offset, opacity: provisional ? 0.55 : 1 }
+          }
+          transition={
+            loading
+              ? { duration: 0 }
+              : reduce
+              ? { duration: 0 }
+              : { duration: 0.9, ease: [0.34, 1.2, 0.64, 1] }
+          }
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center text-[15px] font-extrabold text-[var(--dash-ink)]">
-        {value}%
+        {loading ? (
+          <Sparkles className="w-5 h-5 text-[var(--dash-accent)] animate-pulse" />
+        ) : (
+          `${value}%`
+        )}
       </div>
     </div>
   )
@@ -1689,9 +2135,11 @@ function ConfidenceRing({ value, provisional }: { value: number; provisional: bo
 function DetailsPanel({
   thread,
   loading,
+  className,
 }: {
   thread: ThreadData | null
   loading: boolean
+  className?: string
 }) {
   const confidence = useCopilot((s) => s.confidence)
   const stage = useCopilot((s) => s.confidenceStage)
@@ -1705,6 +2153,7 @@ function DetailsPanel({
       title="Details"
       icon={<Sparkles className="w-[18px] h-[18px]" />}
       padded={false}
+      className={className}
     >
       {loading ? (
         <div className="p-4 space-y-5">
@@ -1723,7 +2172,7 @@ function DetailsPanel({
           </p>
         </div>
       ) : (
-        <div className="p-4 space-y-5 overflow-y-auto max-h-[700px]">
+        <div className="p-4 space-y-5 flex-1 overflow-y-auto min-h-0">
           {/* Customer section */}
           {thread.customerName && (
             <section>
@@ -1842,10 +2291,25 @@ function DetailsPanel({
             <SectionLabel>AI Reasoning</SectionLabel>
             
             <div className="flex items-center gap-3.5 mb-4 rounded-xl border dash-border bg-[var(--dash-bg-deep)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-              <ConfidenceRing value={confidence ?? 0} provisional={stage === "retrieval"} />
+              <ConfidenceRing
+                value={confidence ?? 0}
+                provisional={stage === "retrieval"}
+                loading={status === "streaming" || status === "grounding"}
+              />
               <div className="text-[12px] leading-[1.6] text-[var(--dash-ink-soft)] min-w-0 flex-1">
-                {confidence === null ? (
-                  status === "streaming" ? "Analyzing sources…" : "Generate a draft to see reasoning."
+                {status === "streaming" || status === "grounding" ? (
+                  <div className="space-y-1">
+                    <div className="font-bold text-[var(--dash-accent-deep)] flex items-center gap-1.5 animate-pulse">
+                      Analyzing...
+                    </div>
+                    <div className="text-[11px] text-[var(--dash-ink-faint)] leading-relaxed">
+                      Computing safety policies & citations live as draft generates
+                    </div>
+                  </div>
+                ) : confidence === null ? (
+                  <div className="text-[11px] text-[var(--dash-ink-faint)]">
+                    Generate a draft to see reasoning.
+                  </div>
                 ) : (
                   <>
                     <div className={`font-bold ${
@@ -1955,7 +2419,7 @@ function DetailRow({
 
 function EmptySelect() {
   return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+    <div className="flex-1 flex flex-col items-center justify-center py-20 px-6 text-center">
       <div className="w-14 h-14 rounded-2xl bg-[var(--dash-accent-wash)] flex items-center justify-center mb-4">
         <MessageSquare className="w-7 h-7 text-[var(--dash-accent)]" />
       </div>
@@ -2000,5 +2464,196 @@ function TypingDot({ delay }: { delay: string }) {
         animationDelay: delay,
       }}
     />
+  )
+}
+
+// ─── Facebook Messenger-Style Floating Chat Tab Window ───────────────────────
+
+interface FloatingChatTabProps {
+  tab: ChatTabState
+  onClose: () => void
+  onToggleMinimize: () => void
+  onSelect: () => void
+  addMessageMutation: any
+}
+
+function FloatingChatTabWindow({
+  tab,
+  onClose,
+  onToggleMinimize,
+  onSelect,
+  addMessageMutation,
+}: FloatingChatTabProps) {
+  const [msgText, setMsgText] = useState("")
+  const chatBottomRef = useRef<HTMLDivElement>(null)
+
+  // 1. Fetch this specific thread's full data (history) in real-time
+  const { data: threadData, isLoading } = api.conversations.getById.useQuery(
+    { id: tab.conversationId },
+    {
+      refetchInterval: 8000,
+      refetchIntervalInBackground: false,
+      staleTime: 5000,
+    }
+  )
+
+  const messages = threadData?.messages ?? []
+
+  // Auto-scroll when new messages arrive
+  useEffect(() => {
+    if (!tab.isMinimized) {
+      chatBottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [messages.length, tab.isMinimized])
+
+  const handleSend = async () => {
+    if (!msgText.trim() || addMessageMutation.isPending) return
+    const content = msgText.trim()
+    setMsgText("")
+    
+    await addMessageMutation.mutateAsync({
+      conversationId: tab.conversationId,
+      role: "agent",
+      content,
+    })
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 100, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 100, scale: 0.9 }}
+      className={`w-[290px] bg-[#FAF9F5] border-2 border-[#E7DFD0] rounded-t-xl shadow-2xl flex flex-col transition-all duration-200 ${
+        tab.isMinimized ? "h-[42px]" : "h-[390px]"
+      }`}
+    >
+      {/* Header */}
+      <div
+        onClick={onToggleMinimize}
+        className={`px-3 py-2 flex items-center justify-between cursor-pointer border-b border-[#E7DFD0] ${
+          tab.unreadCount > 0 ? "bg-[#6B5CD6] text-white animate-pulse" : "bg-[#F3EFE3] text-[var(--dash-ink)] hover:bg-[#eae4d3]"
+        } rounded-t-[10px] select-none transition-colors duration-150`}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          {/* Active indicator */}
+          <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+          <span className="font-bold text-[12.5px] truncate max-w-[140px]">
+            {tab.customerName || "Customer"}
+          </span>
+          {tab.unreadCount > 0 && (
+            <span className="bg-red-500 text-white text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-full animate-bounce">
+              {tab.unreadCount}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+          {/* Maximize / Open full view in Inbox */}
+          <button
+            onClick={onSelect}
+            title="Open in Full Inbox View"
+            className="p-1 hover:bg-black/5 rounded transition text-xs"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+          </button>
+          
+          {/* Minimize toggle */}
+          <button
+            onClick={onToggleMinimize}
+            className="p-1 hover:bg-black/5 rounded transition font-bold text-xs"
+          >
+            {tab.isMinimized ? "+" : "−"}
+          </button>
+
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-black/5 rounded transition font-bold text-xs"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      {/* Body & Input - only shown if expanded */}
+      {!tab.isMinimized && (
+        <div className="flex-1 flex flex-col min-h-0 bg-[#FAF9F5]">
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto px-2.5 py-3 flex flex-col gap-2 min-h-0 custom-scrollbar">
+            {isLoading ? (
+              <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="w-5 h-5 text-[var(--dash-accent)] animate-spin" />
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="text-center py-6 text-[11px] text-[var(--dash-ink-faint)]">
+                No message history.
+              </div>
+            ) : (
+              messages.map((m) => {
+                const isCustomer = m.role === "user"
+                return (
+                  <div
+                    key={m.id}
+                    className={`flex flex-col max-w-[85%] ${
+                      isCustomer ? "self-start items-start" : "self-end items-end"
+                    }`}
+                  >
+                    <div
+                      className={`rounded-xl px-2.5 py-2 text-[11.5px] leading-relaxed whitespace-pre-wrap ${
+                        isCustomer
+                          ? "bg-white border border-[#E7DFD0] text-[var(--dash-ink)] rounded-tl-sm shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+                          : m.metadata?.isInternal
+                          ? "bg-[#FEFCE8] border border-[#FDE68A] text-[#713F12] rounded-tr-sm"
+                          : "bg-[#6B5CD6] text-white rounded-tr-sm shadow-[0_1px_3px_rgba(107,92,214,0.15)]"
+                      }`}
+                    >
+                      {m.content}
+                    </div>
+                    <span className="text-[9px] text-[var(--dash-ink-faint)] mt-0.5 px-0.5">
+                      {new Date(m.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                )
+              })
+            )}
+            <div ref={chatBottomRef} />
+          </div>
+
+          {/* Quick Input Bar */}
+          <div className="p-2 border-t border-[#E7DFD0] bg-[#F3EFE3]/50 flex gap-1.5 items-end">
+            <textarea
+              value={msgText}
+              onChange={(e) => setMsgText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => {
+                // Clear unread count when focusing input
+                tab.unreadCount = 0
+              }}
+              placeholder="Reply directly..."
+              rows={1}
+              className="flex-1 bg-white border border-[#E7DFD0] rounded-lg px-2.5 py-1.5 text-[11.5px] focus:outline-none focus:border-[#6B5CD6] resize-none max-h-16 text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] custom-scrollbar"
+              style={{ minHeight: "32px" }}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!msgText.trim() || addMessageMutation.isPending}
+              className="h-8 w-8 shrink-0 bg-[#6B5CD6] hover:bg-[#4E3FB6] disabled:opacity-40 text-white rounded-lg flex items-center justify-center transition shadow-sm"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+    </motion.div>
   )
 }

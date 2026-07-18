@@ -7,6 +7,7 @@ declare module "next-auth" {
       id: string
       email: string
       name?: string | null
+      image?: string | null
       orgId: string
       role: "admin" | "member" | "viewer"
     }

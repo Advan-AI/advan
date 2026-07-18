@@ -115,3 +115,69 @@ describe("authRouter signup path", () => {
     ).rejects.toThrow(/email address is already registered/)
   })
 })
+
+describe("authRouter onboarding path", () => {
+  it("successfully detects and completes onboarding for pending Google users", async () => {
+    // 1. Setup pending org + user
+    const pendingSlug = `pending-test-${Date.now()}`
+    const [org] = await db
+      .insert(organizations)
+      .values({
+        name: "Pending Onboarding",
+        slug: pendingSlug,
+      })
+      .returning()
+
+    const [user] = await db
+      .insert(users)
+      .values({
+        orgId: org.id,
+        email: `pending-${Date.now()}@google-test.local`,
+        name: "Google Pending Admin",
+        role: "admin",
+        emailVerified: true,
+      })
+      .returning()
+
+    // 2. Create authenticated caller
+    const caller = appRouter.createCaller({
+      user: {
+        id: user.id,
+        orgId: org.id,
+        role: "admin",
+      },
+    })
+
+    // 3. Verify getOnboardingStatus returns isPending: true
+    const statusBefore = await caller.auth.getOnboardingStatus()
+    expect(statusBefore.isPending).toBe(true)
+    expect(statusBefore.orgName).toBe("")
+    expect(statusBefore.orgSlug).toBe("")
+
+    // 4. Complete onboarding
+    const finalSlug = `completed-onb-${Date.now()}`
+    const completeResult = await caller.auth.completeOnboarding({
+      orgName: "Successfully Completed Workspace",
+      orgSlug: finalSlug,
+    })
+    expect(completeResult.success).toBe(true)
+
+    // 5. Verify organization was updated in database
+    const updatedOrg = await db.query.organizations.findFirst({
+      where: eq(organizations.id, org.id),
+    })
+    expect(updatedOrg?.name).toBe("Successfully Completed Workspace")
+    expect(updatedOrg?.slug).toBe(finalSlug)
+
+    // 6. Verify getOnboardingStatus now returns isPending: false
+    const statusAfter = await caller.auth.getOnboardingStatus()
+    expect(statusAfter.isPending).toBe(false)
+    expect(statusAfter.orgName).toBe("Successfully Completed Workspace")
+    expect(statusAfter.orgSlug).toBe(finalSlug)
+
+    // Clean up
+    await db.delete(users).where(eq(users.id, user.id))
+    await db.delete(organizations).where(eq(organizations.id, org.id))
+  })
+})
+

@@ -13,6 +13,7 @@ import {
   BookOpen,
   CheckCircle2,
   Clock,
+  GitBranch,
   Loader2,
   MessageSquare,
   Pencil,
@@ -53,11 +54,14 @@ type MessageMeta = {
     error?: string
   }
   triage?: {
-    decision: "auto_send" | "hitl_complaint" | "hitl_low_confidence"
+    decision: "auto_send" | "hitl_complaint" | "hitl_low_confidence" | "orchestrated"
     confidence: number
     isComplaint: boolean
-    auditLogId: string
+    auditLogId?: string
     classifiedAt: string
+    activeWorkflowId?: string
+    temporalWorkflowId?: string
+    temporalRunId?: string
   }
 }
 
@@ -195,6 +199,43 @@ export default function CopilotPage() {
   const latencyMs = useCopilot((s) => s.latencyMs)
   const suggestionId = useCopilot((s) => s.suggestionId)
 
+  const [displayedDraft, setDisplayedDraft] = useState("")
+
+  const isCopilotTyping =
+    status === "streaming" ||
+    status === "grounding" ||
+    (draft.length > 0 && displayedDraft.length < draft.length)
+
+  useEffect(() => {
+    if (!draft) {
+      setDisplayedDraft("")
+      return
+    }
+
+    let intervalId: NodeJS.Timeout | null = null
+
+    const typeCharacter = () => {
+      setDisplayedDraft((prev) => {
+        if (prev.length >= draft.length) {
+          if (intervalId) clearInterval(intervalId)
+          return prev
+        }
+        const remaining = draft.length - prev.length
+        const step = remaining > 10 ? Math.ceil(remaining / 15) : 1
+        const nextLen = Math.min(prev.length + step, draft.length)
+        return draft.slice(0, nextLen)
+      })
+    }
+
+    if (displayedDraft.length < draft.length) {
+      intervalId = setInterval(typeCharacter, 15)
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [draft, displayedDraft.length])
+
   const listQuery = api.conversations.listWorkbench.useQuery(
     { limit: PAGE_SIZE, offset: 0, archived: showArchived },
     { refetchInterval: 20_000, refetchIntervalInBackground: false }
@@ -242,6 +283,11 @@ export default function CopilotPage() {
     if (!activeId && conversations[0]?.id) setActiveId(conversations[0].id)
   }, [activeId, conversations])
 
+  // Synchronize active conversation with the copilot store and persist existing drafts
+  useEffect(() => {
+    useCopilot.getState().setActiveConversationId(activeId)
+  }, [activeId])
+
   useEffect(() => {
     if (!activeId || !activeConversation) return
     if (activeConversation.unreadCount <= 0) return
@@ -279,7 +325,6 @@ export default function CopilotPage() {
   async function selectConversation(id: string) {
     requestSeq.current += 1
     stop()
-    useCopilot.getState().reset()
     setActiveId(id)
   }
 
@@ -492,11 +537,11 @@ export default function CopilotPage() {
           </div>
           <button
             onClick={runStream}
-            disabled={status === "streaming" || !thread || !coPilotOn}
+            disabled={isCopilotTyping || !thread || !coPilotOn}
             className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(107,92,214,0.75)] transition hover:-translate-y-px hover:shadow-[0_14px_30px_-14px_rgba(107,92,214,0.85)] disabled:translate-y-0 disabled:opacity-55"
           >
-            {status === "streaming" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {status === "streaming" ? "Generating" : "Generate Draft"}
+            {isCopilotTyping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {isCopilotTyping ? "Generating..." : "Generate Draft"}
           </button>
         </div>
       </div>
@@ -521,7 +566,13 @@ export default function CopilotPage() {
             </div>
           }
         >
-          <DraftPanel error={error} coPilotOn={coPilotOn} hasThread={Boolean(thread)} />
+          <DraftPanel
+            error={error}
+            coPilotOn={coPilotOn}
+            hasThread={Boolean(thread)}
+            displayedDraft={displayedDraft}
+            isCopilotTyping={isCopilotTyping}
+          />
 
           {hitl.required && (
             <div className="mt-2 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--dash-amber-wash)] border border-[#E5D2A8] text-[12px] text-[#5a3e1c]">
@@ -796,6 +847,32 @@ function ConversationContext({
                   {activeConversation.lastMessage?.content ?? "No messages yet."}
                 </p>
               </div>
+
+              {activeConversation.lastMessage?.metadata?.triage?.decision === "orchestrated" && (
+                <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/50 p-3.5 dark:border-violet-950/20 dark:bg-violet-950/5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[11.5px] font-bold text-violet-700 dark:text-violet-400">
+                      <Sparkles className="h-3.5 w-3.5 animate-pulse text-violet-500" />
+                      Visual Orchestration Live
+                    </span>
+                    <span className="rounded-md bg-violet-100/70 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                      Temporal Active
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600 dark:text-slate-400">
+                    This message triggered your active automation graph. You can inspect the real-time execution step-by-step.
+                  </p>
+                  <div className="mt-3">
+                    <Link
+                      href={`/dashboard/orchestration?workflowId=${activeConversation.lastMessage.metadata.triage.activeWorkflowId ?? ""}&runId=${activeConversation.lastMessage.metadata.triage.temporalWorkflowId ?? ""}`}
+                      className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-3 text-[11.5px] font-bold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.98]"
+                    >
+                      <GitBranch className="h-3.5 w-3.5" />
+                      View Live Execution Trace
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="h-full flex items-center justify-center text-center">
@@ -827,13 +904,14 @@ function ConversationContext({
  */
 function getTriageStatus(lastMessage: ThreadMessage | null): {
   label: string
-  tone: "rose" | "amber" | "sage" | "muted"
+  tone: "rose" | "amber" | "sage" | "muted" | "blue"
 } | null {
   if (!lastMessage) return null
   const meta = lastMessage.metadata
   if (lastMessage.role === "user" && meta?.triage) {
     if (meta.triage.decision === "hitl_complaint") return { label: "Complaint — Review", tone: "rose" }
     if (meta.triage.decision === "hitl_low_confidence") return { label: "Pending Review", tone: "amber" }
+    if (meta.triage.decision === "orchestrated") return { label: "Orchestrated", tone: "blue" }
   }
   if (lastMessage.role === "agent") {
     if (meta?.isAutoTriaged) return { label: "AI Auto-Replied", tone: "sage" }
@@ -870,11 +948,22 @@ function Stat({ label, value, icon }: { label: string; value: string; icon?: Rea
   )
 }
 
-function DraftPanel({ error, coPilotOn, hasThread }: { error: string | null; coPilotOn: boolean; hasThread: boolean }) {
+function DraftPanel({
+  error,
+  coPilotOn,
+  hasThread,
+  displayedDraft,
+  isCopilotTyping,
+}: {
+  error: string | null
+  coPilotOn: boolean
+  hasThread: boolean
+  displayedDraft: string
+  isCopilotTyping: boolean
+}) {
   const draft = useCopilot((s) => s.draft)
   const status = useCopilot((s) => s.status)
   const confidence = useCopilot((s) => s.confidence)
-  const streaming = status === "streaming"
 
   const confColor =
     confidence === null ? "text-[var(--dash-ink-faint)]"
@@ -902,16 +991,16 @@ function DraftPanel({ error, coPilotOn, hasThread }: { error: string | null; coP
       <div
         className="rounded-xl border dash-border bg-[linear-gradient(180deg,#fff,rgba(252,250,244,0.82))] p-4 min-h-[156px] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
         aria-live="polite"
-        aria-busy={streaming}
+        aria-busy={isCopilotTyping}
       >
         {error ? (
           <p className="text-[13px] text-[var(--dash-rose)]">{error}</p>
-        ) : streaming && !draft ? (
+        ) : isCopilotTyping && !displayedDraft ? (
           <TypingDots />
-        ) : draft ? (
+        ) : displayedDraft ? (
           <p className="text-[13.5px] leading-[1.68] text-[var(--dash-ink)] whitespace-pre-line">
-            {draft}
-            {streaming && (
+            {displayedDraft}
+            {isCopilotTyping && (
               <span className="inline-block w-[8px] h-[14px] bg-[var(--dash-accent)] ml-0.5 align-middle animate-pulse" />
             )}
           </p>

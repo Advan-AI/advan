@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import {
   ReactFlow,
   Background,
@@ -24,12 +24,38 @@ const NODE_DRAG_MIME = "application/advan-node-type"
 
 export function PipelineCanvas() {
   const wrapper = useRef<HTMLDivElement>(null)
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, setCenter } = useReactFlow()
 
   const nodes = usePipelineStore((s) => s.nodes)
   const baseEdges = usePipelineStore((s) => s.edges)
   const selectedEdgeId = usePipelineStore((s) => s.selectedEdgeId)
   const nodeStatuses = usePipelineExecution((s) => s.nodeStatuses)
+
+  // Auto-focus & Center viewport on running nodes to naturally guide the user visually as the pipeline executes
+  useEffect(() => {
+    const runningNodeIds = Object.keys(nodeStatuses).filter((id) => nodeStatuses[id] === "running")
+    if (runningNodeIds.length > 0) {
+      let totalX = 0
+      let totalY = 0
+      let count = 0
+
+      for (const id of runningNodeIds) {
+        const node = nodes.find((n) => n.id === id)
+        if (node && node.position) {
+          totalX += node.position.x + 84
+          totalY += node.position.y + 32
+          count++
+        }
+      }
+
+      if (count > 0) {
+        setCenter(totalX / count, totalY / count, {
+          zoom: runningNodeIds.length > 1 ? 0.95 : 1.1,
+          duration: 800,
+        })
+      }
+    }
+  }, [nodeStatuses, nodes, setCenter])
 
   const edges = useMemo(
     () =>
@@ -65,6 +91,24 @@ export function PipelineCanvas() {
   const select = usePipelineStore((s) => s.select)
   const selectEdge = usePipelineStore((s) => s.selectEdge)
   const reconnectEdgeToNode = usePipelineStore((s) => s.reconnectEdgeToNode)
+
+  const edgeReconnectSuccessful = useRef(true)
+
+  const onReconnectStart = useCallback(() => {
+    edgeReconnectSuccessful.current = false
+  }, [])
+
+  const handleReconnect = useCallback((oldEdge: any, newConnection: any) => {
+    edgeReconnectSuccessful.current = true
+    onReconnect(oldEdge, newConnection)
+  }, [onReconnect])
+
+  const onReconnectEnd = useCallback((_: any, edge: any) => {
+    if (!edgeReconnectSuccessful.current) {
+      usePipelineStore.getState().deleteEdge(edge.id)
+    }
+    edgeReconnectSuccessful.current = true
+  }, [])
 
   // Every registered type renders via the single registry-driven view (Open-Closed).
   const nodeTypes = useMemo<NodeTypes>(
@@ -107,15 +151,13 @@ export function PipelineCanvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onReconnect={onReconnect}
+        onReconnect={handleReconnect}
+        onReconnectStart={onReconnectStart}
+        onReconnectEnd={onReconnectEnd}
         edgesReconnectable
         reconnectRadius={18}
         isValidConnection={isValidConnection}
         onNodeClick={(_, n) => {
-          if (selectedEdgeId) {
-            reconnectEdgeToNode(selectedEdgeId, "target", n.id)
-            return
-          }
           select(n.id)
         }}
         onEdgeClick={(_, edge) => selectEdge(edge.id)}

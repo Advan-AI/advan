@@ -15,6 +15,7 @@
     "test:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@anthropic-ai/vertex-sdk": "^0.19.0",
     "@aws-sdk/client-s3": "^3.1057.0",
     "@aws-sdk/s3-request-presigner": "^3.1057.0",
     "@hookform/resolvers": "^3.9.1",

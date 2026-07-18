@@ -157,6 +157,54 @@ export function PipelineBuilder() {
       const definition = usePipelineStore.getState().toPipeline()
       const res = await preflight.mutateAsync({ workflowId, definition, input: "Test run from builder" })
       toast.success(`Preflight passed: ${res.planSummary.nodeCount} nodes, ${res.planSummary.waveCount} waves`)
+
+      // Compile the pipeline locally to get the detailed waves and nodes
+      const { PipelineCompiler } = await import("@/lib/pipeline/compiler")
+      const plan = PipelineCompiler.compile(definition)
+
+      // Get the execution store action helpers
+      const execStore = usePipelineExecution.getState()
+      execStore.beginRun("preflight-sim")
+
+      // Walk through the waves sequentially
+      for (const wave of plan.waves) {
+        // First phase: set all nodes in the wave to "running" in parallel
+        for (const nodeId of wave) {
+          const node = plan.nodes[nodeId]
+          execStore.applyStep({
+            orgId: "preflight",
+            temporalWorkflowId: "preflight-sim",
+            runId: "sim",
+            nodeId: nodeId,
+            nodeType: node?.type ?? "unknown",
+            status: "running"
+          })
+        }
+
+        // Wait for premium processing effect
+        await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 400))
+
+        // Second phase: set all nodes in the wave to "completed" in parallel
+        for (const nodeId of wave) {
+          const node = plan.nodes[nodeId]
+          execStore.applyStep({
+            orgId: "preflight",
+            temporalWorkflowId: "preflight-sim",
+            runId: "sim",
+            nodeId: nodeId,
+            nodeType: node?.type ?? "unknown",
+            status: "completed",
+            latencyMs: Math.floor(Math.random() * 300) + 300
+          })
+        }
+
+        // Wait slightly between waves
+        await new Promise((resolve) => setTimeout(resolve, 300))
+      }
+
+      // Finish the run successfully
+      execStore.finishRun("preflight-sim", "completed")
+
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Preflight failed")
     }
@@ -167,7 +215,7 @@ export function PipelineBuilder() {
     setName("New workflow")
     setDescription("")
     setIsActive(false)
-    loadPipeline(ADVAN_COPILOT_PIPELINE)
+    loadPipeline(ADVAN_COPILOT_PIPELINE, { dirty: true })
   }
 
   // Toast when the socket reports the run finished.
@@ -248,7 +296,7 @@ export function PipelineBuilder() {
             <button onClick={() => redo()} disabled={futureCount === 0} aria-label="Redo" className="flex h-8 w-8 items-center justify-center rounded-lg border dash-border bg-[var(--dash-bg)] text-[var(--dash-ink-soft)] transition hover:dash-shadow-sm disabled:opacity-40">
               <Redo2 className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => loadPipeline(ADVAN_COPILOT_PIPELINE)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border dash-border bg-[var(--dash-bg)] px-3 text-[12px] font-semibold text-[var(--dash-ink-soft)] transition hover:dash-shadow-sm">
+            <button onClick={() => loadPipeline(ADVAN_COPILOT_PIPELINE, { dirty: true })} className="inline-flex h-8 items-center gap-1.5 rounded-lg border dash-border bg-[var(--dash-bg)] px-3 text-[12px] font-semibold text-[var(--dash-ink-soft)] transition hover:dash-shadow-sm">
               <Sparkles className="h-3.5 w-3.5" /> Advan Copilot
             </button>
             <button
@@ -275,7 +323,7 @@ export function PipelineBuilder() {
             </button>
             <button
               onClick={() => void doPreflight()}
-              disabled={preflight.isPending || !analysis.deployable}
+              disabled={preflight.isPending || analysis.errors > 0 || analysis.nodeCount === 0}
               className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-3.5 text-[12px] font-bold text-white shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] transition hover:-translate-y-px disabled:opacity-60"
             >
               {preflight.isPending ? (

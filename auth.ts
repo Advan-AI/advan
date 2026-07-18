@@ -4,8 +4,9 @@ import Google from "next-auth/providers/google"
 import { compare } from "bcryptjs"
 import { eq } from "drizzle-orm"
 import { z } from "zod"
+import crypto from "crypto"
 import { db } from "@/lib/db"
-import { users } from "@/lib/db/schema"
+import { users, organizations, plans, widgetConfigs } from "@/lib/db/schema"
 import { authConfig } from "./auth.config"
 
 /** Trailing slash on NEXTAUTH_URL/AUTH_URL breaks OAuth redirect_uri vs Google Console. */
@@ -99,14 +100,60 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: eq(users.email, user.email.toLowerCase()),
         })
 
-        if (!existing) {
-          // Google users must be provisioned by an admin (or via seed)
-          return "/signin?error=AccountNotFound"
+        let finalUser = existing
+
+        if (!finalUser) {
+          // Auto-provision a new user with a pending organization!
+          const activePlan = await db.query.plans.findFirst({
+            where: eq(plans.active, true),
+          })
+          const planId = activePlan?.id ?? null
+
+          const randomSuffix = crypto.randomBytes(4).toString("hex")
+          const pendingSlug = `pending-${randomSuffix}`
+
+          const result = await db.transaction(async (tx) => {
+            const [newOrg] = await tx.insert(organizations).values({
+              name: "Pending Onboarding",
+              slug: pendingSlug,
+              inboundEmailAlias: `support+${pendingSlug}`,
+              planId,
+            }).returning()
+
+            const [newUser] = await tx.insert(users).values({
+              orgId: newOrg.id,
+              email: user.email!.toLowerCase(),
+              name: user.name ?? "New User",
+              role: "admin",
+              chatAvailable: true,
+              emailVerified: true,
+              image: user.image ?? null,
+            }).returning()
+
+            await tx.insert(widgetConfigs).values({
+              orgId: newOrg.id,
+              widgetKey: `wk_live_${crypto.randomBytes(16).toString("hex")}`,
+              allowedOrigins: [],
+              preChatFormEnabled: true,
+            })
+
+            return { newUser }
+          })
+
+          finalUser = result.newUser
         }
 
-        ;(user as any).orgId = existing.orgId
-        ;(user as any).role = existing.role
-        user.id = existing.id
+        // Sync Google image to database if not set
+        if (user.image && !finalUser.image) {
+          await db
+            .update(users)
+            .set({ image: user.image })
+            .where(eq(users.id, finalUser.id))
+        }
+
+        ;(user as any).orgId = finalUser.orgId
+        ;(user as any).role = finalUser.role
+        user.id = finalUser.id
       }
       return true
     },
@@ -116,6 +163,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id as string
         token.orgId = (user as any).orgId
         token.role = (user as any).role
+        token.image = user.image
       }
       return token
     },
@@ -124,6 +172,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.id = token.id
       session.user.orgId = token.orgId
       session.user.role = token.role
+      session.user.image = token.image as string | null
       return session
     },
   },

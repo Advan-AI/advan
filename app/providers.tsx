@@ -21,7 +21,10 @@ function getBaseUrl() {
  */
 export function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const needsSession = pathname?.startsWith("/dashboard") || pathname?.startsWith("/signin")
+  const needsSession =
+    pathname?.startsWith("/dashboard") ||
+    pathname?.startsWith("/signin") ||
+    pathname?.startsWith("/onboarding")
   const [queryClient] = useState(
     () =>
       new QueryClient({

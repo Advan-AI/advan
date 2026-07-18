@@ -221,6 +221,48 @@ ensure_ollama() {
   echo "[dev-all] WARN: Ollama did not become healthy within 45s — check $LOG_DIR/ollama.log"
 }
 
+temporal_is_healthy() {
+  local addr="${TEMPORAL_ADDRESS:-127.0.0.1:7233}"
+  local host="${addr%%:*}"
+  local port="${addr##*:}"
+  # Check if gRPC port is active using bash socket access
+  timeout 1 bash -c "cat < /dev/null > /dev/tcp/${host}/${port}" >/dev/null 2>&1
+}
+
+ensure_temporal_server() {
+  if [[ "${DEV_ALL_SKIP_TEMPORAL:-}" == "1" ]]; then
+    echo "[dev-all] Skipping Temporal Server (DEV_ALL_SKIP_TEMPORAL=1)"
+    return 0
+  fi
+
+  if temporal_is_healthy; then
+    echo "[dev-all] Temporal dev server already running at ${TEMPORAL_ADDRESS:-127.0.0.1:7233}"
+    return 0
+  fi
+
+  if command -v temporal >/dev/null 2>&1; then
+    echo "[dev-all] Temporal dev server not running — attempting startup…"
+    echo "[dev-all] Starting temporal server start-dev → $LOG_DIR/temporal-server.log"
+    local addr="${TEMPORAL_ADDRESS:-127.0.0.1:7233}"
+    local host="${addr%%:*}"
+    local port="${addr##*:}"
+    temporal server start-dev --ip "$host" --port "$port" >>"$LOG_DIR/temporal-server.log" 2>&1 &
+    PIDS+=("$!")
+    
+    local i
+    for i in $(seq 1 15); do
+      if temporal_is_healthy; then
+        echo "[dev-all] Temporal dev server ready"
+        return 0
+      fi
+      sleep 1
+    done
+    echo "[dev-all] WARN: Temporal dev server did not become healthy within 15s — check $LOG_DIR/temporal-server.log"
+  else
+    echo "[dev-all] WARN: 'temporal' CLI command not found. Please install Temporal CLI or start a cluster."
+  fi
+}
+
 cleanup() {
   local pid
   echo ""
@@ -255,6 +297,7 @@ start_bg() {
 
 ensure_redis
 ensure_ollama
+ensure_temporal_server
 
 if [[ "${DEV_ALL_SKIP_EMBEDDING:-}" != "1" ]]; then
   if [[ -z "${REDIS_URL:-}" ]]; then

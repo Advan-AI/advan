@@ -31,10 +31,27 @@ export async function POST(req: NextRequest) {
 
   // 1. Checkout session completed -> start subscription
   if (event.type === "checkout.session.completed") {
-    const session = event.data.object as { metadata?: { orgId?: string }; subscription?: string }
+    const session = event.data.object as { metadata?: { orgId?: string; planKey?: string }; subscription?: string }
     const orgId = session.metadata?.orgId
+    const planKey = session.metadata?.planKey || "starter"
     if (orgId) {
-      await startSubscription(orgId, "starter")
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, orgId),
+      })
+      if (org && !org.stripeSubscriptionId) {
+        await startSubscription(orgId, planKey)
+      } else if (org && session.subscription) {
+        const plan = await db.query.plans.findFirst({
+          where: eq(plans.key, planKey),
+        })
+        await db.update(organizations)
+          .set({
+            stripeSubscriptionId: session.subscription,
+            planId: plan?.id || org.planId,
+            subscriptionStatus: "active",
+          })
+          .where(eq(organizations.id, orgId))
+      }
     }
   }
 
@@ -52,14 +69,18 @@ export async function POST(req: NextRequest) {
     })
 
     if (org) {
-      const stripePriceId = sub.items?.data?.[0]?.price?.id
       let planId = org.planId
-      if (stripePriceId) {
-        const plan = await db.query.plans.findFirst({
-          where: eq(plans.stripePriceId, stripePriceId),
-        })
-        if (plan) {
-          planId = plan.id
+      const priceIds = sub.items?.data?.map((item: any) => item.price?.id).filter(Boolean) || []
+      
+      if (priceIds.length > 0) {
+        for (const priceId of priceIds) {
+          const plan = await db.query.plans.findFirst({
+            where: (p, { eq, or }) => or(eq(p.stripePriceId, priceId), eq(p.stripeMeteredPriceId, priceId)),
+          })
+          if (plan) {
+            planId = plan.id
+            break
+          }
         }
       }
 

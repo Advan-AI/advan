@@ -2,8 +2,8 @@ import { z } from "zod"
 import { TRPCError } from "@trpc/server"
 import { router, protectedProcedure, activeSubscriptionProcedure } from "../trpc"
 import { db } from "@/lib/db"
-import { workflows } from "@/lib/db/schema"
-import { eq, and, desc, sql } from "drizzle-orm"
+import { workflows, pipelineRuns, pipelineRunSteps } from "@/lib/db/schema"
+import { eq, and, desc, asc, sql } from "drizzle-orm"
 import { WorkflowExecutor } from "@/lib/orchestration/executor"
 import { PipelineSchema, type Pipeline } from "@/lib/pipeline/schema"
 import { PipelineCompiler } from "@/lib/pipeline/compiler"
@@ -207,7 +207,7 @@ export const orchestrationRouter = router({
       z.object({
         workflowId: z.string().uuid().optional(),
         definition: PipelineSchema,
-        input: z.string().min(1),
+        input: z.string().optional().default("Test preflight run"),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -243,6 +243,67 @@ export const orchestrationRouter = router({
           nodeCount: Object.keys(plan.nodes).length,
           edgeCount: Object.values(plan.incoming).reduce((sum, edges) => sum + edges.length, 0),
         },
+      }
+    }),
+
+  getPipelineRuns: protectedProcedure
+    .input(
+      z.object({
+        workflowId: z.string().uuid().optional(),
+      }).optional()
+    )
+    .query(async ({ input, ctx }) => {
+      const conditions = [eq(pipelineRuns.orgId, ctx.user.orgId)]
+      if (input?.workflowId) {
+        conditions.push(eq(pipelineRuns.workflowId, input.workflowId))
+      }
+
+      const runs = await db
+        .select({
+          id: pipelineRuns.id,
+          workflowId: pipelineRuns.workflowId,
+          temporalWorkflowId: pipelineRuns.temporalWorkflowId,
+          temporalRunId: pipelineRuns.temporalRunId,
+          status: pipelineRuns.status,
+          startedAt: pipelineRuns.startedAt,
+          finishedAt: pipelineRuns.finishedAt,
+          workflowName: workflows.name,
+        })
+        .from(pipelineRuns)
+        .leftJoin(workflows, eq(pipelineRuns.workflowId, workflows.id))
+        .where(and(...conditions))
+        .orderBy(desc(pipelineRuns.startedAt))
+        .limit(20)
+
+      return runs
+    }),
+
+  getPipelineRunDetails: protectedProcedure
+    .input(z.object({ runId: z.string().uuid() }))
+    .query(async ({ input, ctx }) => {
+      const run = await db.query.pipelineRuns.findFirst({
+        where: and(eq(pipelineRuns.id, input.runId), eq(pipelineRuns.orgId, ctx.user.orgId)),
+      })
+
+      if (!run) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline run not found" })
+      }
+
+      const steps = await db.query.pipelineRunSteps.findMany({
+        where: eq(pipelineRunSteps.runId, run.id),
+        orderBy: [asc(pipelineRunSteps.createdAt)],
+      })
+
+      const workflow = run.workflowId
+        ? await db.query.workflows.findFirst({
+            where: and(eq(workflows.id, run.workflowId), eq(workflows.orgId, ctx.user.orgId)),
+          })
+        : null
+
+      return {
+        run,
+        steps,
+        workflow,
       }
     }),
 })

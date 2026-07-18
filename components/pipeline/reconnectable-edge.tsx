@@ -40,8 +40,8 @@ export function ReconnectableEdge(props: EdgeProps) {
     sourceX,
     sourceY,
     sourcePosition,
-    targetX,
-    targetY,
+    targetX: dragPoint ? dragPoint.x : targetX,
+    targetY: dragPoint ? dragPoint.y : targetY,
     targetPosition,
   })
 

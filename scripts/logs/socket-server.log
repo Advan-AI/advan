@@ -487,3 +487,214 @@ Node.js v24.14.0
 [Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (kRiWgpd3HUomm40YAAAC)
 [Socket] Agent disconnected (kRiWgpd3HUomm40YAAAC)
 [Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (l3dfZZDPespA-hsyAAAF)
+[Socket] Agent disconnected (l3dfZZDPespA-hsyAAAF)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (3ysjSZr-wu2-p4VOAAAI)
+[Socket] Agent disconnected (3ysjSZr-wu2-p4VOAAAI)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (P7VRBQVAxHFg1isMAAAK)
+[Socket] Agent disconnected (P7VRBQVAxHFg1isMAAAK)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (Qgv8E2eHV74Uk8DeAAAC)
+[Socket] Agent disconnected (Qgv8E2eHV74Uk8DeAAAC)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (T7899nLui-ZMMC0KAAAF)
+[Socket] Agent disconnected (T7899nLui-ZMMC0KAAAF)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (0XmsSRbcaXYNEmZkAAAI)
+[Socket] Agent disconnected (0XmsSRbcaXYNEmZkAAAI)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (ugM7joGam29BZ8WaAAAL)
+[Socket] Agent disconnected (ugM7joGam29BZ8WaAAAL)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (5Jv2An67uLD2L2CbAAAO)
+[Socket] Agent disconnected (5Jv2An67uLD2L2CbAAAO)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (ZUsiQlGlMOhlmfPLAAAR)
+[Socket] Agent disconnected (ZUsiQlGlMOhlmfPLAAAR)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (fRz8zXWdfqevYYqxAAAU)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (ldChL9HBQJJ3kwuNAAAB)
+[Socket] Agent disconnected (ldChL9HBQJJ3kwuNAAAB)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (ghwy9K2_k55mK_g6AAAE)
+[Socket] Agent disconnected (ghwy9K2_k55mK_g6AAAE)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (Y6yXMR5nJ2HYEiHoAAAH)
+[Socket] Agent disconnected (Y6yXMR5nJ2HYEiHoAAAH)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (tzAX7vWqLLrKn4ydAAAK)
+[Socket] Agent disconnected (tzAX7vWqLLrKn4ydAAAK)
+[ChatWidget] Visitor disconnected (3rsVZKw1bU6kL-VlAAAM) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 session:b478ba07-bb2e-44f1-b9cf-c6f0c13a0017
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (b3-5SJaaqrvdwTznAAAR)
+[Socket] Agent disconnected (b3-5SJaaqrvdwTznAAAR)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (A5qrjZSo3-taL7ikAAAU)
+[Socket] Agent disconnected (A5qrjZSo3-taL7ikAAAU)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (B4OpJ_Ra0VgWF6P-AAAX)
+[Socket] Agent disconnected (B4OpJ_Ra0VgWF6P-AAAX)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (bsktPTZ5VgS94IHWAAAa)
+[Socket] Agent disconnected (bsktPTZ5VgS94IHWAAAa)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (NZyqnGcOrck9oUwjAAAd)
+[Socket] Agent disconnected (NZyqnGcOrck9oUwjAAAd)
+[ChatWidget] Visitor disconnected (Yb9VzxjyK0FBQwYTAAAO) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 session:b478ba07-bb2e-44f1-b9cf-c6f0c13a0017
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (r76wXFtEH9vps3s5AAAC)
+[Socket] Agent disconnected (r76wXFtEH9vps3s5AAAC)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (atoTgMB2XOeqq4vgAAAF)
+[Socket] Agent disconnected (atoTgMB2XOeqq4vgAAAF)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (uocldBJHQxryXgdgAAAE)
+[ChatWidget] Visitor disconnected (KaK_SHLYO34j-lxOAAAB) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:b478ba07-bb2e-44f1-b9cf-c6f0c13a0017
+[Socket] Agent disconnected (uocldBJHQxryXgdgAAAE)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (xRlVBNhdMufmMQoyAAAJ)
+[Socket] Agent disconnected (xRlVBNhdMufmMQoyAAAJ)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (Be0tRBGWcp7BJRMAAAAM)
+[Socket] Agent disconnected (Be0tRBGWcp7BJRMAAAAM)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (3XJMLM4R2kuVaC3gAAAP)
+[Socket] Agent disconnected (3XJMLM4R2kuVaC3gAAAP)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (d1YNdLfN13RvEtevAAAS)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (6CdOmuopnL5DLxuWAAAD)
+[ChatWidget] Visitor disconnected (toMbRRWEiNrwE5l5AAAB) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:b478ba07-bb2e-44f1-b9cf-c6f0c13a0017
+[Socket] Agent disconnected (6CdOmuopnL5DLxuWAAAD)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (xtbtuCkkbmtYA0_SAAAI)
+[Socket] Agent disconnected (xtbtuCkkbmtYA0_SAAAI)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (Euv2U79t8oFpN4r9AAAL)
+[Socket] Agent disconnected (Euv2U79t8oFpN4r9AAAL)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (rsEgOlv_PZEDR2wXAAAO)
+[Socket] Agent disconnected (rsEgOlv_PZEDR2wXAAAO)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (n93VN0F3PCylMSMuAAAR)
+[Socket] Agent disconnected (n93VN0F3PCylMSMuAAAR)
+[ChatWidget] Visitor disconnected (d0_6Bqruxewt658qAAAF) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:b478ba07-bb2e-44f1-b9cf-c6f0c13a0017
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (ZBwUkijGh0otMkh7AAAV)
+[Socket] Agent disconnected (ZBwUkijGh0otMkh7AAAV)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (9pt5P4sHHhdJ4K6TAAAZ)
+[Socket] Agent disconnected (9pt5P4sHHhdJ4K6TAAAZ)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (6r2eicdRaSvvXFEdAAAc)
+[Socket] Agent disconnected (6r2eicdRaSvvXFEdAAAc)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (9K7I4K6UkpoosG_6AAAf)
+[Socket] Agent disconnected (9K7I4K6UkpoosG_6AAAf)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (tuSUx0RlG5hL1VLOAAAi)
+[Socket] Agent disconnected (tuSUx0RlG5hL1VLOAAAi)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (em-QpRFu7528AbLYAAAl)
+[Socket] Agent disconnected (em-QpRFu7528AbLYAAAl)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (8GvJTmmXwUXlVM3VAAAo)
+[Socket] Agent disconnected (8GvJTmmXwUXlVM3VAAAo)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[ChatWidget] Visitor disconnected (SbvG501EZHbTr-qoAAAB) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:b478ba07-bb2e-44f1-b9cf-c6f0c13a0017
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (tSOkmd8PAigVbQeUAAAG)
+[Socket] Agent disconnected (tSOkmd8PAigVbQeUAAAG)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (LvpGb0wmWAgTPF6QAAAJ)
+[Socket] Agent disconnected (LvpGb0wmWAgTPF6QAAAJ)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (gHiOHc2tlxx3qoKJAAAM)
+[Socket] Agent disconnected (gHiOHc2tlxx3qoKJAAAM)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (QVbAi-KVDfnmYb1aAAAP)
+[Socket] Agent disconnected (QVbAi-KVDfnmYb1aAAAP)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (0f9j65fEMG6oIlpZAAAS)
+[Socket] Agent disconnected (0f9j65fEMG6oIlpZAAAS)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (fxWEXZlpEiWADRBrAAAV)
+[Socket] Agent disconnected (fxWEXZlpEiWADRBrAAAV)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (q36y0pTcRPZ0pQWHAAAX)
+[Socket] Agent disconnected (q36y0pTcRPZ0pQWHAAAX)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (G_stxy8Mq-Zu_zc0AAAZ)
+[Socket] Agent disconnected (G_stxy8Mq-Zu_zc0AAAZ)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (1uHQO71HFZpnGLQsAAAb)
+[Socket] Agent disconnected (1uHQO71HFZpnGLQsAAAb)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (zj85JSN4A2__bylCAAAd)
+[Socket] Agent disconnected (zj85JSN4A2__bylCAAAd)
+[ChatWidget] Visitor disconnected (MmShS6YzyOetj8YjAAAD) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:b478ba07-bb2e-44f1-b9cf-c6f0c13a0017
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (9DVzLjS1Bum_baKOAAAh)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (EpBVQgW5atnORtlkAAAk)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (29BEYdcy0-fB5EAoAAAB)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (RaT4nvS8yTq7weyJAAAE)
+[Socket] Agent disconnected (RaT4nvS8yTq7weyJAAAE)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (2aRNRilLGV50k8rUAAAH)
+[Socket] Agent disconnected (2aRNRilLGV50k8rUAAAH)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (5cEPB72TyTF4KVVrAAAK)
+[Socket] Agent disconnected (5cEPB72TyTF4KVVrAAAK)
+[Socket] Agent disconnected (29BEYdcy0-fB5EAoAAAB)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (bHqa2ZRgYePX4awfAAAB)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (3XAJYZuTWDOGEuQwAAAE)
+[Socket] Agent disconnected (3XAJYZuTWDOGEuQwAAAE)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (8Snu-ZD9e44Iv-iOAAAB)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (Ot0WNpBL3YX4hR_BAAAE)
+[Socket] Agent disconnected (Ot0WNpBL3YX4hR_BAAAE)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (pxada57-SsLjxJ3PAAAH)
+[Socket] Agent disconnected (pxada57-SsLjxJ3PAAAH)
+[Socket] Agent disconnected (8Snu-ZD9e44Iv-iOAAAB)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (BEMkZDGCKfvFL1NpAAAJ)
+[Socket] Agent disconnected (BEMkZDGCKfvFL1NpAAAJ)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (usEsclEkF3uL6IfsAAAL)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (CqGAHhw06bDCRP8mAAAO)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (iaF9HZJLhO4H9kzzAAAB)
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (SEnw32zVuCupD81xAAAD)
+[Socket] Agent disconnected (iaF9HZJLhO4H9kzzAAAB)
+[Socket] Agent disconnected (SEnw32zVuCupD81xAAAD)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (dCIPiz0454EF86B2AAAF)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (BmX9dufymSRqYcEuAAAI)
+[Socket] Agent disconnected (BmX9dufymSRqYcEuAAAI)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (vz_56LPLBnpFJlH_AAAN)
+[Socket] Agent disconnected (dCIPiz0454EF86B2AAAF)
+[Socket] Agent disconnected (vz_56LPLBnpFJlH_AAAN)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (x4YIbSETM4KDY6XaAAAP)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (iyzs5FVZ9hnMbJZpAAAS)
+[Socket] Agent disconnected (iyzs5FVZ9hnMbJZpAAAS)
+[Socket] Agent disconnected (x4YIbSETM4KDY6XaAAAP)
+[ChatWidget] Visitor disconnected (s9bgaV0LpQ87pehYAAAK) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:b478ba07-bb2e-44f1-b9cf-c6f0c13a0017
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (i7EvoYt7guPZoFjSAAAU)
+[Socket] Agent disconnected (i7EvoYt7guPZoFjSAAAU)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (LR-N0LZxyZv5rdlpAAAW)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (W2FmpWC1roYiVaDBAAAb)
+[Socket] Agent disconnected (W2FmpWC1roYiVaDBAAAb)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (GV7-oVL_RI_tB2-CAAAe)
+[Socket] Agent disconnected (GV7-oVL_RI_tB2-CAAAe)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (O-6OSmibItOLO-rsAAAh)
+[Socket] Agent disconnected (O-6OSmibItOLO-rsAAAh)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (qn5nN9MXuSLotdFsAAAk)
+[Socket] Agent disconnected (qn5nN9MXuSLotdFsAAAk)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (M3VvwWquhZ34ToB_AAAn)
+[Socket] Agent disconnected (M3VvwWquhZ34ToB_AAAn)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (aY174YLbTjkiJBw7AAAq)
+[Socket] Agent disconnected (aY174YLbTjkiJBw7AAAq)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (U4y57-4jGs1LClY9AAAt)
+[Socket] Agent disconnected (LR-N0LZxyZv5rdlpAAAW)
+[Socket] Agent disconnected (U4y57-4jGs1LClY9AAAt)
+[ChatWidget] Visitor disconnected (0sOQg2lZW2yncHqZAAAY) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:b478ba07-bb2e-44f1-b9cf-c6f0c13a0017
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (cSC0EqXmUoMgEIz0AAAB)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (KnUH7r7GZsUrqB8hAAAG)
+[ChatWidget] Visitor disconnected (YAtObWLYyksLcnptAAAD) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:63ab1033-79c7-4b63-b036-13fe904f1045
+[ChatWidget] Visitor disconnected (oDtYkTG3VTmUKLf1AAAI) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:4fbd403a-6987-4a54-86ac-f9669588c87d
+[ChatWidget] Visitor disconnected (7IZYacpM72yYnLaWAAAK) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:63ab1033-79c7-4b63-b036-13fe904f1045
+[Socket] Agent disconnected (KnUH7r7GZsUrqB8hAAAG)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (2l3TkGgnQJ3n8gbtAAAO)
+[Socket] Agent disconnected (2l3TkGgnQJ3n8gbtAAAO)
+[ChatWidget] Visitor disconnected (RA1Od8SODUPnk2fpAAAM) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:63ab1033-79c7-4b63-b036-13fe904f1045
+[Socket] Agent disconnected (cSC0EqXmUoMgEIz0AAAB)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (UKGp7bC_bdzKMO_XAAAQ)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (qYvZ_jdXE_c1o1hPAAAT)
+[ChatWidget] Visitor disconnected (iqNH7ayxxpoifKBPAAAV) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:dde2072d-00a6-457d-aa53-9ffa7f0f0f4c
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (bHco1SKeDkhbTSPGAAAC)
+[Socket] Agent connected to org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 (19_pqtFBqtN9W70qAAAF)

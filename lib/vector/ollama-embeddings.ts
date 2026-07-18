@@ -16,6 +16,7 @@ export async function embedWithOllama(text: string): Promise<number[]> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, prompt: text }),
+    signal: AbortSignal.timeout(30000), // Fail embedding after 30 seconds
   })
 
   if (!res.ok) {

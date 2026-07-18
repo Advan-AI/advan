@@ -17,10 +17,12 @@
 
   // ── Bootstrap ──────────────────────────────────────────────────────────────
   var currentScript = document.currentScript;
-  var widgetKey = currentScript && currentScript.getAttribute('data-key');
+  var widgetKey = (currentScript && currentScript.getAttribute('data-key')) ||
+                  (window.AdvanChat && window.AdvanChat.key);
+
   if (!widgetKey) {
     if (typeof console !== 'undefined') {
-      console.warn('[Advan Widget] Missing data-key attribute on <script> tag.');
+      console.warn('[Advan Widget] Missing widget key. Please specify it via data-key on the <script> tag or window.AdvanChat.key.');
     }
     return;
   }

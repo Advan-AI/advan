@@ -2,11 +2,15 @@ export type ConversationalReplyMode = "clarify" | "warn" | "escalate_ack" | "com
 
 export function buildClarifyingReply(userMessage: string): string {
   if (/\b(refund|return|cancel|exchange|credit)\b/i.test(userMessage)) {
+    // If they already provided digits/numbers, don't ask for order number again
+    if (/\b(order|id|#)?\s*\d+\b/i.test(userMessage)) {
+      return "How can I help you with your refund or order?"
+    }
     return "Sure — what's your order number and what went wrong?"
   }
 
   if (/^(hi|hello|hey)\b/i.test(userMessage.trim())) {
-    return "Hi! How can I help you today?"
+    return "How can we help?"
   }
 
   return "What do you need help with?"

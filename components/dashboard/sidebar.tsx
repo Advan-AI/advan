@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import { api } from "@/lib/api/trpc-client"
 import { formatCount } from "@/lib/dashboard/format"
+import { useNotifications } from "@/lib/realtime/notifications-store"
 
 type NavCountKey = "conversations" | "tickets"
 
@@ -126,12 +127,14 @@ export function DashboardSidebar() {
     }
   )
 
+  const realTimeUnreadCount = useNotifications((s) => s.unreadCount)
+
   const navCounts = useMemo(
     () => ({
-      conversations: overview?.metrics.openConversations ?? 0,
+      conversations: (overview?.metrics.openConversations ?? 0) + realTimeUnreadCount,
       tickets: overview?.queue.total ?? 0,
     }),
-    [overview]
+    [overview, realTimeUnreadCount]
   )
 
   const primaryNav = useMemo<NavItem[]>(

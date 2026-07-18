@@ -1,7 +1,7 @@
 import { Worker, UnrecoverableError, type Job } from "bullmq"
 import { and, asc, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { auditLogs, conversations, hitlQueue, messages, tickets, usageEvents } from "@/lib/db/schema"
+import { auditLogs, conversations, hitlQueue, messages, tickets, usageEvents, workflows } from "@/lib/db/schema"
 import { SuggestionService } from "@/lib/copilot/suggestion-service"
 import {
   DrizzleAudit,
@@ -13,6 +13,9 @@ import {
 import { confidenceScorer } from "@/lib/copilot/scorer"
 import { buildConversationalReply } from "@/lib/copilot/conversational-replies"
 import type { Citation, HitlPort, SuggestionContext, SuggestionEvent } from "@/lib/copilot/types"
+import { PipelineCompiler } from "@/lib/pipeline/compiler"
+import { type Pipeline } from "@/lib/pipeline/schema"
+import { getTemporalClient } from "@/lib/temporal/clients/workflow.client"
 import {
   classifyMessage,
   type ComplaintClassification,
@@ -144,22 +147,24 @@ function planAgentReply(args: {
 }): AgentReplyPlan | null {
   const { decision, userMessage, draftText, classification } = args
 
+  const hasDraft = typeof draftText === "string" && draftText.trim().length > 0
+
   switch (decision) {
     case "auto_send":
       return { content: draftText, triageMode: "kb_answer" }
     case "auto_clarify":
       return {
-        content: buildConversationalReply("clarify", { userMessage }),
+        content: hasDraft ? draftText : buildConversationalReply("clarify", { userMessage }),
         triageMode: "clarify",
       }
     case "auto_warn":
       return {
-        content: buildConversationalReply("warn", { userMessage }),
+        content: hasDraft ? draftText : buildConversationalReply("warn", { userMessage }),
         triageMode: "warn",
       }
     case "auto_escalate":
       return {
-        content: buildConversationalReply("escalate_ack", { userMessage }),
+        content: hasDraft ? draftText : buildConversationalReply("escalate_ack", { userMessage }),
         triageMode: "escalate_ack",
       }
     case "hitl_collaborative":
@@ -257,6 +262,75 @@ export async function processTriageJob(
   })
   if (!ticket) {
     throw new UnrecoverableError(`Ticket ${ticketId} not found for org ${orgId}`)
+  }
+
+  // ── 2.5. Active Orchestration Workflow Check ───────────────────────────────
+  const activeWorkflow = await db.query.workflows.findFirst({
+    where: and(eq(workflows.orgId, orgId), eq(workflows.isActive, true)),
+  })
+
+  if (activeWorkflow) {
+    console.log(
+      `[TriageWorker] Found active orchestration workflow for orgId=${orgId}: "${activeWorkflow.name}" (id=${activeWorkflow.id}). Compiling and launching durable pipeline execution.`
+    )
+    try {
+      // Compile visual DAG definition into execution plan
+      const plan = PipelineCompiler.compile(activeWorkflow.definition as Pipeline)
+
+      // Start Temporal workflow execution
+      const client = await getTemporalClient()
+      const temporalWorkflowId = `pipeline-${orgId}-${Date.now()}`
+      const handle = await client.workflow.start("pipelineExecutionWorkflow", {
+        taskQueue: process.env.TEMPORAL_TASK_QUEUE?.trim() || "advan-agents",
+        workflowId: temporalWorkflowId,
+        args: [
+          {
+            orgId,
+            workflowId: activeWorkflow.id,
+            plan,
+            trigger: { message: existing.content },
+            ticketId,
+            conversationId,
+          },
+        ],
+      })
+
+      console.log(
+        `[TriageWorker] Successfully started orchestration pipeline run. workflowId=${temporalWorkflowId} runId=${handle.firstExecutionRunId}`
+      )
+
+      // Stamp message metadata with orchestrated triage decision
+      await db
+        .update(messages)
+        .set({
+          metadata: {
+            ...(existing.metadata ?? {}),
+            triage: {
+              decision: "orchestrated" as any,
+              confidence: 100,
+              classifiedAt: new Date().toISOString(),
+              activeWorkflowId: activeWorkflow.id,
+              temporalWorkflowId,
+              temporalRunId: handle.firstExecutionRunId,
+            },
+          },
+        })
+        .where(eq(messages.id, messageId))
+
+      // Record metered AI usage event for this orchestration pipeline conversation run
+      await db.insert(usageEvents).values({
+        orgId,
+        type: "ai_message",
+        quantity: 1,
+      })
+
+      return
+    } catch (err) {
+      console.error(
+        `[TriageWorker] Failed to launch orchestration pipeline. Falling back to default triage path. Error:`,
+        err instanceof Error ? err.message : String(err)
+      )
+    }
   }
 
   // Full thread for escalation detection (oldest-first)
@@ -411,11 +485,11 @@ export async function processTriageJob(
         ? `[UNRESOLVED] ${escalation.signals.join("; ").slice(0, 200) || "Customer needs human collaboration"}`
         : decision === "hitl_collaborative"
           ? `[COMPLAINT] ${classification.severity} — ${classification.reasoning.slice(0, 200)}`
-          : decision === "hitl_complaint"
+          : (decision as string) === "hitl_complaint"
             ? `[COMPLAINT] ${classification.severity} — ${classification.reasoning.slice(0, 200)}`
             : `Confidence ${draft.confidence}% below threshold or policy failed`
 
-    const priority = hitlPriority(decision)
+    const priority = hitlPriority(decision as any)
 
     const [hitlRow] = await db
       .insert(hitlQueue)
