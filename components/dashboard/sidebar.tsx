@@ -171,7 +171,7 @@ export function DashboardSidebar() {
   }
 
   return (
-    <aside className="w-[228px] shrink-0 dash-bg-sidebar border-r dash-border self-stretch">
+    <aside className="w-[14.25rem] shrink-0 dash-bg-sidebar border-r dash-border self-stretch">
       <div className="sticky top-0 h-screen flex flex-col px-3.5 py-5 overflow-y-auto">
       <Link href="/dashboard" className="flex items-center gap-2.5 px-2 pb-4">
         <Image

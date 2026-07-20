@@ -178,10 +178,9 @@ async function defaultRateLimit(req: Request): Promise<Response | null> {
   const rl = getRatelimit()
   if (!rl) {
     if (process.env.NODE_ENV === "production") {
-      console.error(
-        "[ResendInboundWebhook] Upstash rate limit env is missing in production",
+      console.warn(
+        "[ResendInboundWebhook] Upstash rate limit env is missing in production. Bypassing rate limit.",
       )
-      return jsonError("Webhook rate limit unavailable", 503)
     }
     return null
   }

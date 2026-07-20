@@ -35,12 +35,21 @@ import { cn } from "@/lib/utils"
 import { useSession } from "next-auth/react"
 import * as SocketIO from "socket.io-client"
 
-const DASH_SOCKET_URL =
-  typeof process !== "undefined" && process.env.NEXT_PUBLIC_SOCKET_URL
-    ? (process.env.NEXT_PUBLIC_SOCKET_URL as string)
-    : typeof window !== "undefined"
-      ? `${window.location.protocol}//${window.location.hostname}:3002`
-      : "http://localhost:3002"
+const getDashSocketUrl = () => {
+  const envUrl = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SOCKET_URL : null;
+  if (envUrl && !envUrl.includes("localhost:3002") && !envUrl.includes("127.0.0.1:3002")) {
+    return envUrl;
+  }
+  if (typeof window === "undefined") return "http://localhost:3002";
+  const isLocal = window.location.hostname === "localhost" ||
+                  window.location.hostname === "127.0.0.1" ||
+                  window.location.hostname === "0.0.0.0";
+  return isLocal
+    ? `${window.location.protocol}//${window.location.hostname}:3002`
+    : `${window.location.protocol}//${window.location.hostname}`;
+};
+
+const DASH_SOCKET_URL = getDashSocketUrl();
 
 // ─── Review-queue types ────────────────────────────────────────────────────────
 

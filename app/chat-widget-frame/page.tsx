@@ -59,12 +59,21 @@ interface SessionState {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const SOCKET_URL =
-  typeof process !== "undefined" && process.env.NEXT_PUBLIC_SOCKET_URL
-    ? (process.env.NEXT_PUBLIC_SOCKET_URL as string)
-    : typeof window !== "undefined"
-      ? `${window.location.protocol}//${window.location.hostname}:3002`
-      : "http://localhost:3002"
+const getSocketUrl = () => {
+  const envUrl = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SOCKET_URL : null;
+  if (envUrl && !envUrl.includes("localhost:3002") && !envUrl.includes("127.0.0.1:3002")) {
+    return envUrl;
+  }
+  if (typeof window === "undefined") return "http://localhost:3002";
+  const isLocal = window.location.hostname === "localhost" ||
+                  window.location.hostname === "127.0.0.1" ||
+                  window.location.hostname === "0.0.0.0";
+  return isLocal
+    ? `${window.location.protocol}//${window.location.hostname}:3002`
+    : `${window.location.protocol}//${window.location.hostname}`;
+};
+
+const SOCKET_URL = getSocketUrl();
 
 const LS_SESSION = "advan_widget_vsid"
 const LS_CONV    = "advan_widget_cid"
@@ -176,7 +185,17 @@ export default function ChatWidgetFrame() {
         setPreChatEnabled(data.preChatFormEnabled)
 
         if (data.preChatFormEnabled && !data.agentsOnline) {
-          setPhase("pre-chat")
+          const vsid = getValidSessionId()
+          if (vsid) {
+            const sess = await initSession()
+            if (sess && convIdRef.current) {
+              setPhase("chatting")
+            } else {
+              setPhase("pre-chat")
+            }
+          } else {
+            setPhase("pre-chat")
+          }
         } else {
           // Agents online (or no form required) — start session and connect.
           await initSession()
@@ -404,7 +423,16 @@ export default function ChatWidgetFrame() {
       convIdRef.current = conversationId
       if (conversationId) lsSet(LS_CONV, conversationId)
       connectSocket(token, conversationId)
-      setPhase("offline-sent")
+      
+      setMessages([
+        {
+          id: `intake-${Date.now()}`,
+          role: "user",
+          content: "Hi, I need some help.",
+          ts: new Date(),
+        }
+      ])
+      setPhase("chatting")
     } catch {
       fail("Network error.")
     } finally {

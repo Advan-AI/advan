@@ -31,7 +31,7 @@ function getConnectionConfig() {
   }
 }
 
-async function processEmbeddingJob(job: Job<EmbedDocumentJob>) {
+export async function processEmbeddingJob(job: Job<EmbedDocumentJob>) {
   const { knowledgeSourceId, orgId } = job.data
   console.log(`[EmbeddingWorker] Processing ${knowledgeSourceId}`)
 

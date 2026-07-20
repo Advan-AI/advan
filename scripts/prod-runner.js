@@ -24,24 +24,28 @@ const SERVICES = [
     command: "node",
     args: ["server.js"], // Next.js standalone entrypoint
     enabled: process.env.SKIP_WEB !== "1",
+    critical: true,
   },
   {
     name: "socket-server",
     command: "npx",
     args: ["tsx", "lib/realtime/socket-server.ts"],
-    enabled: process.env.SKIP_SOCKET !== "1" && process.env.NEXT_PUBLIC_SOCKET_URL?.includes("3002"),
+    enabled: process.env.SKIP_SOCKET !== "1",
+    critical: false,
   },
   {
     name: "queue-workers",
     command: "npx",
     args: ["tsx", "lib/queue/worker-entrypoint.ts"],
     enabled: process.env.SKIP_QUEUES !== "1" && !!process.env.REDIS_URL,
+    critical: false,
   },
   {
     name: "temporal-worker",
     command: "npx",
     args: ["tsx", "lib/temporal/worker.ts"],
     enabled: process.env.SKIP_TEMPORAL !== "1" && !!process.env.TEMPORAL_ADDRESS,
+    critical: false,
   }
 ];
 
@@ -68,9 +72,11 @@ function startService(service) {
 
   log(service.name, `Starting service: ${service.command} ${service.args.join(" ")}...`);
 
+  const internalPort = service.name === "next-web" ? "3001" : (process.env.PORT || "3000");
+
   const child = spawn(service.command, service.args, {
     cwd: ROOT_DIR,
-    env: { ...process.env, PORT: process.env.PORT || "3000" },
+    env: { ...process.env, PORT: internalPort },
     shell: true,
   });
 
@@ -97,8 +103,12 @@ function startService(service) {
     // Check restart limit to protect against infinite crash loops
     service.restarts = (service.restarts || 0) + 1;
     if (service.restarts > 5) {
-      log(service.name, "❌ Critical: Service exceeded maximum restarts (5 times). Shutting down supervisor.");
-      shutdown(1);
+      if (service.critical) {
+        log(service.name, "❌ Critical: Service exceeded maximum restarts (5 times). Shutting down supervisor.");
+        shutdown(1);
+      } else {
+        log(service.name, "⚠️ Warning: Non-critical service exceeded maximum restarts (5 times). Suspending auto-restarts for this service, but keeping supervisor active.");
+      }
     } else {
       const backoff = Math.min(1000 * service.restarts, 10000);
       log(service.name, `Attempting restart in ${backoff / 1000}s...`);
@@ -165,3 +175,66 @@ enabledServices.forEach((service) => {
   service.restarts = 0;
   startService(service);
 });
+
+// ── Unified Routing Proxy ───────────────────────────────────────────────────
+// Google Cloud Run only exposes a single public port. This zero-dependency
+// reverse proxy receives all traffic on the main container port and routes it:
+//   - Paths starting with "/socket.io/" -> Standalone Socket.IO (Port 3002)
+//   - All other paths                    -> Standalone Next.js (Port 3001)
+if (process.env.SKIP_WEB !== "1") {
+  const http = require("http");
+  const net = require("net");
+
+  const PUBLIC_PORT = parseInt(process.env.PORT || "3000", 10);
+  const NEXT_PORT = 3001;
+  const SOCKET_PORT = 3002;
+
+  const server = http.createServer((req, res) => {
+    const isSocket = req.url.startsWith("/socket.io/");
+    const targetPort = isSocket ? SOCKET_PORT : NEXT_PORT;
+
+    const connector = http.request({
+      hostname: "127.0.0.1",
+      port: targetPort,
+      path: req.url,
+      method: req.method,
+      headers: req.headers,
+    }, (targetRes) => {
+      res.writeHead(targetRes.statusCode, targetRes.headers);
+      targetRes.pipe(res);
+    });
+
+    req.pipe(connector);
+
+    connector.on("error", (err) => {
+      if (!res.headersSent) {
+        res.writeHead(502, { "Content-Type": "text/plain" });
+        res.end(`Proxy Error: Connection refused to internal port ${targetPort}`);
+      }
+    });
+  });
+
+  server.on("upgrade", (req, socket, head) => {
+    const isSocket = req.url.startsWith("/socket.io/");
+    const targetPort = isSocket ? SOCKET_PORT : NEXT_PORT;
+
+    const targetSocket = net.connect(targetPort, "127.0.0.1", () => {
+      targetSocket.write(`${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`);
+      for (const [key, value] of Object.entries(req.headers)) {
+        targetSocket.write(`${key}: ${value}\r\n`);
+      }
+      targetSocket.write("\r\n");
+      targetSocket.write(head);
+      socket.pipe(targetSocket).pipe(socket);
+    });
+
+    targetSocket.on("error", (err) => {
+      socket.destroy();
+    });
+  });
+
+  server.listen(PUBLIC_PORT, "0.0.0.0", () => {
+    console.log(`[Supervisor Proxy] Exposing unified routing on public port ${PUBLIC_PORT} -> Next.js (${NEXT_PORT}) & Socket.IO (${SOCKET_PORT})`);
+  });
+}
+

@@ -35,11 +35,11 @@ export default function OpengraphImage() {
               alignItems: "center",
               justifyContent: "center",
               color: "#ffffff",
-              fontSize: 34,
-              fontWeight: 700,
             }}
           >
-            ✦
+            <svg width="34" height="34" viewBox="0 0 56 56" fill="currentColor">
+              <path d="M 28,6 Q 28,28 6,28 Q 28,28 28,50 Q 28,28 50,28 Q 28,28 28,6 Z" />
+            </svg>
           </div>
           <div style={{ fontSize: 34, fontWeight: 700, color: "#171a17", letterSpacing: -1 }}>
             Advan

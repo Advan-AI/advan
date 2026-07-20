@@ -19,7 +19,7 @@ export function PipelineSidebar() {
   const grouped = nodeRegistry.byCategory()
 
   return (
-    <div className="w-[200px] shrink-0 overflow-y-auto border-r dash-border-soft p-3 dash-bg-sidebar" aria-label="Node palette">
+    <div className="w-[12.5rem] shrink-0 overflow-y-auto border-r dash-border-soft p-3 dash-bg-sidebar" aria-label="Node palette">
       {(Object.keys(grouped) as NodeCategory[]).map((cat) =>
         grouped[cat].length === 0 ? null : (
           <div key={cat} className="mb-3">
