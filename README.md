@@ -6,7 +6,6 @@ Originally bootstrapped with [v0](https://v0.app); this repo is the full applica
 
 ## Stack
 
-
 | Layer | Technology |
 |--------|------------|
 | App | Next.js 16 (App Router), React 19, Tailwind |
