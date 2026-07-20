@@ -59,7 +59,7 @@ export function DashCard({
           {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
         </div>
       )}
-      <div className={padded ? "p-4" : ""}>{children}</div>
+      <div className={`flex-1 flex flex-col min-h-0 ${padded ? "p-4" : ""}`}>{children}</div>
     </div>
   )
 }

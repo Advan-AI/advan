@@ -1,7 +1,7 @@
 import { z } from "zod"
-import { eq, and, desc } from "drizzle-orm"
+import { eq, and, desc, ilike, or } from "drizzle-orm"
 import { TRPCError } from "@trpc/server"
-import { protectedProcedure, router } from "../trpc"
+import { protectedProcedure, activeSubscriptionProcedure, router } from "../trpc"
 import { knowledgeSources } from "@/lib/db/schema"
 import { db } from "@/lib/db"
 import { embeddingQueue } from "@/lib/queue/queues"
@@ -15,6 +15,7 @@ export const knowledgeRouter = router({
         embeddingStatus: z
           .enum(["pending", "processing", "completed", "failed"])
           .optional(),
+        search: z.string().optional(),
         limit: z.number().min(1).max(100).default(25),
         offset: z.number().default(0),
       })
@@ -24,6 +25,15 @@ export const knowledgeRouter = router({
       if (input.sourceType) conditions.push(eq(knowledgeSources.sourceType, input.sourceType))
       if (input.embeddingStatus)
         conditions.push(eq(knowledgeSources.embeddingStatus, input.embeddingStatus))
+      if (input.search) {
+        conditions.push(
+          or(
+            ilike(knowledgeSources.title, `%${input.search}%`),
+            ilike(knowledgeSources.url, `%${input.search}%`),
+            ilike(knowledgeSources.content, `%${input.search}%`)
+          )!
+        )
+      }
 
       const rows = await db
         .select({
@@ -44,7 +54,33 @@ export const knowledgeRouter = router({
       return rows
     }),
 
-  add: protectedProcedure
+  getById: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const source = await db.query.knowledgeSources.findFirst({
+        where: and(
+          eq(knowledgeSources.id, input.id),
+          eq(knowledgeSources.orgId, ctx.user.orgId)
+        ),
+      })
+
+      if (!source) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Knowledge source not found" })
+      }
+
+      return {
+        id: source.id,
+        title: source.title,
+        content: source.content,
+        url: source.url,
+        s3Key: source.s3Key,
+        sourceType: source.sourceType,
+        embeddingStatus: source.embeddingStatus,
+        createdAt: source.createdAt,
+      }
+    }),
+
+  add: activeSubscriptionProcedure
     .input(
       z.object({
         title: z.string().min(1).max(255),
@@ -68,7 +104,62 @@ export const knowledgeRouter = router({
       return source
     }),
 
-  delete: protectedProcedure
+  update: activeSubscriptionProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        title: z.string().min(1).max(255),
+        content: z.string().min(1),
+        url: z.union([z.string().url(), z.literal("")]).optional(),
+        sourceType: z.enum(["document", "website", "ticket"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const source = await db.query.knowledgeSources.findFirst({
+        where: and(
+          eq(knowledgeSources.id, input.id),
+          eq(knowledgeSources.orgId, ctx.user.orgId)
+        ),
+      })
+
+      if (!source) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Knowledge source not found" })
+      }
+
+      const needsReembed =
+        input.title !== source.title ||
+        input.content !== source.content ||
+        input.sourceType !== source.sourceType
+
+      const [updated] = await db
+        .update(knowledgeSources)
+        .set({
+          title: input.title,
+          content: input.content,
+          url: input.url || null,
+          sourceType: input.sourceType,
+          ...(needsReembed
+            ? { embeddingStatus: "pending" as const, embedding: null }
+            : {}),
+        })
+        .where(eq(knowledgeSources.id, input.id))
+        .returning()
+
+      if (needsReembed) {
+        await embeddingQueue.add(
+          "embed" as any,
+          {
+            knowledgeSourceId: updated.id,
+            orgId: ctx.user.orgId,
+          },
+          { jobId: `embed-${updated.id}` }
+        )
+      }
+
+      return updated
+    }),
+
+  delete: activeSubscriptionProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const source = await db.query.knowledgeSources.findFirst({

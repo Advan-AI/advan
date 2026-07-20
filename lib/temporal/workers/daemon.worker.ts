@@ -5,7 +5,7 @@ import { Worker } from "@temporalio/worker"
 import { agentActivities } from "../activities/agent-activities"
 import { pipelineActivities } from "../activities/pipeline-activities"
 import { parseTemporalConfig } from "../config/environment.validator"
-import { TemporalConnectionManager } from "../services/connection.manager"
+import { TemporalWorkerConnectionManager } from "../services/worker.connection"
 
 const DEFAULT_TASK_QUEUE = "advan-agents"
 const SHUTDOWN_GRACE_MS = 30_000
@@ -28,7 +28,7 @@ function resolveDevWorkflowsPath(): string {
  */
 export async function runTemporalWorkerDaemon(): Promise<void> {
   const envConfig = parseTemporalConfig()
-  const connectionManager = new TemporalConnectionManager(envConfig)
+  const connectionManager = new TemporalWorkerConnectionManager(envConfig)
   const connection = await connectionManager.createWorkerConnection()
 
   const isProduction = process.env.NODE_ENV === "production"

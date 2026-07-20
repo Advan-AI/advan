@@ -61,17 +61,23 @@ export default function SignInPage() {
           }}
         />
 
-        <header className="px-6 sm:px-10 py-6 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <Image
-              src="/images/advan-logo.svg"
-              alt="Advan AI"
-              width={32}
-              height={32}
-              priority
-              className="rounded-lg ring-1 ring-black/10 group-hover:ring-black/30 transition"
-            />
-            <span className="font-semibold text-base text-foreground tracking-tight">Advan</span>
+      {/* Minimal header */}
+      <header className="px-6 sm:px-10 py-6 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <Image
+            src="/images/advan-logo.svg"
+            alt="Advan AI"
+            width={32}
+            height={32}
+            priority
+            className="rounded-lg ring-1 ring-black/10 group-hover:ring-black/30 transition"
+          />
+          <span className="font-semibold text-base text-foreground tracking-tight">Advan</span>
+        </Link>
+        <div className="text-sm text-foreground/60">
+          New to Advan?{" "}
+          <Link href="/signup" className="font-medium text-[#6B5CD6] hover:underline">
+            Create an account
           </Link>
           <div className="text-sm text-foreground/60">
             New to Advan?{" "}

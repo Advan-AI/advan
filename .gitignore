@@ -16,3 +16,4 @@ node_modules
 .next/
 lib/temporal/dist/
 .DS_Store
+.package-lock.json

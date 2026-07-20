@@ -1,0 +1,2 @@
+ALTER TABLE "organizations" ADD COLUMN "inbound_email_alias" text;--> statement-breakpoint
+ALTER TABLE "organizations" ADD CONSTRAINT "organizations_inbound_email_alias_unique" UNIQUE("inbound_email_alias");

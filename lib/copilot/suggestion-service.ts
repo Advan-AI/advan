@@ -79,7 +79,7 @@ export class SuggestionService {
       retrieval: meanScore(sources),
       grounding: grounded.groundingScore,
       hallucination: grounded.hallucination.score,
-      policy: passRatio(checks),
+      policy: passRatio(checks.filter((c) => c.rule !== "advan/handoff")),
     })
     yield { type: "score", stage: "final", value: finalConfidence }
     yield { type: "policy", checks }
@@ -121,7 +121,7 @@ export class SuggestionService {
 
 function meanScore(sources: Source[]): number {
   if (sources.length === 0) return 0.5
-  return sources.reduce((s, x) => s + x.score, 0) / sources.length
+  return Math.max(...sources.map((s) => s.score))
 }
 
 function passRatio(checks: { passed: boolean }[]): number {

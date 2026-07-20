@@ -1,8 +1,22 @@
 import { z } from "zod"
-import { eq, and, desc, count, sql } from "drizzle-orm"
+import { eq, and, desc, count, inArray } from "drizzle-orm"
+import { TRPCError } from "@trpc/server"
 import { protectedProcedure, router } from "../trpc"
-import { tickets, customers, users } from "@/lib/db/schema"
+import { tickets, customers, users, conversations } from "@/lib/db/schema"
 import { db } from "@/lib/db"
+
+const customerEmailSchema = z.string().trim().email()
+
+function emailTicketValidationError(message: string) {
+  return new TRPCError({
+    code: "BAD_REQUEST",
+    message,
+    cause: {
+      field: "customerId",
+      validationCode: "EMAIL_TICKET_CUSTOMER_EMAIL_REQUIRED",
+    },
+  })
+}
 
 export const ticketsRouter = router({
   list: protectedProcedure
@@ -32,7 +46,7 @@ export const ticketsRouter = router({
         .from(tickets)
         .leftJoin(customers, eq(tickets.customerId, customers.id))
         .where(and(...conditions))
-        .orderBy(desc(tickets.createdAt))
+        .orderBy(desc(tickets.updatedAt))
         .limit(input.limit)
         .offset(input.offset)
 
@@ -64,11 +78,43 @@ export const ticketsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const [ticket] = await db
-        .insert(tickets)
-        .values({ ...input, orgId: ctx.user.orgId })
-        .returning()
-      return ticket
+      if (input.channel === "email") {
+        if (!input.customerId) {
+          throw emailTicketValidationError(
+            "Email tickets require a customer with a valid email address.",
+          )
+        }
+
+        const customer = await db.query.customers.findFirst({
+          where: and(
+            eq(customers.id, input.customerId),
+            eq(customers.orgId, ctx.user.orgId),
+          ),
+        })
+
+        if (!customer || !customerEmailSchema.safeParse(customer.email).success) {
+          throw emailTicketValidationError(
+            "Email tickets require a customer with a valid email address.",
+          )
+        }
+      }
+
+      return db.transaction(async (tx) => {
+        const [ticket] = await tx
+          .insert(tickets)
+          .values({ ...input, orgId: ctx.user.orgId })
+          .returning()
+
+        // Every ticket gets an inbox thread so "View" from the queue always resolves.
+        await tx.insert(conversations).values({
+          orgId: ctx.user.orgId,
+          ticketId: ticket.id,
+          channel: input.channel,
+          customerId: input.customerId,
+        })
+
+        return ticket
+      })
     }),
 
   updateStatus: protectedProcedure
@@ -84,6 +130,9 @@ export const ticketsRouter = router({
         .set({ status: input.status, updatedAt: new Date() })
         .where(and(eq(tickets.id, input.id), eq(tickets.orgId, ctx.user.orgId)))
         .returning()
+      if (!ticket) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" })
+      }
       return ticket
     }),
 
@@ -100,7 +149,37 @@ export const ticketsRouter = router({
         .set({ assignedTo: input.agentId, updatedAt: new Date() })
         .where(and(eq(tickets.id, input.id), eq(tickets.orgId, ctx.user.orgId)))
         .returning()
+      if (!ticket) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" })
+      }
       return ticket
+    }),
+
+  bulkUpdateStatus: protectedProcedure
+    .input(
+      z.object({
+        ids: z.array(z.string().uuid()).min(1).max(100),
+        status: z.enum(["open", "pending", "resolved", "closed"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updated = await db
+        .update(tickets)
+        .set({ status: input.status, updatedAt: new Date() })
+        .where(
+          and(
+            inArray(tickets.id, input.ids),
+            eq(tickets.orgId, ctx.user.orgId)
+          )
+        )
+        .returning()
+      if (updated.length !== input.ids.length) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "One or more tickets not found",
+        })
+      }
+      return updated
     }),
 
   kpis: protectedProcedure.query(async ({ ctx }) => {

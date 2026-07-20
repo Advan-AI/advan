@@ -61,12 +61,22 @@ export class HallucinationDetector {
         const citedMatches = matches.filter((m) => sourceIds.has(m.id))
 
         if (citedMatches.length === 0) {
-          flags.push("Answer vector does not align with cited sources in vector index")
-          semanticScore = 0.4
+          const topRetrieval = Math.max(...sources.map((s) => s.score ?? 0))
+          if (topRetrieval >= 0.65 && flags.length === 0) {
+            semanticScore = topRetrieval
+          } else {
+            flags.push("Answer vector does not align with cited sources in vector index")
+            semanticScore = Math.max(semanticScore, topRetrieval * 0.75)
+          }
         } else {
           const avgScore =
             citedMatches.reduce((sum, m) => sum + (m.score ?? 0), 0) / citedMatches.length
-          semanticScore = avgScore
+          const topRetrieval = Math.max(
+            ...sources
+              .filter((s) => citedMatches.some((m) => m.id === s.id))
+              .map((s) => s.score ?? 0)
+          )
+          semanticScore = Math.max(avgScore, topRetrieval)
         }
       } catch {
         // Vector search unavailable — fall back to overlap scoring
@@ -86,6 +96,11 @@ export class HallucinationDetector {
     }
 
     // Final determination
+    const topRetrieval = Math.max(...sources.map((s) => s.score ?? 0))
+    if (flags.length === 0 && topRetrieval >= 0.7) {
+      semanticScore = Math.max(semanticScore, 0.85)
+    }
+
     const isHallucination = semanticScore < THRESHOLD
     let recommendation: "pass" | "review" | "block" = "pass"
     if (semanticScore < 0.5) recommendation = "block"

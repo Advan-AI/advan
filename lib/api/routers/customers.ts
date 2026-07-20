@@ -1,8 +1,66 @@
 import { z } from "zod"
-import { eq, and, desc, ilike } from "drizzle-orm"
+import { eq, and, desc, ilike, or, sql } from "drizzle-orm"
 import { protectedProcedure, router } from "../trpc"
 import { customers, tickets } from "@/lib/db/schema"
 import { db } from "@/lib/db"
+
+/**
+ * Customer identification at intake time.
+ *
+ * Three variants:
+ *   email-only        — email inbound; email channels
+ *   visitorSessionId-only — anonymous live chat (no pre-chat form)
+ *   both              — offline chat: visitor provided their email via the
+ *                       pre-chat form shown when no agent was online.
+ *                       Creates a customer with both fields populated so
+ *                       email-based agent replies can be delivered.
+ */
+export type CustomerIdentifier =
+  | { email: string; visitorSessionId?: never }
+  | { visitorSessionId: string; email?: never }
+  | { email: string; visitorSessionId: string }
+
+export function normalizeCustomerEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+export async function findCustomerForIntake(input: {
+  orgId: string
+  customerIdentifier: CustomerIdentifier
+}) {
+  const visitorIdentifier = input.customerIdentifier.visitorSessionId
+  const emailIdentifier = input.customerIdentifier.email
+  const hasBoth = typeof visitorIdentifier === "string" && typeof emailIdentifier === "string"
+
+  if (typeof visitorIdentifier === "string") {
+    const visitorSessionId = visitorIdentifier.trim()
+    if (!visitorSessionId) return null
+
+    const bySession = await db.query.customers.findFirst({
+      where: and(
+        eq(customers.orgId, input.orgId),
+        eq(customers.visitorSessionId, visitorSessionId),
+      ),
+      orderBy: desc(customers.createdAt),
+    })
+    // When both are provided (pre-chat form path) and session lookup failed,
+    // fall through to the email lookup to find a pre-existing customer.
+    if (bySession || !hasBoth) return bySession ?? null
+  }
+
+  if (typeof emailIdentifier !== "string") return null
+
+  const email = normalizeCustomerEmail(emailIdentifier)
+  if (!email) return null
+
+  return db.query.customers.findFirst({
+    where: and(
+      eq(customers.orgId, input.orgId),
+      sql`lower(${customers.email}) = ${email}`,
+    ),
+    orderBy: desc(customers.createdAt),
+  })
+}
 
 export const customersRouter = router({
   list: protectedProcedure
@@ -19,7 +77,11 @@ export const customersRouter = router({
       if (input.tier) conditions.push(eq(customers.tier, input.tier))
       if (input.search) {
         conditions.push(
-          ilike(customers.name, `%${input.search}%`)
+          or(
+            ilike(customers.name, `%${input.search}%`),
+            ilike(customers.email, `%${input.search}%`),
+            ilike(customers.company, `%${input.search}%`)
+          )!
         )
       }
 
@@ -78,7 +140,14 @@ export const customersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const [customer] = await db
         .insert(customers)
-        .values({ ...input, orgId: ctx.user.orgId })
+        .values({
+          email: input.email,
+          name: input.name,
+          company: input.company,
+          tier: input.tier,
+          stripeCustomerId: input.stripeCustomerId,
+          orgId: ctx.user.orgId,
+        })
         .returning()
       return customer
     }),

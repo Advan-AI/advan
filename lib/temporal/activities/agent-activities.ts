@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk"
+import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { ChatAnthropic } from "@langchain/anthropic"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
-import { getLlmRuntimeConfig } from "@/lib/llm/config"
+import { getLlmRuntimeConfig, createAnthropicModel } from "@/lib/llm/config"
 import { getGroqChatModel, getGroqOpenAIClient } from "@/lib/llm/groq-client"
 import { createOllamaChatOpenAI } from "@/lib/llm/ollama-openai"
 import { PIIMasker } from "@/lib/governance/pii-masker"
@@ -63,7 +64,22 @@ async function runTriageActivity(input: TriageInput): Promise<TriageResult> {
   const cfg = getLlmRuntimeConfig()
 
   try {
-    if (cfg.chatProvider === "anthropic" && cfg.anthropicApiKey) {
+    if (cfg.chatProvider === "vertex-anthropic") {
+      const anthropic = new AnthropicVertex({
+        projectId: cfg.gcpProjectId || "arslantoor",
+        region: cfg.gcpRegion || "us-east5",
+      })
+      const response = await anthropic.messages.create({
+        model: cfg.claudeModel || "claude-3-5-sonnet-v2@20241022",
+        max_tokens: 64,
+        system: TRIAGE_SYSTEM,
+        messages: [{ role: "user", content: maskedText }],
+      })
+      const content = response.content[0]
+      if (content.type === "text") {
+        return parseTriageJson(content.text)
+      }
+    } else if (cfg.chatProvider === "anthropic" && cfg.anthropicApiKey) {
       const anthropic = new Anthropic({ apiKey: cfg.anthropicApiKey })
       const response = await anthropic.messages.create({
         model: "claude-3-haiku-20240307",
@@ -143,9 +159,14 @@ async function runComposerActivity(input: ComposerInput): Promise<ComposerResult
     .map((s, i) => `[${i + 1}] ${s.title}: ${s.snippet || "(retrieved context)"}`)
     .join("\n")
 
-  const systemPrompt = `You are Advan AI, a transparent customer support specialist.
-Always base your answers on the provided knowledge sources. Never fabricate information.
-If the sources don't cover the question, say so clearly.
+  const systemPrompt = `You are a human customer support agent at Advan.
+Respond directly, professionally, and empathetically like a real human.
+Follow these strict support rules:
+1. HUMAN TONE: Keep replies concise (1-3 short sentences). Never use robotic preambles (do NOT say "As an AI...", "As a bot...", or "As a language model"). Speak as a real human support team member.
+2. STRICT COMPLIANCE: Strictly adhere to company policies (e.g., standard 30-day refund window; never offer exceptions or authorize actions outside rules without verifying details or escalating). Never fabricate or make up facts.
+3. DEEP TECHNICAL SUPPORT: When a technical issue arises (e.g., API keys, HMAC webhook signature verification, network timeouts, or code integrations), provide precise, expert-level debugging and configuration support based exclusively on the provided sources. Do not speculate.
+4. SOLUTION-ORIENTED: Always prioritize delivering an immediate, direct solution or actionable troubleshooting steps. Never loop on questions or ask a user for information you can infer or that they already provided.
+5. NO REPETITIVE QUESTIONS: Do not ask clarifying questions repeatedly. If a source or detail is missing, provide the best possible general solution or instructions based on what you know first, and only ask a single optional follow-up question if absolutely critical. Never ask the same question twice.
 
 Knowledge sources:
 ${sourcesContext || "No sources retrieved — answer from general knowledge only if safe."}
@@ -155,12 +176,8 @@ Intent: ${input.intent}`
   const cfg = getLlmRuntimeConfig()
 
   try {
-    if (cfg.chatProvider === "anthropic" && cfg.anthropicApiKey) {
-      const sonnet = new ChatAnthropic({
-        modelName: "claude-3-5-sonnet-20240620",
-        temperature: 0,
-        apiKey: cfg.anthropicApiKey,
-      })
+    if (cfg.chatProvider === "anthropic" || cfg.chatProvider === "vertex-anthropic") {
+      const sonnet = createAnthropicModel(cfg, "claude-3-5-sonnet-20240620", 0)
       const response = await sonnet.invoke([
         new SystemMessage(systemPrompt),
         new HumanMessage(maskedInput),
