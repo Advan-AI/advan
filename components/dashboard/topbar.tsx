@@ -134,7 +134,7 @@ export function DashboardTopbar({ user, onOpenSidebar }: TopbarProps) {
         </span>
       </button>
 
-      <div className="hidden md:flex flex-1 max-w-[440px] items-center gap-2.5 dash-bg-card border dash-border rounded-[10px] px-3 py-2 text-[13px] text-[var(--dash-ink-faint)] focus-within:border-[var(--dash-accent)] focus-within:ring-2 focus-within:ring-[var(--dash-accent-wash)] transition">
+      <div className="hidden md:flex flex-1 max-w-[27.5rem] items-center gap-2.5 dash-bg-card border dash-border rounded-[10px] px-3 py-2 text-[13px] text-[var(--dash-ink-faint)] focus-within:border-[var(--dash-accent)] focus-within:ring-2 focus-within:ring-[var(--dash-accent-wash)] transition">
         <Search className="w-4 h-4 shrink-0" />
         <input
           placeholder="Search tickets, customers or knowledge…"
@@ -165,7 +165,7 @@ export function DashboardTopbar({ user, onOpenSidebar }: TopbarProps) {
 
           {notifDropdownOpen && (
             <div
-              className="absolute right-0 mt-2.5 w-[340px] rounded-xl dash-card-raised overflow-hidden z-50 shadow-[0_12px_32px_rgba(0,0,0,0.08)] bg-[#FCFBF8] border dash-border"
+              className="absolute right-0 mt-2.5 w-[21.25rem] rounded-xl dash-card-raised overflow-hidden z-50 shadow-[0_12px_32px_rgba(0,0,0,0.08)] bg-[#FCFBF8] border dash-border"
               onMouseLeave={() => setNotifDropdownOpen(false)}
             >
               {/* Header */}

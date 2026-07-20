@@ -14,9 +14,21 @@ import { useNotifications, stopFlashingBrowserTab } from "@/lib/realtime/notific
 import { useCopilot } from "@/lib/copilot/store"
 import * as SocketIO from "socket.io-client"
 
-const DASH_SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ??
-  (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:3002` : "http://localhost:3002")
+const getDashSocketUrl = () => {
+  const envUrl = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SOCKET_URL : null;
+  if (envUrl && !envUrl.includes("localhost:3002") && !envUrl.includes("127.0.0.1:3002")) {
+    return envUrl;
+  }
+  if (typeof window === "undefined") return "http://localhost:3002";
+  const isLocal = window.location.hostname === "localhost" ||
+                  window.location.hostname === "127.0.0.1" ||
+                  window.location.hostname === "0.0.0.0";
+  return isLocal
+    ? `${window.location.protocol}//${window.location.hostname}:3002`
+    : `${window.location.protocol}//${window.location.hostname}`;
+};
+
+const DASH_SOCKET_URL = getDashSocketUrl();
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
@@ -131,7 +143,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   if (status === "loading" || (status === "authenticated" && onboardingLoading)) {
     return (
       <div className="min-h-screen dash-shell flex">
-        <aside className="hidden lg:flex w-[228px] shrink-0 dash-bg-sidebar border-r dash-border h-screen flex-col gap-3 p-4">
+        <aside className="hidden lg:flex w-[14.25rem] shrink-0 dash-bg-sidebar border-r dash-border h-screen flex-col gap-3 p-4">
           <div className="flex items-center gap-2.5">
             <div className="skeleton w-9 h-9 rounded-[9px]" />
             <div className="skeleton h-5 w-20 rounded" />
@@ -246,7 +258,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
             exit={{ opacity: 0, x: 120, scale: 0.85 }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
-            className="fixed bottom-6 right-6 z-[9999] w-full max-w-[360px] rounded-xl border border-indigo-200 bg-[#FCFBF8]/95 p-4 shadow-[0_12px_40px_rgba(107,92,214,0.15)] backdrop-blur-md font-sans border-l-4 border-l-[var(--dash-accent)]"
+            className="fixed bottom-6 right-6 z-[9999] w-full max-w-[22.5rem] rounded-xl border border-indigo-200 bg-[#FCFBF8]/95 p-4 shadow-[0_12px_40px_rgba(107,92,214,0.15)] backdrop-blur-md font-sans border-l-4 border-l-[var(--dash-accent)]"
           >
             <div className="flex gap-3">
               {/* Avatar with live pulse status */}

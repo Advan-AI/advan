@@ -74,8 +74,10 @@ read -p "Select Mode (1 or 2): " DEPLOY_MODE
 if [ "$DEPLOY_MODE" == "1" ]; then
     echo "🔥 Configuring Monolithic All-in-One Deployment (Web + Workers)..."
     
-    # Run migrations as a cloud job or pre-step if DATABASE_URL is set
-    # Deploy to Cloud Run with allocated CPU and active min-instances
+    # Generate the environment variables YAML file for Mode 1
+    python3 scratch/generate_env_yaml.py --mode=1
+    
+    # Deploy to Cloud Run with allocated CPU, active min-instances, and loaded environment variables
     gcloud run deploy "${SERVICE_NAME}" \
         --image "${IMAGE_NAME}" \
         --region "${REGION}" \
@@ -84,10 +86,14 @@ if [ "$DEPLOY_MODE" == "1" ]; then
         --port 3000 \
         --no-cpu-throttling \
         --min-instances=1 \
-        --set-env-vars="NODE_ENV=production,LLM_CHAT_PROVIDER=vertex-anthropic,GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=${REGION},CLAUDE_MODEL=claude-3-5-sonnet-v2@20241022,SKIP_WEB=0,SKIP_SOCKET=0,SKIP_QUEUES=0,SKIP_TEMPORAL=0"
+        --env-vars-file=scratch/env.yaml
 else
     echo "❄️ Configuring Serverless Scale-to-Zero Web-Only Deployment..."
     
+    # Generate the environment variables YAML file for Mode 2
+    python3 scratch/generate_env_yaml.py --mode=2
+    
+    # Deploy to Cloud Run scaling down to 0, and loaded environment variables
     gcloud run deploy "${SERVICE_NAME}" \
         --image "${IMAGE_NAME}" \
         --region "${REGION}" \
@@ -96,7 +102,7 @@ else
         --port 3000 \
         --cpu-throttling \
         --min-instances=0 \
-        --set-env-vars="NODE_ENV=production,LLM_CHAT_PROVIDER=vertex-anthropic,GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=${REGION},CLAUDE_MODEL=claude-3-5-sonnet-v2@20241022,SKIP_WEB=0,SKIP_SOCKET=1,SKIP_QUEUES=1,SKIP_TEMPORAL=1"
+        --env-vars-file=scratch/env.yaml
 fi
 
 echo "======================================================================"

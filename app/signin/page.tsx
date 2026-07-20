@@ -74,23 +74,23 @@ export default function SignInPage() {
           />
           <span className="font-semibold text-base text-foreground tracking-tight">Advan</span>
         </Link>
-        <div className="text-sm text-foreground/60">
-          New to Advan?{" "}
-          <Link href="/signup" className="font-medium text-[#6B5CD6] hover:underline">
-            Create an account
-          </Link>
-          <div className="text-sm text-foreground/60">
+        <div className="text-sm text-foreground/60 flex items-center gap-4">
+          <span className="hidden sm:inline">
             New to Advan?{" "}
-            <a
-              href={BOOKING_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-foreground hover:underline"
-            >
-              Book a demo
-            </a>
-          </div>
-        </header>
+            <Link href="/signup" className="font-medium text-[#6B5CD6] hover:underline">
+              Create an account
+            </Link>
+          </span>
+          <a
+            href={BOOKING_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-foreground hover:underline"
+          >
+            Book a demo
+          </a>
+        </div>
+      </header>
 
         <main className="flex-1 flex items-center justify-center px-4 py-10">
           <motion.div

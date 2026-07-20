@@ -3,7 +3,7 @@ import { users, organizations } from "./schema"
 import { eq } from "drizzle-orm"
 
 async function main() {
-  const email = "muhammadarslantoor@gmail.com";
+  const email = process.env.USER_EMAIL || "muhammad.arslan.software@gmail.com";
   console.log("Checking for organization...");
   
   const org = await db.query.organizations.findFirst({
@@ -29,7 +29,7 @@ async function main() {
     const [inserted] = await db.insert(users).values({
       orgId: org.id,
       email: email.toLowerCase(),
-      name: "Muhammad Arslan Toor",
+      name: process.env.USER_NAME || "Muhammad Arslan",
       role: "admin",
       chatAvailable: true,
       emailVerified: true,

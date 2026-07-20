@@ -36,8 +36,55 @@ function getConnectionConfig() {
 function createLazyQueue<T>(name: string, defaultOptions?: any): Queue<T> {
   let queueInstance: Queue<T> | null = null
 
+  // Create a base fallback object that implements Queue methods we actually use
+  const fallbackQueue = {
+    async add(jobName: string, data: any, options?: any) {
+      console.warn(`[Queue: ${name}] REDIS_URL not set. Running job '${jobName}' in-process as fallback.`)
+      
+      // Execute the worker logic asynchronously in the background so it doesn't block the caller
+      ;(async () => {
+        try {
+          const fakeJob = {
+            id: `fallback-${name}-${Date.now()}`,
+            name: jobName,
+            data: data,
+            opts: options || {},
+          } as any
+
+          if (name === "notification") {
+            const { processAgentReplyJob } = await import("./workers/notification-worker")
+            await processAgentReplyJob(fakeJob)
+          } else if (name === "copilot-triage") {
+            const { processTriageJob } = await import("./workers/copilot-triage-worker")
+            await processTriageJob(fakeJob)
+          } else if (name === "embedding") {
+            const { processEmbeddingJob } = await import("./workers/embedding-worker")
+            await processEmbeddingJob(fakeJob)
+          } else if (name === "billing") {
+            const { reportUsageToStripe } = await import("@/lib/billing/usage-reporter")
+            await reportUsageToStripe()
+          }
+        } catch (err: any) {
+          console.error(`[Queue: ${name}] Fallback execution of job '${jobName}' failed:`, err.message)
+        }
+      })()
+
+      return { id: `fallback-${name}-${Date.now()}` } as any
+    },
+    async close() {},
+    async isReady() { return true },
+  }
+
   return new Proxy({} as Queue<T>, {
     get(target, prop) {
+      const url = process.env.REDIS_URL
+      if (!url) {
+        if (prop in fallbackQueue) {
+          return (fallbackQueue as any)[prop]
+        }
+        return undefined
+      }
+
       if (!queueInstance) {
         queueInstance = new Queue<T>(name, {
           connection: getConnectionConfig(),
@@ -51,6 +98,11 @@ function createLazyQueue<T>(name: string, defaultOptions?: any): Queue<T> {
       return val
     },
     set(target, prop, value) {
+      const url = process.env.REDIS_URL
+      if (!url) {
+        return true
+      }
+
       if (!queueInstance) {
         queueInstance = new Queue<T>(name, {
           connection: getConnectionConfig(),

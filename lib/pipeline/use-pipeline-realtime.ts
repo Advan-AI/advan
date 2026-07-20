@@ -5,9 +5,21 @@ import { useSession } from "next-auth/react"
 import * as SocketIO from "socket.io-client"
 import { usePipelineExecution, type PipelineStepEvent } from "./execution-store"
 
-const SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ??
-  (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:3002` : "http://localhost:3002")
+const getSocketUrl = () => {
+  const envUrl = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SOCKET_URL : null;
+  if (envUrl && !envUrl.includes("localhost:3002") && !envUrl.includes("127.0.0.1:3002")) {
+    return envUrl;
+  }
+  if (typeof window === "undefined") return "http://localhost:3002";
+  const isLocal = window.location.hostname === "localhost" ||
+                  window.location.hostname === "127.0.0.1" ||
+                  window.location.hostname === "0.0.0.0";
+  return isLocal
+    ? `${window.location.protocol}//${window.location.hostname}:3002`
+    : `${window.location.protocol}//${window.location.hostname}`;
+};
+
+const SOCKET_URL = getSocketUrl();
 
 /**
  * Subscribes to org-scoped pipeline execution events from the Socket.IO server

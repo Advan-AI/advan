@@ -109,8 +109,7 @@ async function applyRateLimit(req: NextRequest): Promise<Response | null> {
   const rl = getRatelimit()
   if (!rl) {
     if (process.env.NODE_ENV === "production") {
-      console.error("[ChatSession] Upstash rate limit env is missing in production")
-      return NextResponse.json({ error: "Rate limit unavailable" }, { status: 503 })
+      console.warn("[ChatSession] Upstash rate limit env is missing in production. Bypassing rate limit.")
     }
     return null
   }
@@ -141,8 +140,7 @@ async function applyWidgetRateLimit(widgetKey: string): Promise<Response | null>
   const rl = getWidgetRatelimit()
   if (!rl) {
     if (process.env.NODE_ENV === "production") {
-      console.error("[ChatSession] Upstash widget rate limit env is missing in production")
-      return NextResponse.json({ error: "Rate limit unavailable" }, { status: 503 })
+      console.warn("[ChatSession] Upstash widget rate limit env is missing in production. Bypassing rate limit.")
     }
     return null
   }
