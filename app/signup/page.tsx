@@ -8,6 +8,7 @@ import { motion } from "framer-motion"
 import { ArrowRight, Eye, EyeOff, Loader2, ShieldCheck, CheckCircle2, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api/trpc-client"
+import { getSafeClientErrorMessage } from "@/lib/api/safe-client-error"
 import { toast } from "sonner"
 
 export default function SignUpPage() {
@@ -87,7 +88,9 @@ export default function SignUpPage() {
       setError("Please fill in all fields to register your workspace.")
       return
     }
+    if (orgName.trim().length < 2) { setError("Organization name must be at least 2 characters."); return }
     if (orgSlug.length < 2) { setError("Subdomain slug must be at least 2 characters."); return }
+    if (adminName.trim().length < 2) { setError("Name must be at least 2 characters."); return }
     if (password.length < 6) { setError("Password must be at least 6 characters long."); return }
 
     setSigningUp(true)
@@ -95,8 +98,8 @@ export default function SignUpPage() {
       await signupMut.mutateAsync({ orgName, orgSlug, adminName, adminEmail, password })
       toast.success("Verification code sent to your email!")
       setStep("otp")
-    } catch (err: any) {
-      const msg = err.message || "Signup failed. Please try again."
+    } catch (err: unknown) {
+      const msg = getSafeClientErrorMessage(err, "Signup failed. Please try again.")
       setError(msg)
       toast.error(msg)
     } finally {
@@ -134,15 +137,16 @@ export default function SignUpPage() {
         router.push("/dashboard")
         router.refresh()
       }
-    } catch (err: any) {
-      if (err.message === "Email already verified.") {
+    } catch (err: unknown) {
+      const msg = getSafeClientErrorMessage(err, "Invalid or expired code.")
+      if (msg === "Email already verified.") {
         clearSessionStorage()
         toast.info("Your email is already verified! Redirecting to sign in...")
         setTimeout(() => {
           router.push("/signin")
         }, 2000)
       } else {
-        setError(err.message || "Invalid or expired code.")
+        setError(msg)
       }
     } finally {
       setVerifying(false)
@@ -155,15 +159,16 @@ export default function SignUpPage() {
     try {
       await resendOtpMut.mutateAsync({ email: adminEmail, name: adminName })
       toast.success("New verification code sent!")
-    } catch (err: any) {
-      if (err.message === "Email already verified.") {
+    } catch (err: unknown) {
+      const msg = getSafeClientErrorMessage(err, "Failed to resend code.")
+      if (msg === "Email already verified.") {
         clearSessionStorage()
         toast.info("Your email is already verified! Redirecting to sign in...")
         setTimeout(() => {
           router.push("/signin")
         }, 2000)
       } else {
-        setError(err.message || "Failed to resend code.")
+        setError(msg)
       }
     } finally {
       setResending(false)

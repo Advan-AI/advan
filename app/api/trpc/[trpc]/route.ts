@@ -66,6 +66,10 @@ async function handler(req: Request) {
           }
         : undefined,
     }),
+    onError({ path, error, type }) {
+      // Keep full diagnostics server-side only — client responses are sanitized.
+      console.error(`[tRPC ${type}] ${path ?? "<no-path>"}:`, error.message, error.cause ?? "")
+    },
   })
 }
 
