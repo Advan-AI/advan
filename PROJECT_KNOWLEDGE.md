@@ -1,6 +1,6 @@
 # v0-advan Project Knowledge
 
-Last updated: 2026-07-08
+Last updated: 2026-07-25
 
 Use this file as the first stop for future Codex work in this repo. Keep it concise and update it after meaningful features, fixes, architecture changes, migrations, or command changes.
 
@@ -81,6 +81,7 @@ Security notes:
 - `.env` currently exists locally and must be treated as sensitive.
 - Keep `.env.local.example` as placeholders only.
 - Google OAuth callback must be `{NEXTAUTH_URL}/api/auth/callback/google`; no trailing slash on `NEXTAUTH_URL`.
+- tRPC client responses are sanitized in `lib/api/sanitize-trpc-error.ts` (via `lib/api/trpc.ts` `errorFormatter`): never expose SQL/`Failed query`, stack traces, or raw Zod issue JSON to browsers. Full errors are logged only in `app/api/trpc/[trpc]/route.ts` `onError`. Signup UI uses `lib/api/safe-client-error.ts` as a second line of defense.
 
 ## App Structure
 
@@ -312,7 +313,7 @@ tRPC root routers in `lib/api/root.ts`:
 
 `protectedProcedure` in `lib/api/trpc.ts` requires `ctx.user.orgId`, so feature routers should always scope DB reads/writes by org.
 
-`app/api/trpc/[trpc]/route.ts` builds tRPC context from `auth()`, optionally applies Upstash REST rate limiting at 60 requests / 60 seconds, and returns only `{ id, orgId, role }` into router context.
+`app/api/trpc/[trpc]/route.ts` builds tRPC context from `auth()`, optionally applies Upstash REST rate limiting at 60 requests / 60 seconds, returns only `{ id, orgId, role }` into router context, and logs full procedure errors server-side via `onError` (client payloads stay sanitized).
 
 Main Drizzle tables:
 

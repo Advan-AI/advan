@@ -382,3 +382,4 @@ Error: Lock mismatch for job triage-5bf5bfc3-d002-4de2-94ad-e8f0aef38222. Cmd mo
 [TriageWorker] Enqueued HITL id=64007a26-39d4-49e4-ba11-9dd64aa3d78f decision=hitl_collaborative
 [TriageWorker] ✓ Done message=c1276abf-9141-4ac8-a087-e7f5c025175a decision=hitl_collaborative totalMs=2271
 [TriageWorker] Job triage-c1276abf-9141-4ac8-a087-e7f5c025175a completed
+[TriageWorker] Starting...

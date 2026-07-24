@@ -711,3 +711,6 @@ Node.js v24.14.0
 [Socket] Agent disconnected (TY5OBL6FrMPe2fRwAAAR)
 [Socket] Agent disconnected (4L_6xL4iGwjjpJpuAAAU)
 [ChatWidget] Visitor disconnected (TeQFc6Z-mjDMTew6AAAP) org:b337c1db-1f5f-4b2f-bce6-3eb17d58f9e8 session:dde2072d-00a6-457d-aa53-9ffa7f0f0f4c
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus

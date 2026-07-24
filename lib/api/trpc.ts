@@ -1,5 +1,5 @@
 import { initTRPC, TRPCError } from '@trpc/server';
-import { ZodError } from 'zod';
+import { sanitizeTrpcErrorShape } from './sanitize-trpc-error';
 
 /**
  * Advan AI API Layer (Layer 2)
@@ -12,13 +12,8 @@ interface Context {
 
 const t = initTRPC.context<Context>().create({
   errorFormatter({ shape, error }) {
-    return {
-      ...shape,
-      data: {
-        ...shape.data,
-        zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
-      },
-    };
+    // Never leak SQL, stacks, or raw Zod JSON to clients (dev or prod).
+    return sanitizeTrpcErrorShape(shape, error);
   },
 });
 
