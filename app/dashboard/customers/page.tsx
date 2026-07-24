@@ -315,7 +315,7 @@ export default function CustomersPage() {
                       )}
                     >
                       <td className="px-4 py-3">
-                        <div className="flex min-w-[220px] items-center gap-3">
+                        <div className="flex min-w-0 sm:min-w-[220px] items-center gap-3">
                           <Avatar customer={customer} />
                           <div className="min-w-0">
                             <div className="truncate font-bold text-[var(--dash-ink)]">{displayName(customer)}</div>

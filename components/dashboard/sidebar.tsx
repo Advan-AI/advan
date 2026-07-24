@@ -57,12 +57,21 @@ const AUTOMATION: NavItem[] = [
   { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
 ]
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavLink({
+  item,
+  active,
+  onNavigate,
+}: {
+  item: NavItem
+  active: boolean
+  onNavigate?: () => void
+}) {
   const Icon = item.icon
   return (
     <Link
       href={item.href}
-      className={`group relative flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13.5px] font-medium transition-all ${
+      onClick={onNavigate}
+      className={`dash-nav-item group relative flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13.5px] font-medium transition-all ${
         active
           ? "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)] font-semibold"
           : "text-[var(--dash-ink-soft)] hover:bg-[rgba(107,92,214,0.07)] hover:text-[var(--dash-ink)]"
@@ -107,7 +116,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function DashboardSidebar() {
+export function DashboardSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname() || ""
 
   const { data: overview, isLoading: countsLoading } = api.analytics.overview.useQuery(
@@ -171,9 +180,9 @@ export function DashboardSidebar() {
   }
 
   return (
-    <aside className="w-[14.25rem] shrink-0 dash-bg-sidebar border-r dash-border self-stretch">
-      <div className="sticky top-0 h-screen flex flex-col px-3.5 py-5 overflow-y-auto">
-      <Link href="/dashboard" className="flex items-center gap-2.5 px-2 pb-4">
+    <aside className="w-[var(--dash-sidebar-w,14.25rem)] h-full shrink-0 dash-bg-sidebar border-r dash-border self-stretch">
+      <div className="sticky top-0 h-dvh h-screen flex flex-col px-3 sm:px-3.5 py-4 sm:py-5 overflow-y-auto overscroll-contain">
+      <Link href="/dashboard" onClick={onNavigate} className="flex items-center gap-2.5 px-2 pb-4">
         <Image
           src="/images/advan-logo.svg"
           alt="Advan"
@@ -185,23 +194,23 @@ export function DashboardSidebar() {
         <span className="text-[21px] font-extrabold tracking-tight text-[var(--dash-ink)]">Advan</span>
       </Link>
 
-      <nav className="flex flex-col gap-1">
+      <nav className="flex flex-col gap-0.5 sm:gap-1" aria-label="Dashboard">
         {primaryNav.map((i) => (
-          <NavLink key={i.href} item={i} active={isActive(i.href)} />
+          <NavLink key={i.href} item={i} active={isActive(i.href)} onNavigate={onNavigate} />
         ))}
 
         <GroupLabel>AI Copilot</GroupLabel>
         {COPILOT.map((i) => (
-          <NavLink key={i.href} item={i} active={isActive(i.href)} />
+          <NavLink key={i.href} item={i} active={isActive(i.href)} onNavigate={onNavigate} />
         ))}
 
         <GroupLabel>Automation</GroupLabel>
         {AUTOMATION.map((i) => (
-          <NavLink key={i.href} item={i} active={isActive(i.href)} />
+          <NavLink key={i.href} item={i} active={isActive(i.href)} onNavigate={onNavigate} />
         ))}
       </nav>
 
-      <div className="mt-auto flex flex-col gap-2.5">
+      <div className="mt-auto flex flex-col gap-2.5 pt-4">
         {isStarter && (
           <div className="dash-card-raised p-3.5 relative overflow-hidden">
             {isTrialing && trialDaysRemaining > 0 && (
@@ -212,15 +221,15 @@ export function DashboardSidebar() {
                 />
               </div>
             )}
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1.5">
-                <Crown className="w-[15px] h-[15px] text-[var(--dash-amber)]" />
-                <span className="text-[13px] font-bold text-[var(--dash-ink)]">
+            <div className="flex items-center justify-between mb-1 gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Crown className="w-[15px] h-[15px] text-[var(--dash-amber)] shrink-0" />
+                <span className="text-[13px] font-bold text-[var(--dash-ink)] truncate">
                   {isTrialing ? "Free Trial Period" : "Upgrade to Pro"}
                 </span>
               </div>
               {isTrialing && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[rgba(107,92,214,0.1)] text-[var(--dash-accent-deep)]">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[rgba(107,92,214,0.1)] text-[var(--dash-accent-deep)] shrink-0">
                   {trialDaysRemaining}d left
                 </span>
               )}
@@ -232,7 +241,8 @@ export function DashboardSidebar() {
             </p>
             <Link
               href="/dashboard/billing"
-              className="flex items-center justify-center w-full h-8 rounded-lg border border-[var(--dash-accent)] text-[var(--dash-accent-deep)] text-[12.5px] font-semibold hover:bg-[var(--dash-accent)] hover:text-white transition-colors"
+              onClick={onNavigate}
+              className="flex items-center justify-center w-full h-9 sm:h-8 rounded-lg border border-[var(--dash-accent)] text-[var(--dash-accent-deep)] text-[12.5px] font-semibold hover:bg-[var(--dash-accent)] hover:text-white transition-colors"
             >
               Upgrade Now
             </Link>
@@ -241,6 +251,7 @@ export function DashboardSidebar() {
 
         <Link
           href="/dashboard/billing"
+          onClick={onNavigate}
           className="flex items-center gap-2.5 p-2.5 rounded-[11px] border dash-border dash-bg-card hover:dash-shadow-sm transition cursor-pointer text-left"
         >
           <div className="w-[30px] h-[30px] rounded-lg dash-bg-deep flex items-center justify-center text-[13px] font-bold text-[var(--dash-ink-soft)]">

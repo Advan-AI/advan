@@ -380,7 +380,7 @@ export default function KnowledgeBasePage() {
                       )}
                     >
                       <td className="px-4 py-3">
-                        <div className="flex min-w-[260px] items-center gap-2.5">
+                        <div className="flex min-w-0 sm:min-w-[260px] items-center gap-2.5">
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#ECE9FB] text-[var(--dash-accent-deep)]">
                             {SOURCE_ICON[source.sourceType]}
                           </div>

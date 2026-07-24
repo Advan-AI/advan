@@ -33,7 +33,7 @@ Originally bootstrapped with [v0](https://v0.app); this repo is the full applica
 1. **Install dependencies**
 
    ```bash
-   npm ci
+   npm install --legacy-peer-deps
    ```
 
 2. **Environment**
@@ -160,7 +160,7 @@ Useful references:
 1. Install dependencies and apply migrations:
 
    ```bash
-   npm ci
+   npm install --legacy-peer-deps
    npx drizzle-kit migrate
    ```
 
@@ -239,7 +239,7 @@ Useful references:
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) runs TypeScript (`tsc --noEmit`), ESLint, Next.js build, E2E (Playwright + Postgres + Drizzle migrate), and a production npm audit (non-blocking). Keep **devDependencies** (TypeScript, ESLint, Playwright, etc.) in `package.json` aligned with CI so `npm ci` reproduces the same checks locally.
+GitHub Actions (`.github/workflows/ci.yml`) runs TypeScript (`tsc --noEmit`), ESLint, Next.js build, E2E (Playwright + Postgres + Drizzle migrate), and a production npm audit (non-blocking). Keep **devDependencies** (TypeScript, ESLint, Playwright, etc.) in `package.json` aligned with CI so `npm install --legacy-peer-deps` reproduces the same checks locally. A lockfile is not committed; installs resolve on the server from `package.json`.
 
 ## Security
 

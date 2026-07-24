@@ -94,7 +94,7 @@ export default function BillingPage() {
 
   if (loadingInfo || loadingPlans) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+      <div className="flex flex-col items-center justify-center min-h-[30vh] sm:min-h-[400px] gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-[var(--dash-accent)]" />
         <p className="text-[13.5px] text-[var(--dash-ink-soft)] font-medium">Loading subscription details...</p>
       </div>

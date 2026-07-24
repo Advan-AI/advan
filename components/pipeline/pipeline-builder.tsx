@@ -378,13 +378,17 @@ export function PipelineBuilder() {
           </div>
         )}
 
-        <div className="flex flex-col">
-          <div className="flex" style={{ height: 480 }}>
-            <PipelineSidebar />
-            <div className="relative flex-1 dash-bg-deep">
+        <div className="flex flex-col min-w-0">
+          <div className="flex flex-col lg:flex-row min-h-[50vh] lg:h-[min(70vh,36rem)] 3xl:h-[min(72vh,42rem)] 4xl:h-[min(75vh,48rem)]">
+            <div className="w-full lg:w-[12.5rem] 3xl:w-[14rem] shrink-0 border-b lg:border-b-0 lg:border-r dash-border max-h-[40vh] lg:max-h-none overflow-y-auto">
+              <PipelineSidebar />
+            </div>
+            <div className="relative flex-1 min-h-[280px] lg:min-h-0 dash-bg-deep min-w-0">
               <PipelineCanvas />
             </div>
-            <PipelineInspector />
+            <div className="w-full lg:w-[16.25rem] 3xl:w-[18rem] shrink-0 border-t lg:border-t-0 lg:border-l dash-border max-h-[40vh] lg:max-h-none overflow-y-auto">
+              <PipelineInspector />
+            </div>
           </div>
           <PipelineExecutionTrace />
         </div>

@@ -3,9 +3,9 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy package configurations (lockfile is excluded and ignored)
+# Resolve deps from package.json on the server (no committed lockfile).
 COPY package.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # ── Stage 2: Application Builder ───────────────────────────────────────
 FROM node:20-alpine AS builder

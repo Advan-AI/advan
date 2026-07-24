@@ -285,7 +285,7 @@ export default function AnalyticsPage() {
               </ResponsiveContainer>
             )}
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
             <MiniMetric label="Tickets" value={totals.tickets} />
             <MiniMetric label="Resolved" value={totals.resolved} tone="sage" />
             <MiniMetric label="AI resolved" value={totals.aiResolved} tone="accent" />
@@ -332,7 +332,7 @@ export default function AnalyticsPage() {
               </ResponsiveContainer>
             )}
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
             <MiniMetric label="AI decisions" value={totals.aiDecisions} tone="accent" />
             <MiniMetric label="Avg sources" value={totals.avgSources == null ? "—" : totals.avgSources.toFixed(1)} tone="sage" />
             <MiniMetric label="Flags" value={totals.flags} tone={totals.flags ? "rose" : "sage"} />

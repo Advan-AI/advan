@@ -37,7 +37,7 @@ Core product themes:
 
 ## Commands
 
-- Install: `npm ci`
+- Install: `npm install --legacy-peer-deps` (no committed lockfile; CI/Vercel/Docker resolve deps server-side from `package.json`)
 - Dev web only: `npm run dev`
 - Dev all services: `npm run dev:all`
 - Build: `npm run build`
@@ -117,6 +117,7 @@ Use this map before broad exploration:
 - Marketing/homepage changes: start with `app/page.tsx`, then the specific `components/*-section.tsx`, plus `app/globals.css` for theme tokens.
 - Legal/about/sign-in pages: `app/privacy/page.tsx`, `app/terms/page.tsx`, `app/about/page.tsx`, `app/signin/page.tsx`, `app/signin/forgot/page.tsx`.
 - Dashboard frame/nav/counts: `components/dashboard/dashboard-shell.tsx`, `components/dashboard/sidebar.tsx`, `components/dashboard/topbar.tsx`, `components/dashboard/overview.tsx`.
+- Dashboard responsive frame (mobile → 4K): CSS tokens/utilities in `app/globals.css` (`.dash-shell` vars, `.dash-main`, `.dash-page` max-width centering, `.dash-workbench`). Shell uses mobile drawer with Esc/scroll-lock; conversations uses list↔thread pane switching below `xl`; content caps at ~1600–2048px on ultrawide/4K so layouts do not stretch unreadably.
 - tRPC API shape: `lib/api/root.ts`, `lib/api/trpc.ts`, `app/api/trpc/[trpc]/route.ts`.
 - Auth/session issues: root `auth.ts`, `auth.config.ts`, `lib/auth-server.ts`, `proxy.ts`, `types/next-auth.d.ts`. `lib/auth.ts` is an older localStorage demo helper; do not confuse it with real NextAuth.
 - Database/model changes: `lib/db/schema.ts`, matching `lib/db/migrations/*`, and `lib/db/seed.ts`.

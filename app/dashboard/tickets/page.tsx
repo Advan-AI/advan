@@ -530,9 +530,9 @@ export default function TicketsPage() {
         title="Ticket Queue"
         icon={<Ticket className="w-[18px] h-[18px]" />}
         right={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {/* Search */}
-            <div className="flex items-center gap-1.5 bg-[var(--dash-bg-deep)] border dash-border rounded-lg px-2.5 py-1.5 w-[200px]">
+            <div className="flex items-center gap-1.5 bg-[var(--dash-bg-deep)] border dash-border rounded-lg px-2.5 py-1.5 w-full min-w-0 sm:w-[200px]">
               <Search className="w-3.5 h-3.5 text-[var(--dash-ink-faint)] shrink-0" />
               <input
                 value={q}
@@ -1241,7 +1241,7 @@ function BulkActionBar({
       animate={{ y: 0, opacity: 1  }}
       exit={{   y: 24, opacity: 0  }}
       transition={{ type: "spring", damping: 26, stiffness: 300 }}
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl bg-[var(--dash-ink)] text-white shadow-[0_8px_40px_-8px_rgba(42,37,32,0.7)] border border-white/10"
+      className="fixed inset-x-4 bottom-[max(1.25rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-6 z-50 flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 rounded-2xl bg-[var(--dash-ink)] text-white shadow-[0_8px_40px_-8px_rgba(42,37,32,0.7)] border border-white/10 max-w-[calc(100vw-2rem)]"
       role="toolbar"
       aria-label="Bulk actions"
     >
@@ -1402,7 +1402,7 @@ function NewTicketModal({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed right-0 top-0 h-full z-50 w-[400px] bg-[var(--dash-card)] flex flex-col border-l dash-border shadow-2xl"
+            className="fixed inset-x-0 sm:inset-x-auto sm:right-0 top-0 h-full z-50 w-full sm:w-[min(100%,400px)] bg-[var(--dash-card)] flex flex-col border-l dash-border shadow-2xl"
             role="dialog"
             aria-modal="true"
             aria-labelledby="new-ticket-title"
@@ -1466,7 +1466,7 @@ function NewTicketModal({
                   <p className="text-[11.5px] font-bold text-[var(--dash-ink-soft)] uppercase tracking-wide mb-1.5">
                     Priority
                   </p>
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                     {TICKET_PRIORITIES.map((p) => (
                       <button
                         key={p}
@@ -1489,7 +1489,7 @@ function NewTicketModal({
                   <p className="text-[11.5px] font-bold text-[var(--dash-ink-soft)] uppercase tracking-wide mb-1.5">
                     Channel
                   </p>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                     {TICKET_CHANNELS.map((c) => (
                       <button
                         key={c}

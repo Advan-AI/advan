@@ -714,3 +714,20 @@ Node.js v24.14.0
 [Socket] /chat-widget namespace registered
 [Socket] HITL Socket.IO server running on port 3002
 [Socket] Subscribed to realtime event bus
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (qGM-aUrTMcgHz31VAAAB)
+[Socket] Agent disconnected (qGM-aUrTMcgHz31VAAAB)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (c0ZPmRGh6wJwtNDCAAAD)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (LbBHt15PeVTzg_nFAAAG)
+[Socket] Agent disconnected (LbBHt15PeVTzg_nFAAAG)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (88WdHWgw-RxOQEpZAAAJ)
+[Socket] Agent disconnected (c0ZPmRGh6wJwtNDCAAAD)
+[Socket] Agent disconnected (88WdHWgw-RxOQEpZAAAJ)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (iAEJkb_psd7Vnru1AAAL)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (5UmWVoNJa_a3WGijAAAO)
+[Socket] Agent disconnected (iAEJkb_psd7Vnru1AAAL)
+[Socket] Agent disconnected (5UmWVoNJa_a3WGijAAAO)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (uPxB7dObnRyxfsuPAAAQ)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (tCQJ4I2MbpzXPqz_AAAT)

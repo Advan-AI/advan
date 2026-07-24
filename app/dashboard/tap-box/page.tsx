@@ -555,7 +555,7 @@ export default function TapBoxPage() {
                       className="h-10 w-full rounded-lg border dash-border bg-white pl-9 pr-3 text-[13px] text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
                     />
                   </label>
-                  <div className="mt-2 grid grid-cols-3 gap-2">
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <FilterSelect label="Risk" value={riskFilter} onChange={(value) => setRiskFilter(value as RiskFilter)} options={[
                       ["all", "All risk"],
                       ["autopass", "Auto-pass"],

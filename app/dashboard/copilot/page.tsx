@@ -830,7 +830,7 @@ function ConversationContext({
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <Stat icon={<MessageSquare className="h-3.5 w-3.5" />} label="Messages" value={String(thread?.messages.length ?? "—")} />
                 <Stat icon={<Sparkles className="h-3.5 w-3.5" />} label="AI basis" value={thread ? "Thread" : "Loading"} />
                 <Stat icon={<Clock className="h-3.5 w-3.5" />} label="Updated" value={relativeTime(activeConversation.updatedAt)} />

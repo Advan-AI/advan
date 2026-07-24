@@ -39,6 +39,7 @@ import {
   BookOpen,
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
 } from "lucide-react"
 import * as SocketIO from "socket.io-client"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
@@ -229,6 +230,8 @@ export default function ConversationsPage() {
 
   const [tab, setTab] = useState<Tab>("All")
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  /** Mobile/tablet: show inbox list OR thread (desktop keeps 3-pane). */
+  const [mobilePane, setMobilePane] = useState<"list" | "thread">("list")
   const [search, setSearch] = useState("")
   const [composeMode, setComposeMode] = useState<ComposeMode>("reply")
   const [text, setText] = useState("")
@@ -567,6 +570,7 @@ export default function ConversationsPage() {
 
     if (convId) {
       setSelectedId(convId)
+      setMobilePane("thread")
       setDeepLinkResolved(true)
     } else {
       setTicketIdFromUrl(ticketId)
@@ -609,6 +613,7 @@ export default function ConversationsPage() {
   const ensureConversation = api.conversations.create.useMutation({
     onSuccess: (conv) => {
       setSelectedId(conv.id)
+      setMobilePane("thread")
       setDeepLinkResolved(true)
       void utils.conversations.list.invalidate()
       void utils.analytics.overview.invalidate()
@@ -626,6 +631,7 @@ export default function ConversationsPage() {
 
     if (ticketConversation?.conversation) {
       setSelectedId(ticketConversation.conversation.id)
+      setMobilePane("thread")
       setDeepLinkResolved(true)
       router.replace("/dashboard/conversations", { scroll: false })
       return
@@ -668,15 +674,18 @@ export default function ConversationsPage() {
     router,
   ])
 
-  // Auto-select first conversation when not arriving from a ticket deep-link.
+  // Auto-select first conversation on desktop workbench only (mobile starts on list).
   useEffect(() => {
     if (!deepLinkResolved) return
-    if (convList[0]?.id && !selectedId) {
+    const desktop =
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 1280px)").matches
+    if (desktop && convList[0]?.id && !selectedId) {
       setSelectedId(convList[0].id)
     }
   }, [convList, selectedId, deepLinkResolved])
 
-  const activeId = selectedId ?? convList[0]?.id ?? null
+  const activeId = selectedId
 
   const { data: threadRaw, isLoading: threadLoading } = api.conversations.getById.useQuery(
     { id: activeId! },
@@ -1011,6 +1020,7 @@ export default function ConversationsPage() {
               <button
                 onClick={() => {
                   setSelectedId(activeAlert.conversationId)
+                  setMobilePane("thread")
                   setActiveAlert(null)
                   // Highlight input field
                   setTimeout(() => {
@@ -1048,6 +1058,7 @@ export default function ConversationsPage() {
                 }}
                 onSelect={() => {
                   setSelectedId(tab.conversationId)
+                  setMobilePane("thread")
                   setChatTabs((prev) => prev.filter((t) => t.conversationId !== tab.conversationId))
                   setTimeout(() => {
                     textareaRef.current?.focus()
@@ -1095,7 +1106,7 @@ export default function ConversationsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[300px_1fr_290px] gap-4 xl:h-[calc(100vh-210px)] min-h-[550px] items-stretch">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(16rem,19rem)_minmax(0,1fr)_minmax(15rem,18rem)] 3xl:grid-cols-[20rem_minmax(0,1fr)_20rem] 4xl:grid-cols-[22rem_minmax(0,1fr)_22rem] gap-3 sm:gap-4 dash-workbench items-stretch">
         {/* ── Left: Conversation list ── */}
         <ConversationList
           convs={filteredConvs}
@@ -1105,19 +1116,32 @@ export default function ConversationsPage() {
           onSearch={setSearch}
           onSelect={(id) => {
             setSelectedId(id)
+            setMobilePane("thread")
             setTab("All")
           }}
-          className="xl:h-full flex flex-col"
+          className={`${mobilePane === "thread" ? "hidden" : "flex"} xl:flex xl:h-full flex-col min-h-[min(60dvh,28rem)] xl:min-h-0`}
         />
 
         {/* ── Center: Message thread ── */}
         <DashCard
           title={
-            thread?.customerName ??
-            thread?.ticketSubject?.slice(0, 40) ??
-            "Conversation"
+            <span className="flex items-center gap-1.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => setMobilePane("list")}
+                className="xl:hidden inline-flex items-center justify-center w-8 h-8 -ml-1 rounded-lg text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)] shrink-0"
+                aria-label="Back to conversations"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="truncate">
+                {thread?.customerName ??
+                  thread?.ticketSubject?.slice(0, 40) ??
+                  "Conversation"}
+              </span>
+            </span>
           }
-          icon={<MessageSquare className="w-[18px] h-[18px]" />}
+          icon={<MessageSquare className="w-[18px] h-[18px] hidden sm:block" />}
           right={
             <div className="flex items-center gap-2">
               {/* Visitor online badge — only shown for chat conversations */}
@@ -1132,16 +1156,19 @@ export default function ConversationsPage() {
                   ].join(" ")}
                 >
                   <Radio className="w-2.5 h-2.5" />
-                  {visitorOnline.has(activeId) ? "Visitor online" : "Visitor offline"}
+                  <span className="hidden sm:inline">
+                    {visitorOnline.has(activeId) ? "Visitor online" : "Visitor offline"}
+                  </span>
+                  <span className="sm:hidden">{visitorOnline.has(activeId) ? "Online" : "Away"}</span>
                 </span>
               )}
-              <span className="font-mono text-[11px] text-[var(--dash-ink-faint)]">
+              <span className="font-mono text-[11px] text-[var(--dash-ink-faint)] hidden sm:inline">
                 #{activeId?.slice(0, 8) ?? "—"}
               </span>
             </div>
           }
           padded={false}
-          className="xl:h-full flex flex-col"
+          className={`${mobilePane === "list" ? "hidden" : "flex"} xl:flex xl:h-full flex-col min-h-[min(70dvh,32rem)] xl:min-h-0`}
         >
           {!activeId ? (
             <EmptySelect />
@@ -1437,7 +1464,11 @@ export default function ConversationsPage() {
         </DashCard>
 
         {/* ── Right: Details ── */}
-        <DetailsPanel thread={thread ?? null} loading={!!activeId && threadLoading} className="xl:h-full flex flex-col" />
+        <DetailsPanel
+          thread={thread ?? null}
+          loading={!!activeId && threadLoading}
+          className="hidden xl:flex xl:h-full flex-col"
+        />
       </div>
     </div>
   )

@@ -529,7 +529,7 @@ function WorkflowCard({ workflow, active, onSelect, onToggle, onDuplicate, onDel
         </div>
         <StatusPill workflow={workflow} />
       </div>
-      <div className="mt-3 grid grid-cols-4 gap-1.5">
+      <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         <TinyFact label="Nodes" value={workflow.analysis.nodeCount} />
         <TinyFact label="Edges" value={workflow.analysis.edgeCount} />
         <TinyFact label="Waves" value={workflow.analysis.waveCount} />
@@ -665,7 +665,7 @@ function WorkflowInspector({
             </TooltipContent>
           </Tooltip>
         </div>
-        <div className="mt-2 grid grid-cols-3 gap-2">
+        <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
           <ActionButton icon={<Clipboard className="h-3.5 w-3.5" />} label="Copy" onClick={onCopy} />
           <ActionButton icon={<Copy className="h-3.5 w-3.5" />} label="Duplicate" onClick={onDuplicate} />
           <ActionButton icon={<Trash2 className="h-3.5 w-3.5" />} label="Delete" onClick={onDelete} danger />

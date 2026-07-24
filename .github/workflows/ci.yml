@@ -22,10 +22,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
+          # No cache: "npm" — that requires a committed lockfile.
+          # Deps are resolved server-side from package.json via npm install.
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: TypeScript check
         run: npx tsc --noEmit
@@ -52,10 +53,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
+          # No cache: "npm" — that requires a committed lockfile.
+          # Deps are resolved server-side from package.json via npm install.
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Build
         run: npm run build
@@ -92,10 +94,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
+          # No cache: "npm" — that requires a committed lockfile.
+          # Deps are resolved server-side from package.json via npm install.
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
@@ -128,5 +131,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
+      - run: npm install --legacy-peer-deps --package-lock-only
       - run: npm audit --audit-level=high --production || true

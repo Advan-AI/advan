@@ -617,7 +617,7 @@ export function DashboardOverview() {
       )}
 
       {/* ── KPI stat cards ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 3xl:grid-cols-4 gap-3 sm:gap-4 mb-5">
         {stats.map((s, i) => {
           const Icon = s.icon
           return (
@@ -644,7 +644,7 @@ export function DashboardOverview() {
               {s.loading ? (
                 <StatSkeleton />
               ) : (
-                <div className="mt-0.5 text-[24px] font-bold tracking-tight text-[var(--dash-ink)]">
+                <div className="mt-0.5 text-[clamp(1.25rem,1.2vw+0.8rem,1.75rem)] font-bold tracking-tight text-[var(--dash-ink)]">
                   {s.value}
                 </div>
               )}
@@ -657,7 +657,7 @@ export function DashboardOverview() {
       </div>
 
       {/* ── Activity + sidebar ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] 3xl:grid-cols-[minmax(0,1.75fr)_minmax(20rem,1fr)] gap-3 sm:gap-4">
 
         {/* Recent activity */}
         <DashCard

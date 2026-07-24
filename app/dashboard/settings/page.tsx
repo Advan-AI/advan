@@ -288,7 +288,7 @@ export default function SettingsPage() {
 
   if (loadingInitial) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[500px] gap-3">
+      <div className="flex flex-col items-center justify-center min-h-[40vh] sm:min-h-[500px] gap-3">
         <Loader2 className="w-9 h-9 animate-spin text-[var(--dash-accent)]" />
         <p className="text-[13.5px] text-[var(--dash-ink-soft)] font-medium">Loading settings pane...</p>
       </div>
@@ -479,7 +479,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t dash-border-soft flex items-center justify-between mt-6">
+                  <div className="pt-4 border-t dash-border-soft flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-6">
                     <div className="flex items-center gap-3">
                       <input
                         id="p-chat"

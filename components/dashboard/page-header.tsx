@@ -12,23 +12,27 @@ export function DashPageHeader({
   actions?: ReactNode
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
-      <div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4 mb-4 sm:mb-5">
+      <div className="min-w-0 flex-1">
         {eyebrow && (
           <div className="text-[11px] font-bold uppercase tracking-[0.13em] text-[var(--dash-ink-faint)] mb-1.5">
             {eyebrow}
           </div>
         )}
-        <h1 className="text-[22px] sm:text-[26px] font-bold tracking-tight text-[var(--dash-ink)] leading-tight">
+        <h1 className="text-[clamp(1.25rem,2.5vw+0.6rem,1.75rem)] font-bold tracking-tight text-[var(--dash-ink)] leading-tight break-words">
           {title}
         </h1>
         {subtitle && (
-          <p className="mt-1 text-[13.5px] text-[var(--dash-ink-soft)] max-w-2xl">
+          <p className="mt-1 text-[13px] sm:text-[13.5px] text-[var(--dash-ink-soft)] max-w-3xl leading-relaxed">
             {subtitle}
           </p>
         )}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end shrink-0">
+          {actions}
+        </div>
+      )}
     </div>
   )
 }
@@ -49,17 +53,25 @@ export function DashCard({
   padded?: boolean
 }) {
   return (
-    <div className={`dash-card overflow-hidden flex flex-col ${className}`}>
+    <div className={`dash-card overflow-hidden flex flex-col min-w-0 ${className}`}>
       {(title || right) && (
-        <div className="flex items-center gap-2.5 px-4 py-3.5 border-b dash-border-soft">
-          {icon && <span className="text-[var(--dash-accent)]">{icon}</span>}
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-3 sm:px-4 py-3 sm:py-3.5 border-b dash-border-soft">
+          {icon && <span className="text-[var(--dash-accent)] shrink-0">{icon}</span>}
           {title && (
-            <span className="text-[14px] font-bold text-[var(--dash-ink)]">{title}</span>
+            <span className="text-[13.5px] sm:text-[14px] font-bold text-[var(--dash-ink)] min-w-0 flex-1 [&:has(>span)]:flex">
+              {title}
+            </span>
           )}
-          {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
+          {right && (
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2 min-w-0 max-w-full">
+              {right}
+            </div>
+          )}
         </div>
       )}
-      <div className={`flex-1 flex flex-col min-h-0 ${padded ? "p-4" : ""}`}>{children}</div>
+      <div className={`flex-1 flex flex-col min-h-0 min-w-0 ${padded ? "p-3 sm:p-4" : ""}`}>
+        {children}
+      </div>
     </div>
   )
 }

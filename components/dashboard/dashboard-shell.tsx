@@ -133,6 +133,21 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     setSidebarOpen(false)
   }, [pathname])
 
+  // Esc + body scroll lock while mobile nav is open
+  useEffect(() => {
+    if (!sidebarOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSidebarOpen(false)
+    }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    window.addEventListener("keydown", onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener("keydown", onKey)
+    }
+  }, [sidebarOpen])
+
   useEffect(() => {
     if (status === "authenticated" && onboarding?.isPending) {
       router.push("/onboarding")
@@ -142,8 +157,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   // Auth is enforced by proxy.ts — this handles the loading skeleton
   if (status === "loading" || (status === "authenticated" && onboardingLoading)) {
     return (
-      <div className="min-h-screen dash-shell flex">
-        <aside className="hidden lg:flex w-[14.25rem] shrink-0 dash-bg-sidebar border-r dash-border h-screen flex-col gap-3 p-4">
+      <div className="min-h-dvh min-h-screen dash-shell flex">
+        <aside className="hidden lg:flex w-[var(--dash-sidebar-w,14.25rem)] shrink-0 dash-bg-sidebar border-r dash-border h-dvh h-screen flex-col gap-3 p-4">
           <div className="flex items-center gap-2.5">
             <div className="skeleton w-9 h-9 rounded-[9px]" />
             <div className="skeleton h-5 w-20 rounded" />
@@ -155,18 +170,18 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           </div>
           <div className="mt-auto skeleton h-24 w-full rounded-xl" />
         </aside>
-        <div className="flex-1 flex flex-col">
-          <div className="h-[66px] flex items-center gap-3 px-6 border-b dash-border">
-            <div className="skeleton h-5 w-36" />
+        <div className="dash-main">
+          <div className="h-[var(--dash-topbar-h,66px)] flex items-center gap-3 px-4 sm:px-6 border-b dash-border">
+            <div className="skeleton h-5 w-28 sm:w-36" />
             <div className="ml-auto flex items-center gap-3">
               <div className="skeleton w-9 h-9 rounded-lg" />
               <div className="skeleton w-9 h-9 rounded-full" />
             </div>
           </div>
-          <div className="flex-1 p-6 flex flex-col gap-4">
-            <div className="skeleton h-8 w-72 rounded" />
-            <div className="skeleton h-4 w-96 rounded" />
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+          <div className="dash-page flex flex-col gap-4">
+            <div className="skeleton h-8 w-48 sm:w-72 rounded" />
+            <div className="skeleton h-4 w-64 sm:w-96 max-w-full rounded" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-2">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="skeleton h-24 rounded-xl" />
               ))}
@@ -185,9 +200,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="dash-shell flex min-h-screen">
+    <div className="dash-shell flex min-h-dvh min-h-screen">
       {/* Desktop sidebar */}
-      <div className="hidden lg:block shrink-0 h-screen sticky top-0">
+      <div className="hidden lg:block shrink-0 h-dvh h-screen sticky top-0">
         <DashboardSidebar />
       </div>
 
@@ -203,37 +218,41 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               transition={{ duration: 0.2 }}
               className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
               onClick={() => setSidebarOpen(false)}
+              aria-hidden
             />
             <motion.div
               key="drawer"
-              initial={{ x: -260 }}
+              initial={{ x: "-100%" }}
               animate={{ x: 0 }}
-              exit={{ x: -260 }}
+              exit={{ x: "-100%" }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              className="fixed inset-y-0 left-0 z-50 lg:hidden"
+              className="fixed inset-y-0 left-0 z-50 w-[min(20rem,88vw)] max-w-[20rem] lg:hidden shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation"
             >
-              <DashboardSidebar />
+              <DashboardSidebar onNavigate={() => setSidebarOpen(false)} />
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="dash-main">
         <DashboardTopbar
           user={session?.user ?? null}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
         {isRestricted && (
-          <div className="mx-4 sm:mx-6 mt-4 p-4 rounded-xl border border-amber-200/50 bg-amber-50/70 dark:bg-amber-950/20 backdrop-blur-sm text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-            <div className="flex items-start sm:items-center gap-3">
-              <span className="text-xl" role="img" aria-label="warning">⚠️</span>
-              <div className="text-[13px] leading-relaxed">
+          <div className="mx-[max(1rem,env(safe-area-inset-left))] sm:mx-6 mt-3 sm:mt-4 p-3 sm:p-4 rounded-xl border border-amber-200/50 bg-amber-50/70 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <span className="text-xl shrink-0" role="img" aria-label="warning">⚠️</span>
+              <div className="text-[12.5px] sm:text-[13px] leading-relaxed">
                 <span className="font-bold">Billing Alert:</span> Your subscription is <span className="font-semibold underline capitalize">{subscriptionStatus}</span>. Knowledge Base uploads, workflow editing, and team invites are locked. Inbound ticketing, chat triage, and copilot remain fully operational.
               </div>
             </div>
             <Link
               href="/dashboard/billing"
-              className="shrink-0 text-center text-[12.5px] font-bold px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition-colors"
+              className="shrink-0 text-center text-[12.5px] font-bold px-4 py-2 sm:py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition-colors"
             >
               Update Billing
             </Link>
@@ -244,7 +263,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-          className="flex-1 px-4 sm:px-6 py-5"
+          className="dash-page"
         >
           {children}
         </motion.div>
@@ -258,7 +277,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
             exit={{ opacity: 0, x: 120, scale: 0.85 }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
-            className="fixed bottom-6 right-6 z-[9999] w-full max-w-[22.5rem] rounded-xl border border-indigo-200 bg-[#FCFBF8]/95 p-4 shadow-[0_12px_40px_rgba(107,92,214,0.15)] backdrop-blur-md font-sans border-l-4 border-l-[var(--dash-accent)]"
+            className="fixed z-[9999] left-3 right-3 bottom-[max(1.25rem,env(safe-area-inset-bottom))] sm:left-auto sm:right-6 sm:bottom-6 sm:w-full sm:max-w-[22.5rem] rounded-xl border border-indigo-200 bg-[#FCFBF8]/95 p-4 shadow-[0_12px_40px_rgba(107,92,214,0.15)] backdrop-blur-md font-sans border-l-4 border-l-[var(--dash-accent)]"
           >
             <div className="flex gap-3">
               {/* Avatar with live pulse status */}

@@ -26,7 +26,7 @@ export function PipelineInspector() {
 
   if (selectedEdgeId && edge) {
     return (
-      <div className="w-[16.25rem] shrink-0 overflow-y-auto border-l dash-border-soft p-4 dash-bg-sidebar">
+      <div className="w-full h-full overflow-y-auto p-4 dash-bg-sidebar">
         <div className="mb-1 flex items-center gap-1.5 text-[13px] font-bold text-[var(--dash-ink)]">
           <GitBranch className="h-4 w-4 text-[var(--dash-accent)]" />
           Wire connection
@@ -66,7 +66,7 @@ export function PipelineInspector() {
 
   if (!selectedId || !node || !node.type || !nodeRegistry.has(node.type)) {
     return (
-      <div className="w-[16.25rem] shrink-0 border-l dash-border-soft p-4 dash-bg-sidebar">
+      <div className="w-full h-full border-0 p-4 dash-bg-sidebar">
         <p className="text-[12.5px] text-[var(--dash-ink-faint)]">Select a node to configure it.</p>
       </div>
     )
@@ -79,7 +79,7 @@ export function PipelineInspector() {
   const setField = (key: string, value: unknown) => update(node.id, { ...data, [key]: value })
 
   return (
-    <div className="w-[16.25rem] shrink-0 overflow-y-auto border-l dash-border-soft p-4 dash-bg-sidebar">
+    <div className="w-full h-full overflow-y-auto p-4 dash-bg-sidebar">
       <div className="mb-1 text-[13px] font-bold text-[var(--dash-ink)]">{def.label}</div>
       <p className="mb-3 text-[11px] leading-[1.5] text-[var(--dash-ink-faint)]">{def.description}</p>
 
