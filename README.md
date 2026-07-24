@@ -4,6 +4,7 @@ Customer-support oriented **Next.js** app with **tRPC**, **Drizzle ORM**, **Next
 
 Originally bootstrapped with [v0](https://v0.app); this repo is the full application codebase.
 
+
 ## Stack
 
 | Layer | Technology |
