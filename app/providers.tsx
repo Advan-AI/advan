@@ -8,7 +8,8 @@ import { usePathname } from "next/navigation"
 import { api } from "@/lib/api/trpc-client"
 
 function getBaseUrl() {
-  if (typeof window !== "undefined") return ""
+  if (typeof window !== "undefined") return process.env.NEXT_PUBLIC_API_URL || ""
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
   return `http://localhost:${process.env.PORT ?? 3000}`
 }
