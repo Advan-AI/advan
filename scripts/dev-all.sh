@@ -291,13 +291,50 @@ start_bg() {
   local name="$1"
   shift
   echo "[dev-all] Starting $name → $LOG_DIR/${name}.log"
-  "$@" >>"$LOG_DIR/${name}.log" 2>&1 &
+  # Tiny pools: Next.js + workers share one Supabase pooler quota.
+  env DB_POOL_ROLE=worker \
+    DB_MAX_CONNECTIONS="${WORKER_DB_MAX_CONNECTIONS:-2}" \
+    "$@" >>"$LOG_DIR/${name}.log" 2>&1 &
   PIDS+=("$!")
+}
+
+# Prior interrupted `dev:all` runs leave orphan workers that each open a DB pool
+# and can exhaust Supabase (EAI_AGAIN / CONNECT_TIMEOUT under load).
+stop_stale_workers() {
+  local patterns=(
+    "lib/queue/workers/embedding-worker.ts"
+    "lib/queue/workers/notification-worker.ts"
+    "lib/queue/workers/copilot-triage-worker.ts"
+    "lib/realtime/socket-server.ts"
+    "lib/temporal/worker.ts"
+  )
+  local pat pids
+  local found=0
+  for pat in "${patterns[@]}"; do
+    pids="$(pgrep -f "$pat" 2>/dev/null || true)"
+    if [[ -n "$pids" ]]; then
+      found=1
+      # shellcheck disable=SC2086
+      kill -TERM $pids 2>/dev/null || true
+    fi
+  done
+  if [[ "$found" == "1" ]]; then
+    echo "[dev-all] Stopped leftover workers from a prior run (frees Supabase pool slots)"
+    sleep 0.8
+    for pat in "${patterns[@]}"; do
+      pids="$(pgrep -f "$pat" 2>/dev/null || true)"
+      if [[ -n "$pids" ]]; then
+        # shellcheck disable=SC2086
+        kill -KILL $pids 2>/dev/null || true
+      fi
+    done
+  fi
 }
 
 ensure_redis
 ensure_ollama
 ensure_temporal_server
+stop_stale_workers
 
 if [[ "${DEV_ALL_SKIP_EMBEDDING:-}" != "1" ]]; then
   if [[ -z "${REDIS_URL:-}" ]]; then

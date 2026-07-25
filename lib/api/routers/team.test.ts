@@ -10,8 +10,13 @@ vi.mock("@/lib/db", () => ({
         findFirst: vi.fn(),
         findMany: vi.fn(),
       },
+      orgRoles: {
+        findFirst: vi.fn(),
+        findMany: vi.fn(),
+      },
     },
     insert: vi.fn(),
+    update: vi.fn(),
     delete: vi.fn(),
   },
 }))
@@ -58,6 +63,19 @@ const NEW_USER_ROW = {
   role: "member",
 }
 
+const CUSTOM_ROLE_ID = "00000000-0000-0000-0000-000000000020"
+
+const CUSTOM_ROLE_ROW = {
+  id: CUSTOM_ROLE_ID,
+  key: "qa-lead",
+  name: "QA Lead",
+  description: "Owns QA escalations",
+  baseRole: "member",
+  permissions: ["tickets.read", "tickets.write", "not.valid"],
+  isSystem: false,
+  createdAt: new Date(),
+}
+
 function mockInsert(row: object) {
   vi.mocked(db.insert).mockReturnValue({
     values: vi.fn().mockReturnValue({
@@ -72,6 +90,16 @@ function mockDelete() {
   } as any)
 }
 
+function mockUpdate(returnRow: object = { success: true }) {
+  vi.mocked(db.update).mockReturnValue({
+    set: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([returnRow]),
+      }),
+    }),
+  } as any)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
@@ -80,7 +108,10 @@ beforeEach(() => {
   vi.mocked(hash).mockResolvedValue("hashed_password" as any)
   vi.mocked(db.query.users.findMany).mockResolvedValue([])
   vi.mocked(db.query.users.findFirst).mockResolvedValue(null as any)
+  vi.mocked(db.query.orgRoles.findMany).mockResolvedValue([])
+  vi.mocked(db.query.orgRoles.findFirst).mockResolvedValue(null as any)
   mockInsert(NEW_USER_ROW)
+  mockUpdate()
   mockDelete()
 })
 
@@ -154,5 +185,87 @@ describe("team.removeMember", () => {
 
     expect(err).toBeInstanceOf(TRPCError)
     expect(err.code).toBe("NOT_FOUND")
+  })
+})
+
+describe("team.createRole", () => {
+  it("creates a custom role and sanitizes invalid permission keys", async () => {
+    mockInsert(CUSTOM_ROLE_ROW)
+
+    const caller = makeCaller()
+    const created = await caller.createRole({
+      name: "QA Lead",
+      description: "Owns QA escalations",
+      baseRole: "member",
+      permissions: ["tickets.read", "tickets.write", "not.valid"],
+    })
+
+    expect(created.key).toBe("qa-lead")
+    expect(created.permissions).toEqual(["tickets.read", "tickets.write"])
+  })
+
+  it("rejects non-admins", async () => {
+    const caller = teamRouter.createCaller({ user: { id: ADMIN_ID, orgId: ORG_ID, role: "member" } })
+    const err = await caller.createRole({
+      name: "Viewer Plus",
+      baseRole: "viewer",
+      permissions: ["tickets.read"],
+    }).catch((e) => e)
+
+    expect(err).toBeInstanceOf(TRPCError)
+    expect(err.code).toBe("FORBIDDEN")
+  })
+})
+
+describe("team.updateMemberRole", () => {
+  it("blocks demoting the last remaining admin", async () => {
+    vi.mocked(db.query.users.findFirst).mockResolvedValue({ id: MEMBER_ID, role: "admin", orgId: ORG_ID } as any)
+    vi.mocked(db.query.users.findMany).mockResolvedValue([{ id: MEMBER_ID, role: "admin" }] as any)
+
+    const caller = makeCaller(ORG_ID, ADMIN_ID)
+    const err = await caller.updateMemberRole({ userId: MEMBER_ID, roleKey: "member" }).catch((e) => e)
+
+    expect(err).toBeInstanceOf(TRPCError)
+    expect(err.code).toBe("BAD_REQUEST")
+    expect(err.message).toContain("At least one administrator")
+  })
+
+  it("assigns a custom role by key", async () => {
+    vi.mocked(db.query.users.findFirst).mockResolvedValue({ id: MEMBER_ID, role: "member", orgId: ORG_ID } as any)
+    vi.mocked(db.query.orgRoles.findFirst).mockResolvedValue({
+      id: CUSTOM_ROLE_ID,
+      orgId: ORG_ID,
+      key: "qa-lead",
+      name: "QA Lead",
+      baseRole: "member",
+      permissions: ["tickets.read"],
+      isSystem: false,
+    } as any)
+
+    const caller = makeCaller(ORG_ID, ADMIN_ID)
+    const result = await caller.updateMemberRole({ userId: MEMBER_ID, roleKey: "qa-lead" })
+
+    expect(result.success).toBe(true)
+    expect(db.update).toHaveBeenCalledOnce()
+  })
+})
+
+describe("team.deleteRole", () => {
+  it("requires replacementRoleKey when members are assigned", async () => {
+    vi.mocked(db.query.orgRoles.findFirst).mockResolvedValue({
+      id: CUSTOM_ROLE_ID,
+      orgId: ORG_ID,
+      key: "qa-lead",
+      name: "QA Lead",
+      baseRole: "member",
+      isSystem: false,
+    } as any)
+    vi.mocked(db.query.users.findMany).mockResolvedValue([{ id: MEMBER_ID }] as any)
+
+    const caller = makeCaller()
+    const err = await caller.deleteRole({ roleId: CUSTOM_ROLE_ID }).catch((e) => e)
+
+    expect(err).toBeInstanceOf(TRPCError)
+    expect(err.code).toBe("BAD_REQUEST")
   })
 })

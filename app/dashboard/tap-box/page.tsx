@@ -63,6 +63,7 @@ type HitlItem = {
   orgId: string
   ticketId: string | null
   conversationId: string | null
+  customerDisplayName?: string | null
   draftOutput: string
   reason: string
   status: HitlStatus
@@ -109,6 +110,7 @@ type AuditLog = {
   createdAt: string | Date
   /** Ticket channel joined from tickets table; null when no ticket is linked. */
   channel?: string | null
+  customerDisplayName?: string | null
 }
 type RiskFilter = "all" | "autopass" | "review" | "blocked"
 type SourceFilter = "all" | "sourced" | "unsourced"
@@ -517,6 +519,10 @@ export default function TapBoxPage() {
                           </span>
                         </div>
 
+                        <p className="mb-2 text-[11.5px] text-[var(--dash-ink-soft)]">
+                          Customer: <span className="font-semibold text-[var(--dash-ink)]">{item.customerDisplayName ?? "—"}</span>
+                        </p>
+
                         {item.reason && (
                           <p className="mb-2 text-[12px] italic text-[var(--dash-ink-soft)] break-words">{item.reason}</p>
                         )}
@@ -816,6 +822,7 @@ export default function TapBoxPage() {
                       <Row k="Model" v={selectedMetadata.model ?? "Advan Trust Engine"} />
                       <Row k="Origin" v={selectedMetadata.source === "auto_triage" ? "Auto-triage" : "Manual"} />
                       <Row k="Channel" v={selectedLog.channel ? channelLabel(selectedLog.channel) : "—"} />
+                      <Row k="Customer" v={selectedLog.customerDisplayName ?? "—"} />
                       <Row k="Ticket" v={selectedLog.ticketId ? selectedLog.ticketId.slice(0, 8) : "none"} />
                       <Row k="Workflow" v={selectedLog.workflowId ? selectedLog.workflowId.slice(0, 8) : "none"} />
                       <Row k="Created" v={formatDate(selectedLog.createdAt)} />

@@ -12,11 +12,11 @@
  *   2. Reject if unknown, or if origin is not an exact match in allowedOrigins.
  *      Strict equality prevents bypass via subdomain-prefix tricks such as
  *      evil-example.com.attacker.com matching a prefix check on example.com.
- *   3. Mint (or reuse, on resume) a visitorSessionId UUID.
- *   4. Sign a JWT containing { orgId, widgetKey, visitorSessionId } using
+ *   3. Reuse a valid persistent visitorId or create a new visitors row.
+ *   4. Sign a JWT containing { orgId, widgetKey, visitorId } using
  *      AUTH_SECRET / NEXTAUTH_SECRET via jose (already a project dependency
  *      through NextAuth — no second JWT library added).
- *   5. Return { token, visitorSessionId }.
+ *   5. Return { token, visitorId }.
  *
  * Authentication: NONE — intentionally unauthenticated public endpoint.
  * Rate limit: Upstash slidingWindow(20, "60 s") per IP.
@@ -31,7 +31,7 @@ import { SignJWT } from "jose"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { db } from "@/lib/db"
-import { widgetConfigs, conversations, messages } from "@/lib/db/schema"
+import { visitors, widgetConfigs } from "@/lib/db/schema"
 
 export const runtime = "nodejs"
 
@@ -173,7 +173,7 @@ function getSigningKey(): Uint8Array {
 export async function signWidgetToken(payload: {
   orgId: string
   widgetKey: string
-  visitorSessionId: string
+  visitorId: string
 }): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
@@ -198,7 +198,7 @@ export const SessionSchema = z.object({
    * Must be a UUID; free-form strings are rejected so the column stays clean
    * for future indexed lookups.
    */
-  visitorSessionId: z.string().uuid().optional(),
+  visitorId: z.string().uuid().optional(),
 })
 
 export type SessionRequest = z.infer<typeof SessionSchema>
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { widgetKey, origin, visitorSessionId: resumeSessionId } = parsed.data
+  const { widgetKey, origin, visitorId: existingVisitorId } = parsed.data
 
   // Apply secondary rate limit keyed by widgetKey to prevent tenant starvation
   const widgetRateLimited = await applyWidgetRateLimit(widgetKey)
@@ -249,42 +249,65 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Origin not allowed" }, { status: 403 })
   }
 
-  // Reuse the caller's session ID on resume; mint a fresh UUID otherwise.
-  const visitorSessionId = resumeSessionId ?? crypto.randomUUID()
+  const now = new Date()
+
+  let visitorId = existingVisitorId
+  if (visitorId) {
+    const existing = await db.query.visitors.findFirst({
+      where: and(
+        eq(visitors.id, visitorId),
+        eq(visitors.orgId, config.orgId),
+        eq(visitors.widgetKey, widgetKey),
+      ),
+      columns: { id: true },
+    })
+
+    if (existing) {
+      await db
+        .update(visitors)
+        .set({ lastSeenAt: now })
+        .where(eq(visitors.id, visitorId))
+    } else {
+      // Stale localStorage after DB switch / wipe — mint a fresh identity
+      // instead of hard-failing the widget with 403.
+      visitorId = crypto.randomUUID()
+      await db.insert(visitors).values({
+        id: visitorId,
+        orgId: config.orgId,
+        widgetKey,
+        firstSeenAt: now,
+        lastSeenAt: now,
+      })
+    }
+  } else {
+    visitorId = crypto.randomUUID()
+    await db.insert(visitors).values({
+      id: visitorId,
+      orgId: config.orgId,
+      widgetKey,
+      firstSeenAt: now,
+      lastSeenAt: now,
+    })
+  }
+
+  if (!visitorId) {
+    return NextResponse.json({ error: "Failed to resolve visitor identity" }, { status: 500 })
+  }
 
   let token: string
   try {
-    token = await signWidgetToken({ orgId: config.orgId, widgetKey, visitorSessionId })
+    token = await signWidgetToken({ orgId: config.orgId, widgetKey, visitorId })
   } catch (err) {
     console.error("[ChatSession] Failed to sign JWT:", (err as Error).message)
     return NextResponse.json({ error: "Token signing failed" }, { status: 500 })
   }
 
-  let previousMessages: Array<{ id: string; role: "user" | "agent"; content: string; ts: string }> = []
-  let conversationId: string | null = null
-
-  if (resumeSessionId) {
-    const conv = await db.query.conversations.findFirst({
-      where: and(
-        eq(conversations.orgId, config.orgId),
-        eq(conversations.visitorSessionId, resumeSessionId)
-      ),
-      orderBy: (c, { desc }) => [desc(c.createdAt)],
-    })
-    if (conv) {
-      conversationId = conv.id
-      const dbMsgs = await db.query.messages.findMany({
-        where: eq(messages.conversationId, conv.id),
-        orderBy: (m, { asc }) => [asc(m.createdAt)],
-      })
-      previousMessages = dbMsgs.map((m) => ({
-        id: m.id,
-        role: m.role === "user" ? "user" : "agent",
-        content: m.content,
-        ts: m.createdAt.toISOString(),
-      }))
-    }
-  }
-
-  return NextResponse.json({ token, visitorSessionId, conversationId, previousMessages }, { status: 200 })
+  return NextResponse.json({
+    token,
+    visitorId,
+    widgetConfig: {
+      preChatFormEnabled: config.preChatFormEnabled,
+      preChatQuestions: config.preChatQuestions || [],
+    },
+  }, { status: 200 })
 }

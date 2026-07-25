@@ -35,6 +35,8 @@ import {
 } from "lucide-react"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
+import { resolveDashboardCustomerName } from "@/lib/chat/customer-display-name"
+import { formatTicketSubjectForDisplay } from "@/lib/chat/ticket-subject"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +48,8 @@ type PriorityFilter = "All" | TicketPriority
 type SortCol        = "subject" | "customer" | "status" | "priority" | "createdAt"
 
 type TicketRow = {
+  chatDisplayName?: string | null
+  customerName?: string | null
   ticket: {
     id: string
     orgId: string
@@ -143,7 +147,7 @@ function sortRows(rows: TicketRow[], col: SortCol, dir: "asc" | "desc"): TicketR
       case "subject":
         cmp = a.ticket.subject.localeCompare(b.ticket.subject); break
       case "customer":
-        cmp = (a.customer?.name ?? "zzz").localeCompare(b.customer?.name ?? "zzz"); break
+        cmp = displayTicketCustomerName(a).localeCompare(displayTicketCustomerName(b)); break
       case "status":
         cmp = (STATUS_ORDER[a.ticket.status] ?? 0) - (STATUS_ORDER[b.ticket.status] ?? 0); break
       case "priority":
@@ -153,6 +157,17 @@ function sortRows(rows: TicketRow[], col: SortCol, dir: "asc" | "desc"): TicketR
     }
     return dir === "desc" ? -cmp : cmp
   })
+}
+
+function displayTicketCustomerName(row: TicketRow): string {
+  const resolved = resolveDashboardCustomerName({
+    channel: row.ticket.channel,
+    customerDisplayName: row.chatDisplayName,
+    customerName: row.customerName ?? row.customer?.name,
+  })
+
+  if (resolved) return resolved
+  return "—"
 }
 
 function isValidEmail(value: string | null | undefined): boolean {
@@ -345,6 +360,8 @@ export default function TicketsPage() {
     onMutate: async (vars) => {
       const optimisticId = `optimistic-${Date.now()}`
       const optimistic: TicketRow = {
+        chatDisplayName: null,
+        customerName: null,
         ticket: {
           id: optimisticId,
           orgId: "",
@@ -400,7 +417,7 @@ export default function TicketsPage() {
       ? merged.filter(
           (r) =>
             r.ticket.subject.toLowerCase().includes(lq) ||
-            (r.customer?.name ?? "").toLowerCase().includes(lq) ||
+            displayTicketCustomerName(r).toLowerCase().includes(lq) ||
             (r.customer?.email ?? "").toLowerCase().includes(lq) ||
             r.ticket.id.toLowerCase().startsWith(lq)
         )
@@ -1027,6 +1044,12 @@ function TicketCard({
   isOptimistic,
 }: TicketItemProps) {
   const { ticket, customer } = row
+  const customerLabel = displayTicketCustomerName(row)
+  const subjectLabel = formatTicketSubjectForDisplay({
+    channel: ticket.channel,
+    subject: ticket.subject,
+    customerName: customerLabel,
+  })
 
   return (
     <div
@@ -1071,13 +1094,13 @@ function TicketCard({
 
           {/* Subject */}
           <p className="font-semibold text-[14px] sm:text-[13.5px] text-[var(--dash-ink)] leading-snug break-words">
-            <HighlightMatch text={ticket.subject} query={searchQuery} />
+            <HighlightMatch text={subjectLabel} query={searchQuery} />
           </p>
 
           {/* Customer + channel */}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] text-[var(--dash-ink-soft)]">
             <span className="min-w-0 truncate max-w-[14rem]">
-              <HighlightMatch text={customer?.name ?? "—"} query={searchQuery} />
+              <HighlightMatch text={customerLabel} query={searchQuery} />
             </span>
             {customer?.tier && customer.tier !== "free" && (
               <span
@@ -1166,6 +1189,12 @@ function TableRow({
   isOptimistic,
 }: TicketItemProps) {
   const { ticket, customer } = row
+  const customerLabel = displayTicketCustomerName(row)
+  const subjectLabel = formatTicketSubjectForDisplay({
+    channel: ticket.channel,
+    subject: ticket.subject,
+    customerName: customerLabel,
+  })
   const colCount = isSelectionMode ? 8 : 7
 
   return (
@@ -1207,7 +1236,7 @@ function TableRow({
               )}
             </span>
             <span className="font-semibold text-[var(--dash-ink)] max-w-[16rem] xl:max-w-[22rem] 2xl:max-w-[28rem] 3xl:max-w-[36rem] 4xl:max-w-[44rem] truncate leading-snug">
-              <HighlightMatch text={ticket.subject} query={searchQuery} />
+              <HighlightMatch text={subjectLabel} query={searchQuery} />
             </span>
             {ticket.aiResolved && (
               <span className="inline-flex items-center gap-1 w-fit text-[9.5px] font-bold text-[var(--dash-accent-deep)] bg-[var(--dash-accent-wash)] rounded px-1.5 py-0.5">
@@ -1221,7 +1250,7 @@ function TableRow({
         <td className="px-3 xl:px-4 3xl:px-5 py-3 3xl:py-3.5">
           <div className="flex flex-col gap-0.5 min-w-0">
             <span className="text-[var(--dash-ink-soft)] truncate max-w-[9rem] xl:max-w-[12rem] 3xl:max-w-[16rem]">
-              <HighlightMatch text={customer?.name ?? "—"} query={searchQuery} />
+              <HighlightMatch text={customerLabel} query={searchQuery} />
             </span>
             {customer?.tier && customer.tier !== "free" && (
               <span

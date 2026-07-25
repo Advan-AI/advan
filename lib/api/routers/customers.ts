@@ -9,16 +9,16 @@ import { db } from "@/lib/db"
  *
  * Three variants:
  *   email-only        — email inbound; email channels
- *   visitorSessionId-only — anonymous live chat (no pre-chat form)
+ *   visitorId-only — anonymous live chat (no pre-chat form)
  *   both              — offline chat: visitor provided their email via the
  *                       pre-chat form shown when no agent was online.
  *                       Creates a customer with both fields populated so
  *                       email-based agent replies can be delivered.
  */
 export type CustomerIdentifier =
-  | { email: string; visitorSessionId?: never }
-  | { visitorSessionId: string; email?: never }
-  | { email: string; visitorSessionId: string }
+  | { email: string; visitorId?: never }
+  | { visitorId: string; email?: never }
+  | { email: string; visitorId: string }
 
 export function normalizeCustomerEmail(email: string): string {
   return email.trim().toLowerCase()
@@ -28,18 +28,20 @@ export async function findCustomerForIntake(input: {
   orgId: string
   customerIdentifier: CustomerIdentifier
 }) {
-  const visitorIdentifier = input.customerIdentifier.visitorSessionId
+  const visitorIdentifier = input.customerIdentifier.visitorId
   const emailIdentifier = input.customerIdentifier.email
   const hasBoth = typeof visitorIdentifier === "string" && typeof emailIdentifier === "string"
 
   if (typeof visitorIdentifier === "string") {
-    const visitorSessionId = visitorIdentifier.trim()
-    if (!visitorSessionId) return null
+    const visitorId = visitorIdentifier.trim()
+    if (!visitorId) return null
 
     const bySession = await db.query.customers.findFirst({
       where: and(
         eq(customers.orgId, input.orgId),
-        eq(customers.visitorSessionId, visitorSessionId),
+        // Compatibility: customers table still stores chat identity in
+        // visitor_session_id while conversation/session auth now uses visitorId.
+        eq(customers.visitorSessionId, visitorId),
       ),
       orderBy: desc(customers.createdAt),
     })

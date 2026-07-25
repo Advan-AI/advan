@@ -5,9 +5,10 @@ import { router, protectedProcedure } from '../trpc'
 import { PIIMasker } from '@/lib/governance/pii-masker'
 import { PolicyClient } from '@/lib/governance/policy-client'
 import { db } from '@/lib/db'
-import { conversations, hitlQueue } from '@/lib/db/schema'
+import { conversations, hitlQueue, customers } from '@/lib/db/schema'
 import { CopilotDecisionService } from '@/lib/copilot/decision-service'
 import { isDbConnectivityFailure } from '@/lib/api/sanitize-trpc-error'
+import { resolveDashboardCustomerName } from '@/lib/chat/customer-display-name'
 // NOTE: insertAgentMessage is imported lazily inside each mutation because it
 // transitively imports notificationQueue from lib/queue/queues.ts which throws
 // at module-load time when REDIS_URL is not configured. Lazy import keeps
@@ -70,8 +71,25 @@ export const governanceRouter = router({
     .query(async ({ ctx, input }) => {
       try {
         const rows = await db
-          .select()
+          .select({
+            id: hitlQueue.id,
+            orgId: hitlQueue.orgId,
+            ticketId: hitlQueue.ticketId,
+            conversationId: hitlQueue.conversationId,
+            draftOutput: hitlQueue.draftOutput,
+            reason: hitlQueue.reason,
+            status: hitlQueue.status,
+            priority: hitlQueue.priority,
+            source: hitlQueue.source,
+            classificationMetadata: hitlQueue.classificationMetadata,
+            createdAt: hitlQueue.createdAt,
+            customerName: customers.name,
+            chatDisplayName: conversations.customerDisplayName,
+            channel: conversations.channel,
+          })
           .from(hitlQueue)
+          .leftJoin(conversations, eq(hitlQueue.conversationId, conversations.id))
+          .leftJoin(customers, eq(conversations.customerId, customers.id))
           .where(
             input.status === 'all'
               ? eq(hitlQueue.orgId, ctx.user.orgId)
@@ -82,10 +100,29 @@ export const governanceRouter = router({
 
         // Sort: complaint before low_confidence before normal; within each
         // bucket preserve the createdAt desc order from the DB.
-        return rows.sort(
-          (a, b) =>
-            (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9)
-        )
+        return rows
+          .map((row) => ({
+            id: row.id,
+            orgId: row.orgId,
+            ticketId: row.ticketId,
+            conversationId: row.conversationId,
+            draftOutput: row.draftOutput,
+            reason: row.reason,
+            status: row.status,
+            priority: row.priority,
+            source: row.source,
+            classificationMetadata: row.classificationMetadata,
+            createdAt: row.createdAt,
+            customerDisplayName: resolveDashboardCustomerName({
+              channel: row.channel,
+              customerDisplayName: row.chatDisplayName,
+              customerName: row.customerName,
+            }),
+          }))
+          .sort(
+            (a, b) =>
+              (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9)
+          )
       } catch (err) {
         mapHitlDbError(err, 'Could not load pending reviews.')
       }

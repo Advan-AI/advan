@@ -1,9 +1,10 @@
 import { z } from "zod"
 import { eq, and, desc, count, inArray } from "drizzle-orm"
 import { TRPCError } from "@trpc/server"
-import { protectedProcedure, router } from "../trpc"
+import { protectedProcedure, permissionedProcedure, router } from "../trpc"
 import { tickets, customers, users, conversations } from "@/lib/db/schema"
 import { db } from "@/lib/db"
+import { resolveDashboardCustomerName } from "@/lib/chat/customer-display-name"
 
 const customerEmailSchema = z.string().trim().email()
 
@@ -19,7 +20,7 @@ function emailTicketValidationError(message: string) {
 }
 
 export const ticketsRouter = router({
-  list: protectedProcedure
+  list: permissionedProcedure("tickets.read")
     .input(
       z.object({
         status: z.enum(["open", "pending", "resolved", "closed"]).optional(),
@@ -36,6 +37,7 @@ export const ticketsRouter = router({
       const rows = await db
         .select({
           ticket: tickets,
+          chatDisplayName: conversations.customerDisplayName,
           customer: {
             id: customers.id,
             name: customers.name,
@@ -45,6 +47,7 @@ export const ticketsRouter = router({
         })
         .from(tickets)
         .leftJoin(customers, eq(tickets.customerId, customers.id))
+        .leftJoin(conversations, eq(tickets.id, conversations.ticketId))
         .where(and(...conditions))
         .orderBy(desc(tickets.updatedAt))
         .limit(input.limit)
@@ -55,10 +58,20 @@ export const ticketsRouter = router({
         .from(tickets)
         .where(and(...conditions))
 
-      return { tickets: rows, total }
+      return {
+        tickets: rows.map((row) => ({
+          ...row,
+          customerName: resolveDashboardCustomerName({
+            channel: row.ticket.channel,
+            customerDisplayName: row.chatDisplayName,
+            customerName: row.customer?.name,
+          }),
+        })),
+        total,
+      }
     }),
 
-  getById: protectedProcedure
+  getById: permissionedProcedure("tickets.read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const row = await db.query.tickets.findFirst({
@@ -68,7 +81,7 @@ export const ticketsRouter = router({
       return row
     }),
 
-  create: protectedProcedure
+  create: permissionedProcedure("tickets.write")
     .input(
       z.object({
         subject: z.string().min(1).max(255),
@@ -117,7 +130,7 @@ export const ticketsRouter = router({
       })
     }),
 
-  updateStatus: protectedProcedure
+  updateStatus: permissionedProcedure("tickets.write")
     .input(
       z.object({
         id: z.string().uuid(),
@@ -136,7 +149,7 @@ export const ticketsRouter = router({
       return ticket
     }),
 
-  assignTo: protectedProcedure
+  assignTo: permissionedProcedure("tickets.write")
     .input(
       z.object({
         id: z.string().uuid(),
@@ -155,7 +168,7 @@ export const ticketsRouter = router({
       return ticket
     }),
 
-  bulkUpdateStatus: protectedProcedure
+  bulkUpdateStatus: permissionedProcedure("tickets.write")
     .input(
       z.object({
         ids: z.array(z.string().uuid()).min(1).max(100),
@@ -182,7 +195,7 @@ export const ticketsRouter = router({
       return updated
     }),
 
-  kpis: protectedProcedure.query(async ({ ctx }) => {
+  kpis: permissionedProcedure("tickets.read").query(async ({ ctx }) => {
     const orgId = ctx.user.orgId
 
     const [openCount] = await db

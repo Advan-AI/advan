@@ -848,3 +848,314 @@ Node.js v24.14.0
 [Socket] Agent disconnected (gzrWskbYeo4Hx31HAACk)
 [Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (Au6XwFRSEhFediP1AACn)
 [Socket] Agent disconnected (Au6XwFRSEhFediP1AACn)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (c-xRlcvqZhbYpbt_AACq)
+[Socket] Agent disconnected (BrzCt_EB4RtvKv-NAACQ)
+[Socket] Agent disconnected (c-xRlcvqZhbYpbt_AACq)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (LhV8YeCDwoU9KzcTAACs)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (CkDRn8jwOk7bQUpmAACv)
+[Socket] Agent disconnected (CkDRn8jwOk7bQUpmAACv)
+[Socket] Agent disconnected (LhV8YeCDwoU9KzcTAACs)
+[ChatWidget] Visitor disconnected (rRDYjyNABStYatk2AACV) org:fbd8a534-605c-4855-894e-4ee11279f376 session:5281fe49-4f6d-4d0d-b8b8-3291cc015b07
+[Socket] /chat-widget namespace registered
+node:events:486
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::3002
+    at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+    at listenInCluster (node:net:2005:12)
+    at Server.listen (node:net:2110:7)
+    at SocketIOServer (/home/arslan/Documents/Remote/v0-advan/lib/realtime/socket-server.ts:291:12)
+    at Object.<anonymous> (/home/arslan/Documents/Remote/v0-advan/lib/realtime/socket-server.ts:293:2)
+    at Module._compile (node:internal/modules/cjs/loader:1812:14)
+    at Object.transformer (/home/arslan/Documents/Remote/v0-advan/node_modules/tsx/dist/register-BOkp8V6j.cjs:9:3176)
+    at Module.load (node:internal/modules/cjs/loader:1533:32)
+    at Module._load (node:internal/modules/cjs/loader:1335:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1984:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3002
+}
+
+Node.js v24.14.0
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (1rriRW3R6Ebn5qrYAACx)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (j5UK2J3fAKZGA5MDAAC0)
+[Socket] Agent disconnected (j5UK2J3fAKZGA5MDAAC0)
+[Socket] Agent disconnected (1rriRW3R6Ebn5qrYAACx)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (NooF_vSNs27ALVHxAAC2)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (EWc0yytPylbYkhOCAAC5)
+[Socket] /chat-widget namespace registered
+node:events:486
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::3002
+    at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+    at listenInCluster (node:net:2005:12)
+    at Server.listen (node:net:2110:7)
+    at SocketIOServer (/home/arslan/Documents/Remote/v0-advan/lib/realtime/socket-server.ts:291:12)
+    at Object.<anonymous> (/home/arslan/Documents/Remote/v0-advan/lib/realtime/socket-server.ts:293:2)
+    at Module._compile (node:internal/modules/cjs/loader:1812:14)
+    at Object.transformer (/home/arslan/Documents/Remote/v0-advan/node_modules/tsx/dist/register-BOkp8V6j.cjs:9:3176)
+    at Module.load (node:internal/modules/cjs/loader:1533:32)
+    at Module._load (node:internal/modules/cjs/loader:1335:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1984:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3002
+}
+
+Node.js v24.14.0
+[Socket] Agent disconnected (NooF_vSNs27ALVHxAAC2)
+[Socket] Agent disconnected (EWc0yytPylbYkhOCAAC5)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (zJuuAB_ucOlqTLQpAAC7)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (ICl7vXWIglXY-hWBAAC-)
+[Socket] Agent disconnected (zJuuAB_ucOlqTLQpAAC7)
+[Socket] Agent disconnected (ICl7vXWIglXY-hWBAAC-)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (HuF57bRIQh0CPDzuAADA)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (JHeV7p-YjoUqspLUAADD)
+[Socket] Agent disconnected (HuF57bRIQh0CPDzuAADA)
+[Socket] Agent disconnected (JHeV7p-YjoUqspLUAADD)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (LWe-oQAHScUOCE42AADF)
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (rdDQEv-5kou82kUUAAAB)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (p3sBIooGz4hpcBg3AAAE)
+[ChatWidget] Visitor disconnected (yxhBal7bj-08hMIXAAAG) org:fbd8a534-605c-4855-894e-4ee11279f376 session:b478ba07-bb2e-44f1-b9cf-c6f0c13a0017
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (CjEedezXcmZEx0TQAAAB)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (HOa1cgXJW1n1KVWWAAAE)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (6CQhSW8oWD5psqJ8AAAB)
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (yVjzHSMjv2XpHC15AAAD)
+[Socket] Agent disconnected (6CQhSW8oWD5psqJ8AAAB)
+[Socket] Agent disconnected (yVjzHSMjv2XpHC15AAAD)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (nadQVmYa8oUzVB3FAAAF)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (eOsKaOet1btMVipRAAAI)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (8bXYRtsaUmXnDlUVAAAB)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (fWBFSqF20NfDRxRqAAAD)
+[Socket] Agent disconnected (fWBFSqF20NfDRxRqAAAD)
+[Socket] Agent disconnected (8bXYRtsaUmXnDlUVAAAB)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (OSceGtlZQWC5K7c-AAAF)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (PMMo_m3DGuzlN_AgAAAI)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (E3_dFjH4pTjsv7nAAAAB)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (3rarNAgKjX9KRJx3AAAD)
+[Socket] Agent disconnected (E3_dFjH4pTjsv7nAAAAB)
+[Socket] Agent disconnected (3rarNAgKjX9KRJx3AAAD)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (tLBx-BWAs8HxuFq8AAAF)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (CTWFD-3N1Wx8bsvgAAAH)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (-6j6tJ4gvR1ehmImAAAK)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (4M2VjHJLxyiYOrbTAAAN)
+[Socket] Agent disconnected (4M2VjHJLxyiYOrbTAAAN)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (NOyCZ7sCEGm_-xF1AAAQ)
+[Socket] Agent disconnected (CTWFD-3N1Wx8bsvgAAAH)
+[Socket] Agent disconnected (NOyCZ7sCEGm_-xF1AAAQ)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (0MlR1aCc_c4CEeuuAAAS)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (uH5uLy7PRC7S3LVNAAAV)
+[Socket] Agent disconnected (uH5uLy7PRC7S3LVNAAAV)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (ZYbabDILWKBVBe_tAAAB)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (wkHTLvPhIEIxiitnAAAD)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (291ep19951eZuCF1AAAF)
+[Socket] Agent disconnected (291ep19951eZuCF1AAAF)
+[Socket] Agent disconnected (wkHTLvPhIEIxiitnAAAD)
+[Socket] Agent disconnected (ZYbabDILWKBVBe_tAAAB)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (1vya4kiGpeQg6Xn2AAAJ)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (M3ZC1lCpWcNF2MvbAAAL)
+[Socket] Agent connected to org:fbd8a534-605c-4855-894e-4ee11279f376 (aTbJQeCxe6sQyBIOAAAO)
+[Socket] Agent disconnected (1vya4kiGpeQg6Xn2AAAJ)
+[Socket] Agent disconnected (aTbJQeCxe6sQyBIOAAAO)
+[Socket] Agent disconnected (M3ZC1lCpWcNF2MvbAAAL)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (X84JemYmxaOf8BuGAAAQ)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (PT3EZ5Pq28mfO8xYAAAS)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (n5Nkupn7Fr1vBpXJAAAU)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (z2nuQIl-B51pE8nZAAAX)
+[Socket] Agent disconnected (z2nuQIl-B51pE8nZAAAX)
+[ChatWidget] Visitor disconnected (rFJ6ZglcjH9RUwhzAAAH) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:d15f2b03-72f9-4ffc-8b3f-bc88a5395a96
+[ChatWidget] Visitor disconnected (JzROJNNA9VAOB5laAAAf) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:d92b7205-d513-4583-aa94-73506efee555
+[ChatWidget] Visitor disconnected (3z24Z6oaiQxS8N-eAAAh) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:40dbd5c4-6397-4930-98e0-39b5afeae499
+[ChatWidget] Visitor disconnected (1sxBYs3m9yPgcFZIAAAj) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:9600e6dc-4c40-4f64-9dc3-f3780a3bbb47
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (bGxtSo-5PcH8W4uNAAAo)
+[ChatWidget] Visitor disconnected (lOG7oonyAPFkeGyYAAAl) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:6ceba515-6cc3-4522-8033-a6c14358577b
+[ChatWidget] Visitor disconnected (YT47DaSvYqEgY8iWAAAq) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:23bb46de-0151-4bd3-b164-42f7db4edcc8
+[ChatWidget] Visitor disconnected (IkjPCATB0uIBmUK5AAAs) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:0bdd1a66-4f50-43b7-bfc6-0b64fdc0d399
+[ChatWidget] Visitor disconnected (6XbfvvJ_sgD39cCCAAAv) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:95cb7de5-54e8-40d5-905c-2c9fe88f590c
+[ChatWidget] Visitor disconnected (JCpnOE6DBf8IZZBaAAAa) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:554deadc-4366-421f-a8bd-d6ce8c2bcaee
+[ChatWidget] Visitor disconnected (lS3_WQ80kRL4idaoAAAd) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:2257cbbc-e453-44fe-bebb-dbb3196adfe7
+[ChatWidget] Visitor disconnected (PfUbDMdQAgiBxdy2AAAc) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:4308a9e9-b6e5-43be-864e-9629604a3aac
+[ChatWidget] Visitor disconnected (ZHHL2FyNZ_NcE8HSAAAx) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:95cb7de5-54e8-40d5-905c-2c9fe88f590c
+[ChatWidget] Visitor disconnected (8-oBoERgtZ48NiqzAAA1) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:b69a4415-7167-4f62-9641-47be446d4c68
+[ChatWidget] Visitor disconnected (3p6oX77xwniVY492AAAz) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:4ed8bbaf-5e38-4181-9c63-34e4b2597bb6
+[ChatWidget] Visitor disconnected (hbq8fIvr3xVf-3BrAAA4) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:987031cd-ebc6-4c61-8389-885a76f53970
+[ChatWidget] Visitor disconnected (s0o5xDSON48hC46pAAA5) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:95cb7de5-54e8-40d5-905c-2c9fe88f590c
+[ChatWidget] Visitor disconnected (pzEuy-nArJhYRfaTAAA_) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:95cb7de5-54e8-40d5-905c-2c9fe88f590c
+[ChatWidget] Visitor disconnected (XdLoWcQviBFmDFJBAABD) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:95cb7de5-54e8-40d5-905c-2c9fe88f590c
+[Socket] Agent disconnected (bGxtSo-5PcH8W4uNAAAo)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (yNteT1e_0wQzz20vAABH)
+[Socket] Agent disconnected (yNteT1e_0wQzz20vAABH)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (UQdLwaq0vY7DPNVRAABK)
+[Socket] Agent disconnected (UQdLwaq0vY7DPNVRAABK)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (oQ4TuZVu14B3mLnlAABN)
+[Socket] Agent disconnected (X84JemYmxaOf8BuGAAAQ)
+[Socket] Agent disconnected (oQ4TuZVu14B3mLnlAABN)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (j5V1AXHTV_jidWJyAABP)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (NU6qXeuH8nteHTAAAABS)
+[ChatWidget] Visitor disconnected (5k8MAswx4qTiK0H-AABF) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:95cb7de5-54e8-40d5-905c-2c9fe88f590c
+[Socket] Agent disconnected (j5V1AXHTV_jidWJyAABP)
+[Socket] Agent disconnected (NU6qXeuH8nteHTAAAABS)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (xMD2rt2y7HKQ09R0AABW)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (DIPV9meChZR612f-AABZ)
+[Socket] Agent disconnected (DIPV9meChZR612f-AABZ)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (rCvG5LREKdskZNPkAABc)
+[Socket] Agent disconnected (rCvG5LREKdskZNPkAABc)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (Ay7KfN2g9GieJ4i1AAAD)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (C7saJwF49ptT0U_9AAAM)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (v_Jxz5wf85qOs8slAAAN)
+[ChatWidget] Visitor disconnected (tdZRKvQFmJs7MzjEAAAH) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:f219f221-ca67-4159-bbc4-aa95c3fcab91
+[ChatWidget] Visitor disconnected (QMXGKycjL6JnpLnuAAAJ) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:a352d415-2268-4a15-a2ab-526a53aaa4c1
+[Socket] Agent disconnected (Ay7KfN2g9GieJ4i1AAAD)
+[ChatWidget] Visitor disconnected (-lEAeMtQQ2oab9SfAAAB) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:95cb7de5-54e8-40d5-905c-2c9fe88f590c
+[ChatWidget] Visitor disconnected (re5jESKhYkmK5L1aAAAF) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:e1d396a8-6099-4977-967c-4cc72f524dd4
+[Socket] Agent disconnected (v_Jxz5wf85qOs8slAAAN)
+[Socket] Agent disconnected (C7saJwF49ptT0U_9AAAM)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (7YaOTTSK3R0bs2OeAAAT)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (LGO-CKRNAYh9bSGIAAAX)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (fRdtFAB17rmXxmUrAAAa)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (qxVpRFzzGiZstdvkAAAf)
+[Socket] Agent disconnected (qxVpRFzzGiZstdvkAAAf)
+[ChatWidget] Visitor disconnected (TZgyAbg0Y0A_yOdlAAAQ) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:5c16a971-a86e-40d8-82cb-776a05ecd55d
+[ChatWidget] Visitor disconnected (h6tNS1ILqBZ01fh3AAAR) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:7b0bd1eb-e7dc-4d73-9253-b2fe422184be
+[ChatWidget] Visitor disconnected (rrqfYrVXDN2BNfIMAAAV) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:4d6f59d2-d8f7-46f8-9ff2-cca34c731f8f
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (H1XBQCTSemJSAgAmAAAk)
+[Socket] Agent disconnected (H1XBQCTSemJSAgAmAAAk)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (YvYFtSWNykoWqKn7AAAn)
+[Socket] Agent disconnected (YvYFtSWNykoWqKn7AAAn)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (Uxh1VVkbnFFLTDrMAAAq)
+[ChatWidget] Visitor disconnected (_ZrssoyKdwie2RHoAAAc) org:fbd8a534-605c-4855-894e-4ee11279f376 visitor:95cb7de5-54e8-40d5-905c-2c9fe88f590c
+[ChatWidget] Visitor disconnected (JQCIpP-Y7yiX4jtqAAAs) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:cdebf094-9a3b-48fc-8578-ee7f579cedab
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (xk76k5Q2z5GkoCkhAAAD)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (QMqJUAz7krNrYjwMAAAF)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (f8krhZmqg_W8O8cPAAAH)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (985kSuabtUv2S2H-AAAJ)
+[ChatWidget] Visitor disconnected (_GhnJwrtH575srTmAAAL) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:cdebf094-9a3b-48fc-8578-ee7f579cedab
+[Socket] Agent disconnected (QMqJUAz7krNrYjwMAAAF)
+[Socket] Agent disconnected (985kSuabtUv2S2H-AAAJ)
+[Socket] Agent disconnected (xk76k5Q2z5GkoCkhAAAD)
+[Socket] Agent disconnected (f8krhZmqg_W8O8cPAAAH)
+[ChatWidget] Visitor disconnected (cE1W5t7Qv3GMhdxUAAAC) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:cdebf094-9a3b-48fc-8578-ee7f579cedab
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (JiAcNc8_cLE9EgiCAAAN)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (LS-YiPWFpsu1jpfKAAAR)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (Y2Mzcr0YWdL-NAJiAAAW)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (J8McFFBfA_EVjH5mAAAZ)
+[Socket] Agent disconnected (JiAcNc8_cLE9EgiCAAAN)
+[Socket] Agent disconnected (Y2Mzcr0YWdL-NAJiAAAW)
+[ChatWidget] Visitor disconnected (l9ljnkPFYuBBEqfoAAAP) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[ChatWidget] Visitor disconnected (_VuqOU83QwqdFbDLAAAT) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:cdebf094-9a3b-48fc-8578-ee7f579cedab
+[ChatWidget] Visitor disconnected (UAko6sIaPbC1wgDcAAAb) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[Socket] Agent disconnected (J8McFFBfA_EVjH5mAAAZ)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (6HSCvIl2TwIXVQ0gAAAg)
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (WrxFKJCGaguGBHc4AAAD)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (cbExZO0SUrjO4nEwAAAG)
+[Socket] Agent disconnected (cbExZO0SUrjO4nEwAAAG)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (vXvEzTRO334f9qEtAAAJ)
+[Socket] Agent disconnected (vXvEzTRO334f9qEtAAAJ)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (5VMEcnHQdE5p_GI1AAAM)
+[Socket] Agent disconnected (5VMEcnHQdE5p_GI1AAAM)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (5V8rPe712qM8_tJ4AAAB)
+[Socket] Subscribed to realtime event bus
+[Socket] Agent disconnected (5V8rPe712qM8_tJ4AAAB)
+[ChatWidget] Visitor disconnected (SUVYBxSsLUR9LY4VAAAD) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (WaQCuak1algq7KYCAAAF)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (PufKBoVX5hn0IfS6AAAK)
+[Socket] Agent disconnected (PufKBoVX5hn0IfS6AAAK)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (NHqMsYI8aPdEshjgAAAN)
+[Socket] Agent disconnected (NHqMsYI8aPdEshjgAAAN)
+[Socket] Agent disconnected (WaQCuak1algq7KYCAAAF)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (vq-EExldLfW47qtuAAAP)
+[Socket] Agent disconnected (vq-EExldLfW47qtuAAAP)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (Cnn930ldXkaQy9YtAAAR)
+[Socket] Agent disconnected (Cnn930ldXkaQy9YtAAAR)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (YvVXgff12Tv_ye7MAAAT)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (gt_oGYkw0tbPO9O_AAAW)
+[ChatWidget] Visitor disconnected (D5GdqNfzNRoLEgonAAAH) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[Socket] Agent disconnected (gt_oGYkw0tbPO9O_AAAW)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (B06BM5Y4PJWQuhMeAAAb)
+[Socket] Agent disconnected (B06BM5Y4PJWQuhMeAAAb)
+[ChatWidget] Visitor disconnected (T7_9yDj718IufS8xAAAY) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[ChatWidget] Visitor disconnected (U6p6FAGgUr-tphGiAAAd) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[ChatWidget] Visitor disconnected (LgcXu0JkTmz_uVXHAAAf) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[ChatWidget] Visitor disconnected (JpoSqEGmQVYvkMtlAAAh) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (oDxzmW0RXp5XJt79AAAB)
+[Socket] Subscribed to realtime event bus
+[Socket] Agent disconnected (oDxzmW0RXp5XJt79AAAB)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (4dAzUQzKst0JVuTBAAAB)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (3k2snOAVxOnFMbXXAAAG)
+[Socket] Agent disconnected (3k2snOAVxOnFMbXXAAAG)
+[Socket] Agent disconnected (4dAzUQzKst0JVuTBAAAB)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (F2pijstCg1sdNAr2AAAI)
+[Socket] Agent disconnected (F2pijstCg1sdNAr2AAAI)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (1oLGdwWMDhTHHx9DAAAK)
+[ChatWidget] Visitor disconnected (iIJl_SunYDLbC3S4AAAD) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[ChatWidget] Visitor disconnected (Ohm-bLf5Olr7Z5ttAAAM) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
+[ChatWidget] Visitor disconnected (bsMGAt5GvkY1zLJgAAAB) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (6OMjtxPAIm5P1iIWAAAD)
+[Socket] Agent disconnected (6OMjtxPAIm5P1iIWAAAD)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (pFwW-MYP8NY67i5gAAAF)
+[Socket] Agent disconnected (pFwW-MYP8NY67i5gAAAF)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (xsQr2-ZJVogHL-6sAAAJ)

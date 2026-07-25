@@ -146,7 +146,7 @@ describe("resolveOrCreateIntake — job shape", () => {
     const chatResult = await resolveOrCreateIntake({
       orgId,
       channel: "chat",
-      customerIdentifier: { visitorSessionId: `session-job-test-${Date.now()}` },
+      customerIdentifier: { visitorId: `session-job-test-${Date.now()}` },
       content: "Hello from chat",
     })
 
@@ -176,31 +176,29 @@ describe("resolveOrCreateIntake — job shape", () => {
 // ─── Test 2: rapid-fire idempotency ──────────────────────────────────────────
 
 describe("resolveOrCreateIntake — rapid-fire chat messages", () => {
-  it("threads both messages into the same ticket when same visitorSessionId is used", async () => {
+  it("creates separate chat sessions unless a conversationId is explicitly reused", async () => {
     const sessionId = `rapid-fire-${Date.now()}`
 
     const first = await resolveOrCreateIntake({
       orgId,
       channel: "chat",
-      customerIdentifier: { visitorSessionId: sessionId },
+      customerIdentifier: { visitorId: sessionId },
       content: "First message — visitor opens chat",
     })
 
     const second = await resolveOrCreateIntake({
       orgId,
       channel: "chat",
-      customerIdentifier: { visitorSessionId: sessionId },
+      customerIdentifier: { visitorId: sessionId },
       content: "Second message — visitor types immediately after",
     })
 
-    // Both messages must land in the same ticket and conversation.
-    expect(second.ticketId).toBe(first.ticketId)
-    expect(second.conversationId).toBe(first.conversationId)
-    // Each call inserts a distinct message row.
+    // Without explicit conversation selection, each chat intake starts a new session.
+    expect(second.ticketId).not.toBe(first.ticketId)
+    expect(second.conversationId).not.toBe(first.conversationId)
     expect(second.messageId).not.toBe(first.messageId)
-    // Only the first call creates a new ticket.
     expect(first.isNewTicket).toBe(true)
-    expect(second.isNewTicket).toBe(false)
+    expect(second.isNewTicket).toBe(true)
   })
 
   it("stamps visitorSessionId on the newly created conversation for socket reconnect", async () => {
@@ -209,7 +207,7 @@ describe("resolveOrCreateIntake — rapid-fire chat messages", () => {
     const result = await resolveOrCreateIntake({
       orgId,
       channel: "chat",
-      customerIdentifier: { visitorSessionId: sessionId },
+      customerIdentifier: { visitorId: sessionId },
       content: "Can I reconnect to this chat?",
     })
 
@@ -217,6 +215,28 @@ describe("resolveOrCreateIntake — rapid-fire chat messages", () => {
       where: eq(conversations.id, result.conversationId),
     })
     expect(conv!.visitorSessionId).toBe(sessionId)
+  })
+
+  it("respects forceNew=true by creating a new conversation even when visitor matches", async () => {
+    const sessionId = `force-new-${Date.now()}`
+
+    const first = await resolveOrCreateIntake({
+      orgId,
+      channel: "chat",
+      customerIdentifier: { visitorId: sessionId },
+      content: "First",
+    })
+
+    const second = await resolveOrCreateIntake({
+      orgId,
+      channel: "chat",
+      customerIdentifier: { visitorId: sessionId },
+      content: "Second",
+      forceNew: true,
+    })
+
+    expect(second.ticketId).not.toBe(first.ticketId)
+    expect(second.conversationId).not.toBe(first.conversationId)
   })
 })
 
@@ -233,7 +253,7 @@ describe("processTriageJob (chat) — auditLogs row + publishChatAgentReply", ()
       const intake = await resolveOrCreateIntake({
         orgId,
         channel: "chat",
-        customerIdentifier: { visitorSessionId: sessionId },
+        customerIdentifier: { visitorId: sessionId },
         content: "What are your opening hours?",
       })
 
@@ -337,5 +357,38 @@ describe("processTriageJob (chat) — auditLogs row + publishChatAgentReply", ()
 
     // Email conversations must never trigger the chat realtime event.
     expect(publishChatAgentReply).not.toHaveBeenCalled()
+  })
+})
+
+describe("resolveOrCreateIntake — reopen resolved chat sessions", () => {
+  it("reopens a resolved ticket to open when visitor sends into existing conversationId", async () => {
+    const sessionId = `reopen-${Date.now()}`
+
+    const initial = await resolveOrCreateIntake({
+      orgId,
+      channel: "chat",
+      customerIdentifier: { visitorId: sessionId },
+      content: "Initial message",
+    })
+
+    await db
+      .update(tickets)
+      .set({ status: "resolved" })
+      .where(and(eq(tickets.id, initial.ticketId), eq(tickets.orgId, orgId)))
+
+    const followup = await resolveOrCreateIntake({
+      orgId,
+      channel: "chat",
+      customerIdentifier: { visitorId: sessionId },
+      conversationId: initial.conversationId,
+      content: "I still need help",
+    })
+
+    expect(followup.conversationId).toBe(initial.conversationId)
+
+    const reopened = await db.query.tickets.findFirst({
+      where: and(eq(tickets.id, initial.ticketId), eq(tickets.orgId, orgId)),
+    })
+    expect(reopened?.status).toBe("open")
   })
 })

@@ -142,4 +142,62 @@ export const widgetConfigRouter = router({
 
     return { success: true }
   }),
+
+  /**
+   * updatePreChatQuestions:
+   * Updates the pre-chat intake questions shown before first message.
+   */
+  updatePreChatQuestions: protectedProcedure
+    .input(
+      z.object({
+        questions: z.array(
+          z.object({
+            id: z.string(),
+            text: z.string().min(1).max(255),
+            type: z.enum(["preset", "custom"]),
+            options: z.array(z.string()).optional(),
+            required: z.boolean().optional(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [updated] = await db
+        .update(widgetConfigs)
+        .set({ preChatQuestions: input.questions })
+        .where(eq(widgetConfigs.orgId, ctx.user.orgId))
+        .returning()
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Widget config not found.",
+        })
+      }
+
+      return updated
+    }),
+
+  /**
+   * togglePreChatForm:
+   * Enable or disable the pre-chat form feature.
+   */
+  togglePreChatForm: protectedProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const [updated] = await db
+        .update(widgetConfigs)
+        .set({ preChatFormEnabled: input.enabled })
+        .where(eq(widgetConfigs.orgId, ctx.user.orgId))
+        .returning()
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Widget config not found.",
+        })
+      }
+
+      return updated
+    }),
 })

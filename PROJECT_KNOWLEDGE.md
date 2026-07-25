@@ -1,6 +1,6 @@
 # v0-advan Project Knowledge
 
-Last updated: 2026-07-25 (billing mobile→4K responsive)
+Last updated: 2026-07-25 (Supabase pool / DNS resilience)
 
 Use this file as the first stop for future Codex work in this repo. Keep it concise and update it after meaningful features, fixes, architecture changes, migrations, or command changes.
 
@@ -50,12 +50,13 @@ Core product themes:
 - DB migrate: `npx drizzle-kit migrate`
 - DB seed: `npx tsx lib/db/seed.ts`
 
-`scripts/dev-all.sh` loads `.env` first, then `.env.local`, starts optional workers, writes logs to `scripts/logs/*.log`, and supports:
+`scripts/dev-all.sh` loads `.env` first, then `.env.local`, kills leftover workers from prior runs (prevents double pools against Supabase), starts optional workers with `DB_POOL_ROLE=worker` / small `DB_MAX_CONNECTIONS`, writes logs to `scripts/logs/*.log`, and supports:
 
 - `DEV_ALL_SKIP_EMBEDDING=1`
 - `DEV_ALL_SKIP_NOTIFICATION=1`
 - `DEV_ALL_SKIP_TEMPORAL=1`
 - `DEV_ALL_SKIP_SOCKET=1`
+- `WORKER_DB_MAX_CONNECTIONS` (default `2`)
 
 ## Important Environment
 
@@ -64,6 +65,8 @@ Required for full app:
 - `DATABASE_URL`
 - `NEXTAUTH_SECRET` or `AUTH_SECRET`
 - `NEXTAUTH_URL` or `AUTH_URL`
+
+DB client (`lib/db/index.ts`): HMR-safe `globalThis` singleton, IPv4-first DNS, auto `ssl: require` for Supabase hosts, default pool max `3` (Next) / `2` (`DB_POOL_ROLE=worker`). Override with `DB_MAX_CONNECTIONS` / `DB_SSL`. Symptoms of pool/DNS pressure: `getaddrinfo EAI_AGAIN` or `CONNECT_TIMEOUT` against `*.pooler.supabase.com` — restart a single `dev:all` (do not stack runs).
 
 Often needed by specific systems:
 
@@ -145,9 +148,11 @@ Use this map before broad exploration:
 - Visual pipeline builder: `app/dashboard/orchestration/page.tsx`, `components/pipeline/*`, `lib/pipeline/*`.
 - Durable pipeline execution: `lib/api/routers/orchestration.ts`, `lib/pipeline/compiler.ts`, `lib/temporal/workflows/pipeline-execution.ts`, `lib/temporal/activities/pipeline-activities.ts`, `lib/pipeline/executors/index.ts`.
 - Realtime pipeline/HITL updates: `lib/realtime/socket-server.ts`, `lib/realtime/event-bus.ts`, `lib/pipeline/use-pipeline-realtime.ts`, `app/api/hitl/route.ts`. Socket server supports two connection modes: agent (orgId only → joins `org:{orgId}`) and chat visitor (conversationId + orgId → DB-verified, joins `conversation:{conversationId}`). Chat visitor events: `chat:agent_reply` (AI auto-replied) and `chat:triage_pending` (escalated; show "agent will respond" state). Event bus has two new channels: `CHAT_AGENT_REPLY_CHANNEL` and `CHAT_TRIAGE_PENDING_CHANNEL`.
-- Chat widget namespace: `lib/realtime/chat-widget-namespace.ts` — `/chat-widget` Socket.IO namespace mounted on the existing server (no second process). Auth middleware verifies the 1-hour JWT from `POST /api/chat/session` AND re-checks the origin against `widget_configs.allowedOrigins` (separate trust boundary). Visitors join `widget:{conversationId}` + `widget-org:{orgId}` rooms. Server events to visitor: `session:ready`, `agent:message`, `triage:pending`, `typing:start`/`typing:stop` (with `role:"agent"`), `presence:agent-online`. Visitor events: `visitor:message`, `typing:start`/`typing:stop`. Reconnect: if no conversationId in auth, server looks up by visitorSessionId; client fetches missed messages via REST after receiving `session:ready`. Agent typing relayed from default-ns `agent:typing:start`/`agent:typing:stop` → widget room. Tests: `lib/realtime/chat-widget-namespace.test.ts`.
-- Chat session: `app/api/chat/session/route.ts` — public unauthenticated POST endpoint for the embedded widget. Accepts `{ widgetKey, origin, visitorSessionId? }`. Looks up `widget_configs` by widgetKey, enforces exact-match origin allowlist (rejects 403 on mismatch), mints or reuses a UUID visitorSessionId, signs a 1-hour HS256 JWT (`{ orgId, widgetKey, visitorSessionId }`, issuer `advan:chat-session`) using `AUTH_SECRET`/`NEXTAUTH_SECRET` via jose. Returns `{ token, visitorSessionId }`. Dual rate-limited: 20/min per IP via Upstash (fails closed in production) AND 60/min per widgetKey (fails closed in production) to prevent tenant starvation. Tests: `app/api/chat/session/route.test.ts`.
-- Chat intake: `app/api/chat/intake/route.ts` — public unauthenticated POST endpoint for widget messages. Accepts `{ orgId, content, visitorSessionId?, subject? }`. Calls `resolveOrCreateIntake` with `channel: "chat"`. Returns `{ conversationId, messageId, ticketId, isNewTicket, status: "received" }`. Dual rate-limited: 30/min per IP (in-memory) AND 120/min per widgetKey via Upstash (fails closed in production) to support high, burstable chat session traffic while preventing broad system exhaustion.
+- Chat widget namespace: `lib/realtime/chat-widget-namespace.ts` — `/chat-widget` Socket.IO namespace mounted on the existing server (no second process). Auth middleware verifies the 1-hour JWT from `POST /api/chat/session`, re-checks origin allowlist, and rejects unknown visitor identities (`visitorId`) not scoped to `orgId+widgetKey`. Sockets join `widget-org:{orgId}` on connect, then must explicitly emit `join:conversation` to enter `widget:{conversationId}` (ownership-verified via shared helper `lib/chat/conversation-ownership.ts`). `leave:conversation` removes room membership. Server events: `session:ready`, `joined:conversation`, `left:conversation`, `agent:message`, `triage:pending`, `typing:start`/`typing:stop`, `presence:agent-online`.
+- Chat session: `app/api/chat/session/route.ts` — public unauthenticated POST endpoint for the embedded widget. Accepts `{ widgetKey, origin, visitorId? }`. Looks up `widget_configs` by widgetKey, enforces exact-match origin allowlist, validates/reuses an existing `visitors.id` scoped to `orgId+widgetKey` (updates `lastSeenAt`) or creates a new visitors row. Signs a 1-hour HS256 JWT (`{ orgId, widgetKey, visitorId }`, issuer `advan:chat-session`) and returns `{ token, visitorId }`. Dual rate-limited: 20/min per IP + 60/min per widgetKey.
+- Chat intake: `app/api/chat/intake/route.ts` — public unauthenticated POST endpoint for widget messages. Requires session token; derives `{ orgId, widgetKey, visitorId }` from JWT and rejects unknown visitor identities before intake. Calls `resolveOrCreateIntake` with `channel: "chat"` and returns `{ conversationId, messageId, ticketId, isNewTicket, status: "received" }`.
+- Chat sessions list/create: `app/api/chat/sessions/route.ts` — authenticated by visitor JWT only. `GET` returns visitor-scoped sessions with customer-facing status labels (`active`/`waiting`/`resolved`) and unread hints from client-supplied last-viewed map. `POST` creates new chat sessions with sanitized displayName and optional initialMessage; explicit `forceNew` path prevents silent open-ticket reuse.
+- Chat session messages: `app/api/chat/sessions/[conversationId]/messages/route.ts` — paginated message history for one session. Ownership is enforced via shared helper (`visitorId+orgId+conversationId`) and returns 403 on mismatch.
 - Workers/dev services: `scripts/dev-all.sh`, `lib/queue/workers/*`, `lib/temporal/worker.ts`, `lib/temporal/workers/daemon.worker.ts`, `lib/mcp/http-server.ts`.
 
 ## Chat Widget Verification and Hardening (Prompt 7)
@@ -158,7 +163,8 @@ Use this map before broad exploration:
 - **TODO/FIXME sweep**: Full grep of the chat code path — zero TODOs or FIXMEs found.
 - **Load test script**: `scripts/load-test-widget.ts` — hits 100 concurrent sessions against `POST /api/chat/session` and `GET /api/chat/availability`, optionally 50 concurrent socket connections (`LOAD_TEST_SOCKET=1`). Uses `forceNew: true` + `extraHeaders: { origin }` + polling transport for Node socket clients. Verified: 50/50 sessions ok, 50/50 sockets connected, no 5xx.
 - **Triage worker in dev**: Started by `scripts/dev-all.sh` (skip with `DEV_ALL_SKIP_TRIAGE=1`).
-- **Migrations 0008–0011**: `widget_configs`, `customers_org_visitor_session_unique`, `conversations.chat_offline_delivery`, `users.chat_available`. If `drizzle-kit migrate` stops at 0007, apply SQL manually and insert journal hashes (see `drizzle.__drizzle_migrations`).
+- **Migrations 0008–0011**: `widget_configs`, `customers_org_visitor_session_unique`, `conversations.chat_offline_delivery`, `users.chat_available`.
+- **Migration 0018**: visitor identity split (`visitors` table; `conversations.visitor_id`; `conversations.customer_display_name` with best-effort backfill from `customers.name` and `messages.metadata.visitorName`).
 - **Live verification results (2026-07-08)**:
   - ✅ Complaint chat → `triage:pending` with `priority=complaint`, HITL row with `[COMPLAINT]` prefix, no auto-send (~5s latency)
   - ✅ Offline intake → `offlineMode=true`, `chatOfflineDelivery=true`, visitor email stored on customer
@@ -186,10 +192,11 @@ Use this map before broad exploration:
   Creates a floating bubble (bottom-right) that expands to a panel on click. Bubble icon toggles open/close; Escape key also closes. postMessage accepts `{ type: 'advan:close' }` from the frame.
 
 - Widget iframe: `app/chat-widget-frame/page.tsx` — standalone Next.js page, `"use client"`, no nav/header/footer.
-  URL params: `key` (widgetKey) and `origin` (embedding page's origin, forwarded to session endpoint).
-  Flow: availability → session JWT → intake (first message) → socket connect → messages.
-  localStorage keys: `advan_widget_vsid` (visitorSessionId), `advan_widget_cid` (conversationId) for reconnect.
-  Socket: connects to `/chat-widget` namespace at `NEXT_PUBLIC_SOCKET_URL ?? :3002`. First message uses REST `/api/chat/intake`; subsequent messages use socket `visitor:message`. Reconnect re-uses stored conversationId.
+  URL params: `key` (widgetKey), `origin` (embedding page origin), and `visitorId` relayed by the parent embed script.
+  Flow: availability → session JWT → sessions list/new session flow → explicit room join → messages.
+  Visitor identity is not persisted by iframe storage; the frame uses the parent-relayed `visitorId`.
+  Socket: connects to `/chat-widget` namespace at `NEXT_PUBLIC_SOCKET_URL ?? :3002`; per-conversation delivery requires explicit `join:conversation` and `leave:conversation`.
+  UI is now three-view: session list, new-session form, and active chat (with back navigation for multi-session visitors and resolved-session reopen notice).
   postMessage to parent: `{ type: 'advan:ready' }` on mount, `{ type: 'advan:close' }` on X button.
 
 - Widget bare layout: `app/chat-widget-frame/layout.tsx` — no chrome, renders children directly.
@@ -253,6 +260,14 @@ Dashboard route groups:
 - `/dashboard/orchestration`
 - `/dashboard/integrations`
 - `/dashboard/billing`
+- `/dashboard/settings?tab=team`: team access control studio with add-user flow, custom org-scoped roles, granular permissions, and inline member role reassignment.
+
+Team settings implementation notes:
+
+- Backend API is in `lib/api/routers/team.ts` with procedures: `listMembers`, `listRoles`, `createRole`, `updateRole`, `deleteRole`, `addMember`, `updateMemberRole`, `removeMember`.
+- Permission catalog and built-in role baselines are centralized in `lib/team-permissions.ts`.
+- Persistence is via `org_roles` table plus `users.role_id` foreign key (migration `lib/db/migrations/0020_team_custom_roles.sql`).
+- Built-in roles (`admin`, `member`, `viewer`) remain the baseline for existing guards; custom roles map to a base role and carry additional permission metadata.
 
 Dashboard shell:
 
@@ -347,7 +362,8 @@ Important data model details:
 - `knowledgeSources.embedding` is `vector(768)` and must match `EMBEDDING_DIMENSION`.
 - `conversations` has email threading fields: `emailRootMessageId`, `emailReplyToAddress`.
 - `conversations` also has workbench metadata from migration `0005_conversation_workbench`: nullable `title`, `pinnedAt`, `archivedAt`, integer `unreadCount`, json `tags`, and `updatedAt`.
-- `conversations` also has `visitorSessionId` (text, nullable, indexed) added by migration `0008_widget_configs` — ties a chat conversation to a browser session for reconnect, parallel to `emailReplyToAddress`.
+- `conversations` has both legacy `visitorSessionId` (text) and canonical `visitorId` (uuid FK to `visitors`, indexed). New widget/session flows use `visitorId`; `visitorSessionId` remains for backward compatibility.
+- `conversations.customerDisplayName` stores a chat-safe display label snapshot; dashboard falls back to `"Chat visitor"` when legacy rows have no name.
 - `messages.metadata.email` tracks `messageId`, `inReplyTo`, `resendId`, delivery status, and errors.
 - `tickets.create` also creates a conversation so queue "View" actions resolve.
 - `tickets.create` rejects `channel=email` unless the selected customer belongs to the org and has a syntactically valid email address; dashboard ticket creation mirrors this with a customer picker.

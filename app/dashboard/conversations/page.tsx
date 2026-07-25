@@ -47,6 +47,9 @@ import { api } from "@/lib/api/trpc-client"
 import { useCopilot } from "@/lib/copilot/store"
 import { useCopilotStream } from "@/lib/copilot/use-copilot-stream"
 import { useNotifications } from "@/lib/realtime/notifications-store"
+import { getCustomerSessionStatus } from "@/lib/tickets/status-labels"
+import { UNNAMED_VISITOR_LABEL } from "@/lib/chat/customer-display-name"
+import { formatTicketSubjectForDisplay } from "@/lib/chat/ticket-subject"
 
 // ─── Socket URL (mirrors use-pipeline-realtime.ts) ────────────────────────────
 const getDashSocketUrl = () => {
@@ -124,6 +127,7 @@ type ThreadData = {
   createdAt: string
   ticketSubject: string | null
   ticketStatus: "open" | "pending" | "resolved" | "closed" | null
+  awaitingHumanReview: boolean
   ticketPriority: "low" | "medium" | "high" | "urgent" | null
   customerName: string | null
   customerEmail: string | null
@@ -150,11 +154,10 @@ const PRIORITY_STYLES: Record<string, string> = {
   urgent: "text-[#991B1B] bg-[#FEE2E2]",
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  open: "text-[#166534] bg-[#DCFCE7]",
-  pending: "text-[#92400E] bg-[#FEF3C7]",
+const STATUS_STYLES: Record<"active" | "waiting" | "resolved", string> = {
+  active: "text-[#166534] bg-[#DCFCE7]",
+  waiting: "text-[#92400E] bg-[#FEF3C7]",
   resolved: "text-[var(--dash-ink-soft)] bg-[var(--dash-bg-deep)]",
-  closed: "text-[var(--dash-ink-faint)] bg-[var(--dash-bg-deep)]",
 }
 
 const TIER_STYLES: Record<string, string> = {
@@ -202,6 +205,7 @@ function threadToConvItem(thread: ThreadData): ConvItem {
         : new Date(thread.createdAt).toISOString(),
     ticketSubject: thread.ticketSubject,
     ticketStatus: thread.ticketStatus,
+    awaitingHumanReview: thread.awaitingHumanReview,
     ticketPriority: thread.ticketPriority,
     customerName: thread.customerName,
     customerEmail: thread.customerEmail,
@@ -495,12 +499,20 @@ export default function ConversationsPage() {
     })
 
     // Listen to real-time incoming visitor messages for Amazon Connect style alerts
-    sock.on("visitor:message", (d: { conversationId: string; content: string }) => {
+    const handleIncomingChat = (d: {
+      conversationId: string
+      content: string
+      customerName?: string | null
+      customerEmail?: string | null
+    }) => {
       void utils.conversations.list.invalidate()
-      
-      const match = convListRef.current.find(c => c.id === d.conversationId)
-      const customerName = match?.customerName || "Web Visitor"
-      const customerEmail = match?.customerEmail || null
+
+      const match = convListRef.current.find((c) => c.id === d.conversationId)
+      const customerName =
+        d.customerName?.trim() ||
+        match?.customerName ||
+        UNNAMED_VISITOR_LABEL
+      const customerEmail = d.customerEmail ?? match?.customerEmail ?? null
 
       setSelectedId((currSelected) => {
         if (currSelected !== d.conversationId) {
@@ -554,7 +566,10 @@ export default function ConversationsPage() {
         }
         return currSelected
       })
-    })
+    }
+
+    sock.on("visitor:message", handleIncomingChat)
+    sock.on("customer:message", handleIncomingChat)
 
     return () => {
       sock.disconnect()
@@ -990,7 +1005,7 @@ export default function ConversationsPage() {
                   <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-ping" />
                 </div>
                 <h4 className="mt-0.5 text-sm font-bold text-slate-950 truncate">
-                  {activeAlert.customerName || "Web Visitor"}
+                  {activeAlert.customerName || UNNAMED_VISITOR_LABEL}
                 </h4>
                 {activeAlert.customerEmail && (
                   <p className="text-[11px] text-slate-500 truncate -mt-0.5">{activeAlert.customerEmail}</p>
@@ -1136,7 +1151,12 @@ export default function ConversationsPage() {
               </button>
               <span className="truncate">
                 {thread?.customerName ??
-                  thread?.ticketSubject?.slice(0, 40) ??
+                  (thread
+                    ? formatTicketSubjectForDisplay({
+                        channel: thread.channel,
+                        subject: thread.ticketSubject,
+                      })
+                    : null) ??
                   "Conversation"}
               </span>
             </span>
@@ -1485,6 +1505,7 @@ type ConvItem = {
   createdAt: string
   ticketSubject: string | null
   ticketStatus: "open" | "pending" | "resolved" | "closed" | null
+  awaitingHumanReview: boolean
   ticketPriority: "low" | "medium" | "high" | "urgent" | null
   customerName: string | null
   customerEmail: string | null
@@ -1634,11 +1655,21 @@ function ConversationList({
                       </span>
                     )}
                   </div>
-                  {conv.ticketSubject && (
-                    <div className="text-[11.5px] text-[var(--dash-ink-soft)] truncate mb-0.5">
-                      {conv.ticketSubject}
-                    </div>
-                  )}
+                  {(() => {
+                    const topic = formatTicketSubjectForDisplay({
+                      channel: conv.channel,
+                      subject: conv.ticketSubject,
+                      customerName: conv.customerName,
+                      lastMessagePreview: conv.lastMessage?.content,
+                    })
+                    // Skip subtitle when it only repeats the primary name line.
+                    if (!topic || topic === name || topic === `Chat with ${name}`) return null
+                    return (
+                      <div className="text-[11.5px] text-[var(--dash-ink-soft)] truncate mb-0.5">
+                        {topic}
+                      </div>
+                    )
+                  })()}
                   {conv.lastMessage && (
                     <div className="text-[11px] text-[var(--dash-ink-faint)] truncate mb-1.5">
                       {previewPrefix}
@@ -1665,13 +1696,19 @@ function ConversationList({
                           {conv.ticketPriority}
                         </span>
                       )}
-                    {conv.ticketStatus && (
-                      <span
-                        className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md capitalize ${STATUS_STYLES[conv.ticketStatus]}`}
-                      >
-                        {conv.ticketStatus}
-                      </span>
-                    )}
+                    {conv.ticketStatus && (() => {
+                      const customerStatus = getCustomerSessionStatus({
+                        ticketStatus: conv.ticketStatus,
+                        awaitingHumanReview: conv.awaitingHumanReview,
+                      })
+                      return (
+                        <span
+                          className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md capitalize ${STATUS_STYLES[customerStatus]}`}
+                        >
+                          {customerStatus}
+                        </span>
+                      )
+                    })()}
                     {(() => {
                       const lm = conv.lastMessage
                       if (!lm) return null
@@ -2268,18 +2305,32 @@ function DetailsPanel({
             <SectionLabel>Ticket</SectionLabel>
             {thread.ticketSubject && (
               <p className="text-[12.5px] font-semibold text-[var(--dash-ink)] mb-3 leading-snug">
-                {thread.ticketSubject}
+                {formatTicketSubjectForDisplay({
+                  channel: thread.channel,
+                  subject: thread.ticketSubject,
+                  customerName: thread.customerName,
+                  lastMessagePreview: thread.messages.find((m) => m.role === "user")?.content
+                    ?? thread.messages.at(-1)?.content,
+                })}
               </p>
             )}
             <div className="space-y-2">
               {thread.ticketStatus && (
                 <div className="flex items-center justify-between text-[12px]">
                   <span className="text-[var(--dash-ink-faint)]">Status</span>
-                  <span
-                    className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[thread.ticketStatus] ?? ""}`}
-                  >
-                    {thread.ticketStatus}
-                  </span>
+                  {(() => {
+                    const customerStatus = getCustomerSessionStatus({
+                      ticketStatus: thread.ticketStatus,
+                      awaitingHumanReview: thread.awaitingHumanReview,
+                    })
+                    return (
+                      <span
+                        className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[customerStatus]}`}
+                      >
+                        {customerStatus}
+                      </span>
+                    )
+                  })()}
                 </div>
               )}
               {thread.ticketPriority && (

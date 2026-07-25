@@ -49,10 +49,38 @@ export function ChatWidgetSettings() {
     },
   })
 
+  const updateQuestionsMut = api.widgetConfig.updatePreChatQuestions.useMutation({
+    onSuccess: () => {
+      toast.success("Pre-chat questions updated successfully.")
+      refetch()
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to update questions.")
+    },
+  })
+
+  const toggleFormMut = api.widgetConfig.togglePreChatForm.useMutation({
+    onSuccess: () => {
+      toast.success("Pre-chat form setting updated.")
+      refetch()
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to update setting.")
+    },
+  })
+
   const [showKey, setShowKey] = useState(false)
   const [newOrigin, setNewOrigin] = useState("")
   const [copiedKey, setCopiedKey] = useState(false)
   const [copiedSnippet, setCopiedSnippet] = useState(false)
+  const [editingQuestion, setEditingQuestion] = useState<{
+    id?: string
+    text: string
+    type: "preset" | "custom"
+    options: string[]
+    required: boolean
+  } | null>(null)
+  const [newOption, setNewOption] = useState("")
 
   if (isLoading) {
     return (
@@ -145,6 +173,59 @@ export function ChatWidgetSettings() {
     if (confirm("WARNING: Disabling the Chat Widget will permanently delete its configuration and block any in-flight visitor sessions. Are you sure?")) {
       deleteMut.mutate()
     }
+  }
+
+  const handleAddQuestion = () => {
+    setEditingQuestion({
+      text: "",
+      type: "custom",
+      options: [],
+      required: false,
+    })
+  }
+
+  const handleSaveQuestion = () => {
+    if (!editingQuestion || !editingQuestion.text.trim()) {
+      toast.error("Question text is required.")
+      return
+    }
+
+    const questions = config.preChatQuestions || []
+    const newQuestion = {
+      id: editingQuestion.id || `q_${Date.now()}`,
+      text: editingQuestion.text.trim(),
+      type: editingQuestion.type,
+      options: editingQuestion.type === "preset" ? editingQuestion.options : undefined,
+      required: editingQuestion.required,
+    }
+
+    const updated = editingQuestion.id
+      ? questions.map(q => q.id === editingQuestion.id ? newQuestion : q)
+      : [...questions, newQuestion]
+
+    updateQuestionsMut.mutate({ questions: updated })
+    setEditingQuestion(null)
+  }
+
+  const handleDeleteQuestion = (questionId: string) => {
+    const questions = (config.preChatQuestions || []).filter(q => q.id !== questionId)
+    updateQuestionsMut.mutate({ questions })
+  }
+
+  const handleAddOption = () => {
+    if (!editingQuestion || !newOption.trim()) return
+    setEditingQuestion({
+      ...editingQuestion,
+      options: [...editingQuestion.options, newOption.trim()],
+    })
+    setNewOption("")
+  }
+
+  const handleRemoveOption = (index: number) => {
+    if (!editingQuestion) return
+    const options = [...editingQuestion.options]
+    options.splice(index, 1)
+    setEditingQuestion({ ...editingQuestion, options })
   }
 
   const embedSnippet = `<script src="https://example.com/widget.js"></script>\n<script>\n  window.AdvanChat = { key: "${config.widgetKey}" };\n</script>`
@@ -246,6 +327,215 @@ export function ChatWidgetSettings() {
           <p className="text-[11.5px] text-[var(--dash-ink-faint)] leading-normal">
             Enforce a strict exact-match domain allowlist (e.g. <code className="break-all">https://example.com</code> or <code className="break-all">http://localhost:3000</code>) to block unauthorized embeds or session hijackers.
           </p>
+        </div>
+
+        {/* Pre-chat Questions */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-[13px] font-bold text-[var(--dash-ink)]">Pre-Chat Questions</label>
+            <button
+              type="button"
+              onClick={() => toggleFormMut.mutate({ enabled: !config.preChatFormEnabled })}
+              className={`text-[11px] font-bold px-3 py-1.5 rounded-lg transition ${
+                config.preChatFormEnabled
+                  ? "bg-[var(--dash-sage-wash)] text-[var(--dash-sage)]"
+                  : "bg-gray-100 text-gray-500"
+              }`}
+            >
+              {config.preChatFormEnabled ? "Enabled" : "Disabled"}
+            </button>
+          </div>
+          <p className="text-[11.5px] text-[var(--dash-ink-faint)] leading-normal">
+            Ask visitors questions before the chat starts to generate better ticket titles and gather context. Questions are shown when the widget opens.
+          </p>
+
+          {config.preChatFormEnabled && (
+            <>
+              <div className="space-y-2">
+                {(config.preChatQuestions || []).map((question) => (
+                  <div
+                    key={question.id}
+                    className="flex items-start justify-between gap-3 border dash-border rounded-lg p-3 bg-white"
+                  >
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[12.5px] font-semibold text-[var(--dash-ink)]">
+                          {question.text}
+                        </span>
+                        {question.required && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                            REQUIRED
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-[var(--dash-ink-faint)]">
+                        <span className="font-mono">
+                          {question.type === "preset" ? "Dropdown" : "Free text"}
+                        </span>
+                        {question.type === "preset" && question.options && question.options.length > 0 && (
+                          <span>· {question.options.length} options</span>
+                        )}
+                      </div>
+                      {question.type === "preset" && question.options && question.options.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {question.options.map((opt, i) => (
+                            <span
+                              key={i}
+                              className="text-[11px] px-2 py-0.5 rounded-md bg-[var(--dash-bg-deep)] text-[var(--dash-ink-soft)]"
+                            >
+                              {opt}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuestion({ ...question })}
+                        className="flex min-h-9 min-w-9 h-9 w-9 items-center justify-center rounded-md text-[var(--dash-ink-faint)] hover:text-[var(--dash-accent)] hover:bg-[var(--dash-bg)] transition-colors"
+                        title="Edit question"
+                      >
+                        <Plus className="w-4 h-4 rotate-45" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteQuestion(question.id)}
+                        className="flex min-h-9 min-w-9 h-9 w-9 items-center justify-center rounded-md text-[var(--dash-ink-faint)] hover:text-[var(--dash-rose)] hover:bg-white transition-colors"
+                        title="Remove question"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {!editingQuestion && (
+                <button
+                  type="button"
+                  onClick={handleAddQuestion}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-white border dash-border rounded-lg text-[13px] font-bold text-[var(--dash-accent)] hover:bg-[var(--dash-bg)] transition"
+                >
+                  <Plus className="w-4 h-4" /> Add question
+                </button>
+              )}
+
+              {editingQuestion && (
+                <div className="border-2 border-[var(--dash-accent)]/20 rounded-lg p-4 bg-[var(--dash-accent)]/[0.02] space-y-3">
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-[var(--dash-ink)]">Question Text</label>
+                    <input
+                      type="text"
+                      value={editingQuestion.text}
+                      onChange={(e) => setEditingQuestion({ ...editingQuestion, text: e.target.value })}
+                      placeholder="What do you need help with?"
+                      className="w-full h-9 text-[13px] border dash-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#6B5CD6]/15 focus:border-[#9D91EA] transition"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-[var(--dash-ink)]">Question Type</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuestion({ ...editingQuestion, type: "custom", options: [] })}
+                        className={`flex-1 h-9 text-[12px] font-bold rounded-lg transition ${
+                          editingQuestion.type === "custom"
+                            ? "bg-[var(--dash-accent)] text-white"
+                            : "bg-white border dash-border text-[var(--dash-ink-soft)]"
+                        }`}
+                      >
+                        Free Text
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuestion({ ...editingQuestion, type: "preset" })}
+                        className={`flex-1 h-9 text-[12px] font-bold rounded-lg transition ${
+                          editingQuestion.type === "preset"
+                            ? "bg-[var(--dash-accent)] text-white"
+                            : "bg-white border dash-border text-[var(--dash-ink-soft)]"
+                        }`}
+                      >
+                        Dropdown Options
+                      </button>
+                    </div>
+                  </div>
+
+                  {editingQuestion.type === "preset" && (
+                    <div className="space-y-2">
+                      <label className="text-[12px] font-bold text-[var(--dash-ink)]">Options</label>
+                      {editingQuestion.options.length > 0 && (
+                        <div className="space-y-1">
+                          {editingQuestion.options.map((opt, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="flex-1 text-[12px] text-[var(--dash-ink-soft)]">{opt}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveOption(i)}
+                                className="flex h-7 w-7 items-center justify-center rounded text-[var(--dash-ink-faint)] hover:text-[var(--dash-rose)]"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newOption}
+                          onChange={(e) => setNewOption(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddOption())}
+                          placeholder="Add option..."
+                          className="flex-1 h-9 text-[12px] border dash-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#6B5CD6]/15 focus:border-[#9D91EA]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddOption}
+                          disabled={!newOption.trim()}
+                          className="h-9 px-3 text-[12px] font-bold bg-white border dash-border rounded-lg hover:bg-[var(--dash-bg)] disabled:opacity-50"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="required"
+                      checked={editingQuestion.required}
+                      onChange={(e) => setEditingQuestion({ ...editingQuestion, required: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-300 text-[var(--dash-accent)] focus:ring-[var(--dash-accent)]"
+                    />
+                    <label htmlFor="required" className="text-[12px] font-semibold text-[var(--dash-ink-soft)]">
+                      Required field
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t dash-border-soft">
+                    <button
+                      type="button"
+                      onClick={() => setEditingQuestion(null)}
+                      className="h-9 px-4 text-[13px] font-bold text-[var(--dash-ink-soft)] hover:bg-white rounded-lg transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveQuestion}
+                      disabled={!editingQuestion.text.trim() || updateQuestionsMut.isPending}
+                      className="h-9 px-4 text-[13px] font-bold bg-[var(--dash-accent)] text-white rounded-lg hover:bg-[var(--dash-accent-deep)] disabled:opacity-50 transition"
+                    >
+                      {updateQuestionsMut.isPending ? "Saving..." : "Save Question"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Embed Snippet */}

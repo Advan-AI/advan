@@ -118,7 +118,35 @@
       "idx": 16,
       "version": "7",
       "when": 1784375306589,
-      "tag": "0016_unknown_mulholland_black",
+      "tag": "0016_email_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1784375306590,
+      "tag": "0017_add_user_image",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784375306591,
+      "tag": "0018_visitor_identity_split",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784375306592,
+      "tag": "0019_widget_prechat_questions",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785016200000,
+      "tag": "0020_team_custom_roles",
       "breakpoints": true
     }
   ]
