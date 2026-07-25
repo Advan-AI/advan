@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -34,6 +35,8 @@ import {
 } from "lucide-react"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
+import { resolveDashboardCustomerName } from "@/lib/chat/customer-display-name"
+import { formatTicketSubjectForDisplay } from "@/lib/chat/ticket-subject"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,6 +48,8 @@ type PriorityFilter = "All" | TicketPriority
 type SortCol        = "subject" | "customer" | "status" | "priority" | "createdAt"
 
 type TicketRow = {
+  chatDisplayName?: string | null
+  customerName?: string | null
   ticket: {
     id: string
     orgId: string
@@ -83,6 +88,21 @@ const TICKET_STATUSES: TicketStatus[]  = ["open", "pending", "resolved", "closed
 const TICKET_CHANNELS: TicketChannel[] = ["email", "chat", "voice", "slack", "portal"]
 const TICKET_PRIORITIES: TicketPriority[] = ["low", "medium", "high", "urgent"]
 const PAGE_SIZE = 25
+const TABLE_LAYOUT_MQ = "(min-width: 1024px)"
+
+function subscribeTableLayout(onChange: () => void) {
+  const mql = window.matchMedia(TABLE_LAYOUT_MQ)
+  mql.addEventListener("change", onChange)
+  return () => mql.removeEventListener("change", onChange)
+}
+
+function getTableLayoutSnapshot() {
+  return window.matchMedia(TABLE_LAYOUT_MQ).matches
+}
+
+function getTableLayoutServerSnapshot() {
+  return false
+}
 
 const STATUS_TONE: Record<TicketStatus, string> = {
   open:     "bg-[var(--dash-sage-wash)] text-[#2f5d3f]",
@@ -127,7 +147,7 @@ function sortRows(rows: TicketRow[], col: SortCol, dir: "asc" | "desc"): TicketR
       case "subject":
         cmp = a.ticket.subject.localeCompare(b.ticket.subject); break
       case "customer":
-        cmp = (a.customer?.name ?? "zzz").localeCompare(b.customer?.name ?? "zzz"); break
+        cmp = displayTicketCustomerName(a).localeCompare(displayTicketCustomerName(b)); break
       case "status":
         cmp = (STATUS_ORDER[a.ticket.status] ?? 0) - (STATUS_ORDER[b.ticket.status] ?? 0); break
       case "priority":
@@ -137,6 +157,17 @@ function sortRows(rows: TicketRow[], col: SortCol, dir: "asc" | "desc"): TicketR
     }
     return dir === "desc" ? -cmp : cmp
   })
+}
+
+function displayTicketCustomerName(row: TicketRow): string {
+  const resolved = resolveDashboardCustomerName({
+    channel: row.ticket.channel,
+    customerDisplayName: row.chatDisplayName,
+    customerName: row.customerName ?? row.customer?.name,
+  })
+
+  if (resolved) return resolved
+  return "—"
 }
 
 function isValidEmail(value: string | null | undefined): boolean {
@@ -181,11 +212,18 @@ export default function TicketsPage() {
 
   // ── Keyboard navigation ──
   const [focusedIdx, setFocusedIdx]   = useState(-1)
-  const rowRefs   = useRef<Map<number, HTMLTableRowElement>>(new Map())
+  const rowRefs   = useRef<Map<number, HTMLElement>>(new Map())
   const containerRef = useRef<HTMLDivElement>(null)
 
   // ── Modal ──
   const [showNewTicket, setShowNewTicket] = useState(false)
+
+  // Card stack < lg; data table ≥ lg (single mount keeps keyboard row refs stable)
+  const isTableLayout = useSyncExternalStore(
+    subscribeTableLayout,
+    getTableLayoutSnapshot,
+    getTableLayoutServerSnapshot
+  )
 
   // ── Sentinel for infinite scroll ──
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -322,6 +360,8 @@ export default function TicketsPage() {
     onMutate: async (vars) => {
       const optimisticId = `optimistic-${Date.now()}`
       const optimistic: TicketRow = {
+        chatDisplayName: null,
+        customerName: null,
         ticket: {
           id: optimisticId,
           orgId: "",
@@ -377,7 +417,7 @@ export default function TicketsPage() {
       ? merged.filter(
           (r) =>
             r.ticket.subject.toLowerCase().includes(lq) ||
-            (r.customer?.name ?? "").toLowerCase().includes(lq) ||
+            displayTicketCustomerName(r).toLowerCase().includes(lq) ||
             (r.customer?.email ?? "").toLowerCase().includes(lq) ||
             r.ticket.id.toLowerCase().startsWith(lq)
         )
@@ -472,8 +512,137 @@ export default function TicketsPage() {
 
   const colCount = selectionMode ? 8 : 7
 
+  const bindRowRef = useCallback(
+    (index: number) => (el: HTMLElement | null) => {
+      if (el) rowRefs.current.set(index, el)
+      else rowRefs.current.delete(index)
+    },
+    []
+  )
+
+  const clearFilters = useCallback(() => {
+    setQ("")
+    setStatusFilter("All")
+    setPriorityFilter("All")
+  }, [])
+
+  const renderQueueBody = (variant: "cards" | "table") => {
+    if (isLoading) {
+      return variant === "cards"
+        ? Array.from({ length: 5 }).map((_, i) => (
+            <TicketCardSkeleton key={i} selectionMode={selectionMode} />
+          ))
+        : Array.from({ length: 6 }).map((_, i) => (
+            <TicketSkeleton key={i} selectionMode={selectionMode} />
+          ))
+    }
+
+    if (isError) {
+      const errorBlock = (
+        <div className="flex flex-col items-center gap-3 px-4 py-14 text-center">
+          <AlertCircle className="w-8 h-8 text-[var(--dash-rose)] opacity-50" />
+          <p className="text-[13px] font-semibold text-[var(--dash-ink)]">
+            Failed to load tickets
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="inline-flex items-center gap-1.5 min-h-10 px-3 text-[12px] font-semibold text-[var(--dash-accent)] hover:underline"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Retry
+          </button>
+        </div>
+      )
+      return variant === "cards" ? (
+        errorBlock
+      ) : (
+        <tr>
+          <td colSpan={colCount}>{errorBlock}</td>
+        </tr>
+      )
+    }
+
+    if (displayRows.length === 0) {
+      const empty = (
+        <EmptyState
+          hasSearch={!!q}
+          hasFilter={statusFilter !== "All" || priorityFilter !== "All"}
+          onClear={clearFilters}
+        />
+      )
+      return variant === "cards" ? (
+        empty
+      ) : (
+        <tr>
+          <td colSpan={colCount}>{empty}</td>
+        </tr>
+      )
+    }
+
+    if (variant === "cards") {
+      return displayRows.map((r, i) => (
+        <TicketCard
+          key={r.ticket.id}
+          row={r}
+          index={i}
+          rowRef={bindRowRef(i)}
+          isFocused={focusedIdx === i}
+          isSelected={selectedIds.has(r.ticket.id)}
+          isSelectionMode={selectionMode}
+          onSelect={() => toggleSelection(r.ticket.id)}
+          onFocus={() => setFocusedIdx(i)}
+          onStatusChange={(status) => updateStatus.mutate({ id: r.ticket.id, status })}
+          isStatusPending={pendingStatusIds.has(r.ticket.id)}
+          error={rowErrors.get(r.ticket.id) ?? null}
+          onClearError={() =>
+            setRowErrors((prev) => {
+              const next = new Map(prev)
+              next.delete(r.ticket.id)
+              return next
+            })
+          }
+          onRetryStatus={() => {
+            const vars = lastStatusVars.current.get(r.ticket.id)
+            if (vars) updateStatus.mutate(vars)
+          }}
+          searchQuery={q}
+          isOptimistic={r.ticket.id.startsWith("optimistic-")}
+        />
+      ))
+    }
+
+    return displayRows.map((r, i) => (
+      <TableRow
+        key={r.ticket.id}
+        row={r}
+        index={i}
+        rowRef={bindRowRef(i)}
+        isFocused={focusedIdx === i}
+        isSelected={selectedIds.has(r.ticket.id)}
+        isSelectionMode={selectionMode}
+        onSelect={() => toggleSelection(r.ticket.id)}
+        onFocus={() => setFocusedIdx(i)}
+        onStatusChange={(status) => updateStatus.mutate({ id: r.ticket.id, status })}
+        isStatusPending={pendingStatusIds.has(r.ticket.id)}
+        error={rowErrors.get(r.ticket.id) ?? null}
+        onClearError={() =>
+          setRowErrors((prev) => {
+            const next = new Map(prev)
+            next.delete(r.ticket.id)
+            return next
+          })
+        }
+        onRetryStatus={() => {
+          const vars = lastStatusVars.current.get(r.ticket.id)
+          if (vars) updateStatus.mutate(vars)
+        }}
+        searchQuery={q}
+        isOptimistic={r.ticket.id.startsWith("optimistic-")}
+      />
+    ))
+  }
+
   return (
-    <div>
+    <div className="tickets-page min-w-0 w-full max-w-full">
       <DashPageHeader
         eyebrow="Queue"
         title="Tickets"
@@ -485,20 +654,21 @@ export default function TicketsPage() {
                 setSelectionMode((v) => !v)
                 if (selectionMode) setSelectedIds(new Set())
               }}
-              className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border text-[13px] font-semibold transition ${
+              className={`inline-flex items-center justify-center gap-1.5 min-h-10 h-10 sm:h-9 px-3 sm:px-3.5 rounded-lg border text-[13px] font-semibold transition flex-1 sm:flex-none ${
                 selectionMode
                   ? "border-[var(--dash-accent)] bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]"
                   : "dash-border bg-[var(--dash-card)] text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)]"
               }`}
             >
-              <CheckSquare className="w-4 h-4" />
-              {selectionMode ? "Exit Select" : "Select"}
+              <CheckSquare className="w-4 h-4 shrink-0" />
+              <span className="truncate">{selectionMode ? "Exit Select" : "Select"}</span>
             </button>
             <button
               onClick={() => setShowNewTicket(true)}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-semibold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] hover:-translate-y-px transition"
+              className="inline-flex items-center justify-center gap-1.5 min-h-10 h-10 sm:h-9 px-3.5 sm:px-4 rounded-lg text-[13px] font-semibold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] hover:-translate-y-px transition flex-1 sm:flex-none"
             >
-              <Plus className="w-4 h-4" /> New ticket
+              <Plus className="w-4 h-4 shrink-0" />
+              <span className="truncate">New ticket</span>
             </button>
           </>
         }
@@ -511,13 +681,13 @@ export default function TicketsPage() {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="flex items-center gap-2.5 mb-4 px-4 py-2.5 rounded-xl bg-[var(--dash-rose-wash)] border border-[#E8B4B4] text-[#7a2929] text-[12.5px] font-medium"
+            className="flex items-start sm:items-center gap-2.5 mb-4 px-3.5 sm:px-4 py-2.5 rounded-xl bg-[var(--dash-rose-wash)] border border-[#E8B4B4] text-[#7a2929] text-[12.5px] font-medium"
           >
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            {globalError}
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0" />
+            <span className="min-w-0 flex-1 break-words">{globalError}</span>
             <button
               onClick={() => setGlobalError(null)}
-              className="ml-auto p-0.5 hover:opacity-70 transition"
+              className="ml-auto p-1.5 -mr-1 hover:opacity-70 transition shrink-0"
               aria-label="Dismiss"
             >
               <X className="w-3.5 h-3.5" />
@@ -530,21 +700,21 @@ export default function TicketsPage() {
         title="Ticket Queue"
         icon={<Ticket className="w-[18px] h-[18px]" />}
         right={
-          <div className="flex items-center gap-2">
-            {/* Search */}
-            <div className="flex items-center gap-1.5 bg-[var(--dash-bg-deep)] border dash-border rounded-lg px-2.5 py-1.5 w-[200px]">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full min-w-0 lg:w-auto">
+            {/* Search — full width on phone, fixed on larger */}
+            <div className="flex items-center gap-1.5 bg-[var(--dash-bg-deep)] border dash-border rounded-lg px-2.5 py-2 sm:py-1.5 w-full min-w-0 sm:flex-1 sm:min-w-[11rem] lg:flex-none lg:w-[13rem] xl:w-[16rem] 3xl:w-[18rem]">
               <Search className="w-3.5 h-3.5 text-[var(--dash-ink-faint)] shrink-0" />
               <input
                 value={q}
                 onChange={(e) => { setQ(e.target.value); setFocusedIdx(-1) }}
-                placeholder="Search…"
+                placeholder="Search subject, customer…"
                 aria-label="Search tickets"
-                className="bg-transparent outline-none text-[12px] text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] w-full"
+                className="bg-transparent outline-none text-[13px] sm:text-[12px] text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] w-full min-w-0"
               />
               {q && (
                 <button
                   onClick={() => setQ("")}
-                  className="text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)] transition"
+                  className="text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)] transition p-1 -mr-0.5"
                   aria-label="Clear search"
                 >
                   <X className="w-3 h-3" />
@@ -552,161 +722,118 @@ export default function TicketsPage() {
               )}
             </div>
 
-            {/* Priority filter */}
-            <PriorityPicker value={priorityFilter} onChange={setPriorityFilter} />
-
-            {/* Refresh */}
-            <button
-              onClick={() => refetch()}
-              disabled={isFetching}
-              title="Refresh"
-              aria-label="Refresh tickets"
-              className={`p-1.5 rounded-md text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)] transition ${
-                isFetching ? "animate-spin pointer-events-none" : ""
-              }`}
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <PriorityPicker value={priorityFilter} onChange={setPriorityFilter} />
+              <button
+                onClick={() => refetch()}
+                disabled={isFetching}
+                title="Refresh"
+                aria-label="Refresh tickets"
+                className={`inline-flex items-center justify-center min-h-9 min-w-9 p-2 rounded-lg text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)] transition ${
+                  isFetching ? "animate-spin pointer-events-none" : ""
+                }`}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         }
         padded={false}
       >
-        {/* Status filter chips */}
-        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b dash-border-soft overflow-x-auto">
-          {STATUS_FILTERS.map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`text-[11.5px] font-semibold rounded-md px-2.5 py-1 transition capitalize whitespace-nowrap ${
-                statusFilter === s
-                  ? "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]"
-                  : "text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)]"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-          <span className="ml-auto text-[11px] text-[var(--dash-ink-faint)] shrink-0">
-            {displayRows.length}
-            {data?.total ? ` of ${data.total}` : ""}
-          </span>
+        {/* Status filter chips + mobile sort */}
+        <div className="flex flex-col gap-2 px-3 sm:px-4 py-2.5 border-b dash-border-soft sm:flex-row sm:items-center sm:gap-3">
+          <div
+            className="flex items-center gap-1.5 overflow-x-auto overscroll-x-contain scrollbar-none -mx-1 px-1 pb-0.5 sm:pb-0"
+            role="tablist"
+            aria-label="Filter by status"
+          >
+            {STATUS_FILTERS.map((s) => (
+              <button
+                key={s}
+                role="tab"
+                aria-selected={statusFilter === s}
+                onClick={() => setStatusFilter(s)}
+                className={`text-[12px] sm:text-[11.5px] font-semibold rounded-md px-3 py-1.5 sm:px-2.5 sm:py-1 transition capitalize whitespace-nowrap shrink-0 min-h-9 sm:min-h-0 ${
+                  statusFilter === s
+                    ? "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]"
+                    : "text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)]"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between gap-2 sm:ml-auto shrink-0">
+            {/* Mobile / tablet sort — table headers handle this at lg+ */}
+            <MobileSortControl
+              sortCol={sortCol}
+              sortDir={sortDir}
+              onSort={handleSort}
+              className={isTableLayout ? "hidden" : undefined}
+            />
+            <span className="text-[11px] text-[var(--dash-ink-faint)] tabular-nums whitespace-nowrap">
+              {displayRows.length}
+              {data?.total ? ` of ${data.total}` : ""}
+            </span>
+          </div>
         </div>
 
-        {/* Table */}
+        {/* Shared keyboard container */}
         <div
           ref={containerRef}
           tabIndex={0}
           onKeyDown={handleContainerKeyDown}
-          className="overflow-x-auto outline-none focus-visible:ring-1 focus-visible:ring-[var(--dash-accent)] focus-visible:ring-inset"
+          className="outline-none focus-visible:ring-1 focus-visible:ring-[var(--dash-accent)] focus-visible:ring-inset"
           aria-label="Tickets list"
-          role="grid"
-          aria-rowcount={displayRows.length}
         >
-          <table className="w-full text-[12.5px]">
-            <thead className="text-left text-[11px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)] bg-[var(--dash-bg-deep)]/50">
-              <tr>
-                {selectionMode && (
-                  <th className="w-10 px-4 py-2.5">
-                    <button
-                      onClick={
-                        selectedIds.size === displayRows.length && displayRows.length > 0
-                          ? clearSelection
-                          : selectAll
-                      }
-                      aria-label="Toggle select all"
-                      className="text-[var(--dash-ink-faint)] hover:text-[var(--dash-accent)] transition"
-                    >
-                      {selectedIds.size === displayRows.length && displayRows.length > 0 ? (
-                        <CheckSquare className="w-3.5 h-3.5" />
-                      ) : (
-                        <Square className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </th>
-                )}
-                <ColumnHeader col="subject"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>Ticket</ColumnHeader>
-                <ColumnHeader col="customer"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>Customer</ColumnHeader>
-                <th className="px-4 py-2.5 font-bold">Channel</th>
-                <ColumnHeader col="status"    sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>Status</ColumnHeader>
-                <ColumnHeader col="priority"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>Priority</ColumnHeader>
-                <ColumnHeader col="createdAt" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>Age</ColumnHeader>
-                <th className="px-4 py-2.5 font-bold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading
-                ? Array.from({ length: 6 }).map((_, i) => (
-                    <TicketSkeleton key={i} selectionMode={selectionMode} />
-                  ))
-                : isError
-                ? (
+          {isTableLayout ? (
+            /* ── Laptop → 4K: data table ── */
+            <div className="overflow-x-auto overscroll-x-contain" role="grid" aria-rowcount={displayRows.length}>
+              <table className="w-full min-w-[52rem] xl:min-w-0 text-[12.5px] 3xl:text-[13px] 4xl:text-[13.5px] table-fixed xl:table-auto">
+                <thead className="text-left text-[11px] 3xl:text-[11.5px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)] bg-[var(--dash-bg-deep)]/50 sticky top-0 z-10">
                   <tr>
-                    <td colSpan={colCount} className="px-4 py-14 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <AlertCircle className="w-8 h-8 text-[var(--dash-rose)] opacity-50" />
-                        <p className="text-[13px] font-semibold text-[var(--dash-ink)]">
-                          Failed to load tickets
-                        </p>
+                    {selectionMode && (
+                      <th className="w-10 xl:w-12 px-3 xl:px-4 3xl:px-5 py-2.5 3xl:py-3">
                         <button
-                          onClick={() => refetch()}
-                          className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--dash-accent)] hover:underline"
+                          onClick={
+                            selectedIds.size === displayRows.length && displayRows.length > 0
+                              ? clearSelection
+                              : selectAll
+                          }
+                          aria-label="Toggle select all"
+                          className="inline-flex items-center justify-center min-h-8 min-w-8 text-[var(--dash-ink-faint)] hover:text-[var(--dash-accent)] transition"
                         >
-                          <RefreshCw className="w-3.5 h-3.5" /> Retry
+                          {selectedIds.size === displayRows.length && displayRows.length > 0 ? (
+                            <CheckSquare className="w-3.5 h-3.5" />
+                          ) : (
+                            <Square className="w-3.5 h-3.5" />
+                          )}
                         </button>
-                      </div>
-                    </td>
+                      </th>
+                    )}
+                    <ColumnHeader col="subject"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="w-[34%] xl:w-auto">Ticket</ColumnHeader>
+                    <ColumnHeader col="customer"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="w-[16%] xl:w-auto">Customer</ColumnHeader>
+                    <th className="px-3 xl:px-4 3xl:px-5 py-2.5 3xl:py-3 font-bold w-[9%] xl:w-auto">Channel</th>
+                    <ColumnHeader col="status"    sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="w-[11%] xl:w-auto">Status</ColumnHeader>
+                    <ColumnHeader col="priority"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="w-[10%] xl:w-auto">Priority</ColumnHeader>
+                    <ColumnHeader col="createdAt" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="w-[9%] xl:w-auto">Age</ColumnHeader>
+                    <th className="px-3 xl:px-4 3xl:px-5 py-2.5 3xl:py-3 font-bold text-right w-[11%] xl:w-auto">Actions</th>
                   </tr>
-                )
-                : displayRows.length === 0
-                ? (
-                  <tr>
-                    <td colSpan={colCount}>
-                      <EmptyState
-                        hasSearch={!!q}
-                        hasFilter={statusFilter !== "All" || priorityFilter !== "All"}
-                        onClear={() => {
-                          setQ("")
-                          setStatusFilter("All")
-                          setPriorityFilter("All")
-                        }}
-                      />
-                    </td>
-                  </tr>
-                )
-                : displayRows.map((r, i) => (
-                  <TableRow
-                    key={r.ticket.id}
-                    row={r}
-                    index={i}
-                    rowRef={(el) => {
-                      if (el) rowRefs.current.set(i, el)
-                      else rowRefs.current.delete(i)
-                    }}
-                    isFocused={focusedIdx === i}
-                    isSelected={selectedIds.has(r.ticket.id)}
-                    isSelectionMode={selectionMode}
-                    onSelect={() => toggleSelection(r.ticket.id)}
-                    onFocus={() => setFocusedIdx(i)}
-                    onStatusChange={(status) => updateStatus.mutate({ id: r.ticket.id, status })}
-                    isStatusPending={pendingStatusIds.has(r.ticket.id)}
-                    error={rowErrors.get(r.ticket.id) ?? null}
-                    onClearError={() =>
-                      setRowErrors((prev) => {
-                        const next = new Map(prev)
-                        next.delete(r.ticket.id)
-                        return next
-                      })
-                    }
-                    onRetryStatus={() => {
-                      const vars = lastStatusVars.current.get(r.ticket.id)
-                      if (vars) updateStatus.mutate(vars)
-                    }}
-                    searchQuery={q}
-                    isOptimistic={r.ticket.id.startsWith("optimistic-")}
-                  />
-                ))}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>{renderQueueBody("table")}</tbody>
+              </table>
+            </div>
+          ) : (
+            /* ── Phone & tablet: card stack ── */
+            <div
+              className="divide-y divide-[var(--dash-line-soft)]"
+              role="list"
+              aria-rowcount={displayRows.length}
+            >
+              {renderQueueBody("cards")}
+            </div>
+          )}
 
           {/* Sentinel for intersection-observer infinite scroll */}
           <div ref={sentinelRef} className="h-px" aria-hidden="true" />
@@ -762,19 +889,21 @@ function ColumnHeader({
   sortDir,
   onSort,
   children,
+  className = "",
 }: {
   col: SortCol
   sortCol: SortCol
   sortDir: "asc" | "desc"
   onSort: (col: SortCol) => void
   children: React.ReactNode
+  className?: string
 }) {
   const active = col === sortCol
   return (
-    <th className="px-4 py-2.5">
+    <th className={`px-3 xl:px-4 3xl:px-5 py-2.5 3xl:py-3 ${className}`}>
       <button
         onClick={() => onSort(col)}
-        className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider transition ${
+        className={`inline-flex items-center gap-1 text-[11px] 3xl:text-[11.5px] font-bold uppercase tracking-wider transition ${
           active
             ? "text-[var(--dash-accent-deep)]"
             : "text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)]"
@@ -793,12 +922,94 @@ function ColumnHeader({
   )
 }
 
-// ─── TableRow ─────────────────────────────────────────────────────────────────
+// ─── MobileSortControl ────────────────────────────────────────────────────────
 
-type TableRowProps = {
+function MobileSortControl({
+  sortCol,
+  sortDir,
+  onSort,
+  className = "",
+}: {
+  sortCol: SortCol
+  sortDir: "asc" | "desc"
+  onSort: (col: SortCol) => void
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const LABELS: Record<SortCol, string> = {
+    subject: "Subject",
+    customer: "Customer",
+    status: "Status",
+    priority: "Priority",
+    createdAt: "Age",
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [open])
+
+  return (
+    <div ref={ref} className={`relative ${className}`}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Sort tickets"
+        aria-expanded={open}
+        className="inline-flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border dash-border bg-[var(--dash-card)] text-[12px] font-semibold text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)] transition"
+      >
+        {sortDir === "desc" ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />}
+        <span>{LABELS[sortCol]}</span>
+        <ChevronDown className="w-3 h-3 opacity-50" />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -4 }}
+            transition={{ duration: 0.11 }}
+            className="absolute left-0 top-full mt-1 z-50 min-w-[11rem] rounded-xl bg-[var(--dash-card)] border dash-border shadow-lg overflow-hidden"
+          >
+            {(Object.keys(LABELS) as SortCol[]).map((col) => (
+              <button
+                key={col}
+                onClick={() => {
+                  onSort(col)
+                  setOpen(false)
+                }}
+                className={`w-full text-left px-3 py-2.5 text-[12px] font-semibold transition flex items-center gap-2 hover:bg-[var(--dash-bg-deep)] ${
+                  col === sortCol
+                    ? "text-[var(--dash-accent-deep)] bg-[var(--dash-accent-wash)]"
+                    : "text-[var(--dash-ink-soft)]"
+                }`}
+              >
+                {LABELS[col]}
+                {col === sortCol && (
+                  sortDir === "desc"
+                    ? <ArrowDown className="w-3 h-3 ml-auto" />
+                    : <ArrowUp className="w-3 h-3 ml-auto" />
+                )}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ─── Shared row props ─────────────────────────────────────────────────────────
+
+type TicketItemProps = {
   row: TicketRow
   index: number
-  rowRef: (el: HTMLTableRowElement | null) => void
+  rowRef: (el: HTMLElement | null) => void
   isFocused: boolean
   isSelected: boolean
   isSelectionMode: boolean
@@ -812,6 +1023,153 @@ type TableRowProps = {
   searchQuery: string
   isOptimistic: boolean
 }
+
+// ─── TicketCard (mobile / tablet) ─────────────────────────────────────────────
+
+function TicketCard({
+  row,
+  index,
+  rowRef,
+  isFocused,
+  isSelected,
+  isSelectionMode,
+  onSelect,
+  onFocus,
+  onStatusChange,
+  isStatusPending,
+  error,
+  onClearError,
+  onRetryStatus,
+  searchQuery,
+  isOptimistic,
+}: TicketItemProps) {
+  const { ticket, customer } = row
+  const customerLabel = displayTicketCustomerName(row)
+  const subjectLabel = formatTicketSubjectForDisplay({
+    channel: ticket.channel,
+    subject: ticket.subject,
+    customerName: customerLabel,
+  })
+
+  return (
+    <div
+      ref={rowRef}
+      role="listitem"
+      aria-selected={isSelected}
+      aria-rowindex={index + 1}
+      tabIndex={isFocused ? 0 : -1}
+      onClick={isSelectionMode ? onSelect : onFocus}
+      className={`relative px-3.5 sm:px-4 py-3.5 transition-colors cursor-pointer outline-none ${
+        isSelected
+          ? "bg-[var(--dash-accent-wash)]"
+          : isFocused
+          ? "bg-[rgba(107,92,214,0.07)] ring-1 ring-inset ring-[var(--dash-accent)]/30"
+          : "active:bg-[rgba(107,92,214,0.05)]"
+      } ${isOptimistic ? "opacity-60" : ""}`}
+    >
+      <div className="flex gap-3">
+        {isSelectionMode && (
+          <div className="pt-1 shrink-0" aria-hidden="true">
+            {isSelected
+              ? <CheckSquare className="w-5 h-5 text-[var(--dash-accent)]" />
+              : <Square className="w-5 h-5 text-[var(--dash-ink-faint)]" />}
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1 flex flex-col gap-2.5">
+          {/* ID + age */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-[10.5px] text-[var(--dash-ink-faint)] truncate">
+              #{ticket.id.slice(0, 8).toUpperCase()}
+              {isOptimistic && (
+                <span className="ml-1.5 font-sans text-[9.5px] font-bold text-[var(--dash-accent)]">
+                  Creating…
+                </span>
+              )}
+            </span>
+            <span className="text-[11px] text-[var(--dash-ink-faint)] tabular-nums shrink-0">
+              {relativeTime(ticket.createdAt)}
+            </span>
+          </div>
+
+          {/* Subject */}
+          <p className="font-semibold text-[14px] sm:text-[13.5px] text-[var(--dash-ink)] leading-snug break-words">
+            <HighlightMatch text={subjectLabel} query={searchQuery} />
+          </p>
+
+          {/* Customer + channel */}
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] text-[var(--dash-ink-soft)]">
+            <span className="min-w-0 truncate max-w-[14rem]">
+              <HighlightMatch text={customerLabel} query={searchQuery} />
+            </span>
+            {customer?.tier && customer.tier !== "free" && (
+              <span
+                className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 ${
+                  customer.tier === "enterprise"
+                    ? "bg-[#EDE9FE] text-[#5B21B6]"
+                    : "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]"
+                }`}
+              >
+                {customer.tier}
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 capitalize text-[var(--dash-ink-faint)] shrink-0">
+              <span className="opacity-80">{CHANNEL_ICONS[ticket.channel]}</span>
+              {ticket.channel}
+            </span>
+            {ticket.aiResolved && (
+              <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-[var(--dash-accent-deep)] bg-[var(--dash-accent-wash)] rounded px-1.5 py-0.5 shrink-0">
+                <Zap className="w-2.5 h-2.5" /> AI
+              </span>
+            )}
+          </div>
+
+          {/* Controls row */}
+          <div
+            className="flex flex-wrap items-center gap-2 pt-0.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <StatusDropdown
+              currentStatus={ticket.status}
+              onUpdate={onStatusChange}
+              isPending={isStatusPending}
+            />
+            <span
+              className={`inline-flex items-center text-[11px] font-bold rounded-md px-2 py-1 capitalize ${PRIORITY_TONE[ticket.priority]}`}
+            >
+              {ticket.priority}
+            </span>
+            <Link
+              href={`/dashboard/conversations?ticketId=${ticket.id}`}
+              className="ml-auto inline-flex items-center justify-center min-h-9 px-3 rounded-lg text-[12.5px] font-semibold text-[var(--dash-accent)] bg-[var(--dash-accent-wash)] hover:opacity-90 transition"
+            >
+              View
+            </Link>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg bg-[var(--dash-rose-wash)] border border-[#E8B4B4] px-2.5 py-2 text-[11.5px] text-[#7a2929]">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span className="min-w-0 flex-1">{error}</span>
+              <button onClick={onRetryStatus} className="font-bold underline shrink-0">
+                Retry
+              </button>
+              <button
+                onClick={onClearError}
+                className="p-0.5 hover:opacity-70 transition shrink-0"
+                aria-label="Dismiss error"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── TableRow ─────────────────────────────────────────────────────────────────
 
 function TableRow({
   row,
@@ -829,14 +1187,20 @@ function TableRow({
   onRetryStatus,
   searchQuery,
   isOptimistic,
-}: TableRowProps) {
+}: TicketItemProps) {
   const { ticket, customer } = row
+  const customerLabel = displayTicketCustomerName(row)
+  const subjectLabel = formatTicketSubjectForDisplay({
+    channel: ticket.channel,
+    subject: ticket.subject,
+    customerName: customerLabel,
+  })
   const colCount = isSelectionMode ? 8 : 7
 
   return (
     <>
       <tr
-        ref={rowRef}
+        ref={rowRef as (el: HTMLTableRowElement | null) => void}
         onClick={isSelectionMode ? onSelect : onFocus}
         role="row"
         aria-selected={isSelected}
@@ -852,7 +1216,7 @@ function TableRow({
       >
         {/* Checkbox (selection mode) */}
         {isSelectionMode && (
-          <td className="w-10 px-4 py-3">
+          <td className="w-10 xl:w-12 px-3 xl:px-4 3xl:px-5 py-3 3xl:py-3.5">
             {isSelected
               ? <CheckSquare className="w-3.5 h-3.5 text-[var(--dash-accent)]" />
               : <Square      className="w-3.5 h-3.5 text-[var(--dash-ink-faint)] group-hover:text-[var(--dash-ink-soft)]" />
@@ -861,8 +1225,8 @@ function TableRow({
         )}
 
         {/* Ticket ID + Subject */}
-        <td className="px-4 py-3">
-          <div className="flex flex-col gap-0.5">
+        <td className="px-3 xl:px-4 3xl:px-5 py-3 3xl:py-3.5">
+          <div className="flex flex-col gap-0.5 min-w-0">
             <span className="font-mono text-[10.5px] text-[var(--dash-ink-faint)]">
               #{ticket.id.slice(0, 8).toUpperCase()}
               {isOptimistic && (
@@ -871,8 +1235,8 @@ function TableRow({
                 </span>
               )}
             </span>
-            <span className="font-semibold text-[var(--dash-ink)] max-w-[280px] truncate leading-snug">
-              <HighlightMatch text={ticket.subject} query={searchQuery} />
+            <span className="font-semibold text-[var(--dash-ink)] max-w-[16rem] xl:max-w-[22rem] 2xl:max-w-[28rem] 3xl:max-w-[36rem] 4xl:max-w-[44rem] truncate leading-snug">
+              <HighlightMatch text={subjectLabel} query={searchQuery} />
             </span>
             {ticket.aiResolved && (
               <span className="inline-flex items-center gap-1 w-fit text-[9.5px] font-bold text-[var(--dash-accent-deep)] bg-[var(--dash-accent-wash)] rounded px-1.5 py-0.5">
@@ -883,10 +1247,10 @@ function TableRow({
         </td>
 
         {/* Customer */}
-        <td className="px-4 py-3">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[var(--dash-ink-soft)]">
-              <HighlightMatch text={customer?.name ?? "—"} query={searchQuery} />
+        <td className="px-3 xl:px-4 3xl:px-5 py-3 3xl:py-3.5">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[var(--dash-ink-soft)] truncate max-w-[9rem] xl:max-w-[12rem] 3xl:max-w-[16rem]">
+              <HighlightMatch text={customerLabel} query={searchQuery} />
             </span>
             {customer?.tier && customer.tier !== "free" && (
               <span
@@ -903,15 +1267,15 @@ function TableRow({
         </td>
 
         {/* Channel */}
-        <td className="px-4 py-3">
+        <td className="px-3 xl:px-4 3xl:px-5 py-3 3xl:py-3.5">
           <span className="inline-flex items-center gap-1.5 text-[var(--dash-ink-soft)] capitalize">
-            <span className="text-[var(--dash-ink-faint)]">{CHANNEL_ICONS[ticket.channel]}</span>
-            {ticket.channel}
+            <span className="text-[var(--dash-ink-faint)] shrink-0">{CHANNEL_ICONS[ticket.channel]}</span>
+            <span className="hidden xl:inline">{ticket.channel}</span>
           </span>
         </td>
 
         {/* Status (interactive dropdown) */}
-        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <td className="px-3 xl:px-4 3xl:px-5 py-3 3xl:py-3.5" onClick={(e) => e.stopPropagation()}>
           <StatusDropdown
             currentStatus={ticket.status}
             onUpdate={onStatusChange}
@@ -920,7 +1284,7 @@ function TableRow({
         </td>
 
         {/* Priority */}
-        <td className="px-4 py-3">
+        <td className="px-3 xl:px-4 3xl:px-5 py-3 3xl:py-3.5">
           <span
             className={`inline-flex items-center text-[11px] font-bold rounded-md px-2 py-0.5 capitalize ${PRIORITY_TONE[ticket.priority]}`}
           >
@@ -929,17 +1293,17 @@ function TableRow({
         </td>
 
         {/* Age */}
-        <td className="px-4 py-3 text-[11.5px] text-[var(--dash-ink-faint)]">
+        <td className="px-3 xl:px-4 3xl:px-5 py-3 3xl:py-3.5 text-[11.5px] text-[var(--dash-ink-faint)] tabular-nums whitespace-nowrap">
           {relativeTime(ticket.createdAt)}
         </td>
 
-        {/* Actions */}
-        <td className="px-4 py-3 text-right">
-          <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Actions — always visible (touch / keyboard); hover softens on pointer devices */}
+        <td className="px-3 xl:px-4 3xl:px-5 py-3 3xl:py-3.5 text-right">
+          <div className="flex items-center justify-end gap-1.5 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100 transition-opacity">
             <Link
               href={`/dashboard/conversations?ticketId=${ticket.id}`}
               onClick={(e) => e.stopPropagation()}
-              className="text-[11.5px] font-semibold text-[var(--dash-accent)] hover:underline"
+              className="inline-flex items-center min-h-8 px-2 text-[11.5px] font-semibold text-[var(--dash-accent)] hover:underline"
             >
               View
             </Link>
@@ -950,19 +1314,19 @@ function TableRow({
       {/* Inline row error with retry */}
       {error && (
         <tr className="bg-[var(--dash-rose-wash)] border-t border-[#E8B4B4]">
-          <td colSpan={colCount} className="px-4 py-2">
+          <td colSpan={colCount} className="px-3 xl:px-4 3xl:px-5 py-2">
             <div className="flex items-center gap-2 text-[11.5px] text-[#7a2929]">
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              <span>{error}</span>
+              <span className="min-w-0">{error}</span>
               <button
                 onClick={onRetryStatus}
-                className="font-bold underline hover:no-underline"
+                className="font-bold underline hover:no-underline shrink-0"
               >
                 Retry
               </button>
               <button
                 onClick={onClearError}
-                className="ml-auto hover:opacity-70 transition"
+                className="ml-auto p-1 hover:opacity-70 transition shrink-0"
                 aria-label="Dismiss error"
               >
                 <X className="w-3 h-3" />
@@ -1022,7 +1386,7 @@ function StatusDropdown({
         disabled={isPending}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`inline-flex items-center gap-1 text-[11px] font-bold rounded-md px-2 py-1 capitalize transition ${
+        className={`inline-flex items-center gap-1 text-[11.5px] sm:text-[11px] font-bold rounded-md px-2.5 py-1.5 sm:px-2 sm:py-1 min-h-8 capitalize transition ${
           STATUS_TONE[currentStatus]
         } ${isPending ? "opacity-50 cursor-not-allowed" : "hover:opacity-80 cursor-pointer"}`}
       >
@@ -1039,7 +1403,7 @@ function StatusDropdown({
             animate={{ opacity: 1, scale: 1,    y: 0  }}
             exit={{   opacity: 0, scale: 0.95, y: -4  }}
             transition={{ duration: 0.11 }}
-            className="absolute left-0 top-full mt-1 z-50 min-w-[140px] rounded-xl bg-[var(--dash-card)] border dash-border shadow-lg overflow-hidden"
+            className="absolute left-0 top-full mt-1 z-50 min-w-[9.5rem] rounded-xl bg-[var(--dash-card)] border dash-border shadow-lg overflow-hidden max-h-[min(16rem,50dvh)] overflow-y-auto"
             role="listbox"
             aria-label="Select status"
           >
@@ -1049,7 +1413,7 @@ function StatusDropdown({
                 role="option"
                 aria-selected={s === currentStatus}
                 onClick={(e) => { e.stopPropagation(); if (s !== currentStatus) onUpdate(s); setOpen(false) }}
-                className={`w-full text-left px-3 py-2 text-[11.5px] font-semibold capitalize transition flex items-center gap-2 hover:bg-[var(--dash-bg-deep)] ${
+                className={`w-full text-left px-3 py-2.5 sm:py-2 text-[12.5px] sm:text-[11.5px] font-semibold capitalize transition flex items-center gap-2 hover:bg-[var(--dash-bg-deep)] min-h-10 sm:min-h-0 ${
                   s === currentStatus
                     ? "text-[var(--dash-accent-deep)] bg-[var(--dash-accent-wash)]"
                     : "text-[var(--dash-ink-soft)]"
@@ -1095,7 +1459,7 @@ function PriorityPicker({
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="Filter by priority"
-        className={`inline-flex items-center gap-1.5 h-[30px] px-2.5 rounded-lg border text-[12px] font-semibold transition ${
+        className={`inline-flex items-center gap-1.5 min-h-9 h-9 sm:h-[30px] px-2.5 rounded-lg border text-[12px] font-semibold transition ${
           value !== "All"
             ? "border-[var(--dash-accent)] bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]"
             : "dash-border bg-[var(--dash-card)] text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)]"
@@ -1165,23 +1529,44 @@ function TicketSkeleton({ selectionMode }: { selectionMode: boolean }) {
   return (
     <tr className="border-t dash-border-soft">
       {selectionMode && (
-        <td className="w-10 px-4 py-3">
+        <td className="w-10 xl:w-12 px-3 xl:px-4 3xl:px-5 py-3">
           <div className="skeleton w-3.5 h-3.5 rounded" />
         </td>
       )}
-      <td className="px-4 py-3">
+      <td className="px-3 xl:px-4 3xl:px-5 py-3">
         <div className="flex flex-col gap-1.5">
           <div className="skeleton h-2.5 w-16 rounded" />
-          <div className="skeleton h-4 w-52 rounded" />
+          <div className="skeleton h-4 w-40 xl:w-52 3xl:w-64 rounded" />
         </div>
       </td>
-      <td className="px-4 py-3"><div className="skeleton h-4 w-24 rounded" /></td>
-      <td className="px-4 py-3"><div className="skeleton h-4 w-16 rounded" /></td>
-      <td className="px-4 py-3"><div className="skeleton h-5 w-20 rounded-md" /></td>
-      <td className="px-4 py-3"><div className="skeleton h-5 w-16 rounded-md" /></td>
-      <td className="px-4 py-3"><div className="skeleton h-3 w-14 rounded" /></td>
-      <td className="px-4 py-3"><div className="skeleton h-3 w-8 rounded ml-auto" /></td>
+      <td className="px-3 xl:px-4 3xl:px-5 py-3"><div className="skeleton h-4 w-20 xl:w-24 rounded" /></td>
+      <td className="px-3 xl:px-4 3xl:px-5 py-3"><div className="skeleton h-4 w-14 xl:w-16 rounded" /></td>
+      <td className="px-3 xl:px-4 3xl:px-5 py-3"><div className="skeleton h-5 w-16 xl:w-20 rounded-md" /></td>
+      <td className="px-3 xl:px-4 3xl:px-5 py-3"><div className="skeleton h-5 w-14 xl:w-16 rounded-md" /></td>
+      <td className="px-3 xl:px-4 3xl:px-5 py-3"><div className="skeleton h-3 w-12 xl:w-14 rounded" /></td>
+      <td className="px-3 xl:px-4 3xl:px-5 py-3"><div className="skeleton h-3 w-8 rounded ml-auto" /></td>
     </tr>
+  )
+}
+
+function TicketCardSkeleton({ selectionMode }: { selectionMode: boolean }) {
+  return (
+    <div className="px-3.5 sm:px-4 py-3.5 flex gap-3">
+      {selectionMode && <div className="skeleton w-5 h-5 rounded mt-1 shrink-0" />}
+      <div className="flex-1 min-w-0 space-y-2.5">
+        <div className="flex justify-between gap-2">
+          <div className="skeleton h-2.5 w-16 rounded" />
+          <div className="skeleton h-2.5 w-12 rounded" />
+        </div>
+        <div className="skeleton h-4 w-[85%] max-w-xs rounded" />
+        <div className="skeleton h-3 w-40 rounded" />
+        <div className="flex gap-2 pt-0.5">
+          <div className="skeleton h-8 w-20 rounded-md" />
+          <div className="skeleton h-8 w-14 rounded-md" />
+          <div className="skeleton h-8 w-14 rounded-md ml-auto" />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1198,14 +1583,14 @@ function EmptyState({
 }) {
   const filtered = hasSearch || hasFilter
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-[var(--dash-bg-deep)] flex items-center justify-center mb-4">
-        <Inbox className="w-6 h-6 text-[var(--dash-ink-faint)] opacity-70" />
+    <div className="flex flex-col items-center justify-center py-12 sm:py-16 px-4 sm:px-6 text-center">
+      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[var(--dash-bg-deep)] flex items-center justify-center mb-4">
+        <Inbox className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--dash-ink-faint)] opacity-70" />
       </div>
       <p className="text-[14px] font-bold text-[var(--dash-ink)] mb-1">
         {filtered ? "No matching tickets" : "No tickets yet"}
       </p>
-      <p className="text-[12.5px] text-[var(--dash-ink-soft)] max-w-[260px] mb-4 leading-relaxed">
+      <p className="text-[12.5px] text-[var(--dash-ink-soft)] max-w-[280px] mb-4 leading-relaxed">
         {filtered
           ? "Try a different search term or clear active filters."
           : "Tickets appear here when customers reach out across any channel."}
@@ -1213,7 +1598,7 @@ function EmptyState({
       {filtered && (
         <button
           onClick={onClear}
-          className="text-[12px] font-semibold text-[var(--dash-accent)] hover:underline"
+          className="inline-flex items-center justify-center min-h-10 px-4 text-[12px] font-semibold text-[var(--dash-accent)] hover:underline"
         >
           Clear filters
         </button>
@@ -1241,7 +1626,7 @@ function BulkActionBar({
       animate={{ y: 0, opacity: 1  }}
       exit={{   y: 24, opacity: 0  }}
       transition={{ type: "spring", damping: 26, stiffness: 300 }}
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl bg-[var(--dash-ink)] text-white shadow-[0_8px_40px_-8px_rgba(42,37,32,0.7)] border border-white/10"
+      className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-6 z-50 flex flex-wrap items-center justify-center gap-1.5 sm:gap-3 px-3 sm:px-5 py-2.5 sm:py-3 rounded-2xl bg-[var(--dash-ink)] text-white shadow-[0_8px_40px_-8px_rgba(42,37,32,0.7)] border border-white/10 max-w-[calc(100vw-1.5rem)] sm:max-w-[calc(100vw-2rem)]"
       role="toolbar"
       aria-label="Bulk actions"
     >
@@ -1285,7 +1670,7 @@ function BulkBtn({
   return (
     <button
       onClick={onClick}
-      className={`text-[12px] font-semibold px-2.5 py-1 rounded-lg transition bg-white/10 hover:bg-white/20 ${
+      className={`text-[12px] font-semibold px-2.5 py-1.5 sm:py-1 rounded-lg transition bg-white/10 hover:bg-white/20 min-h-9 sm:min-h-0 ${
         dim ? "text-white/60 hover:text-white" : "text-white"
       }`}
     >
@@ -1402,7 +1787,7 @@ function NewTicketModal({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed right-0 top-0 h-full z-50 w-[400px] bg-[var(--dash-card)] flex flex-col border-l dash-border shadow-2xl"
+            className="fixed inset-x-0 sm:inset-x-auto sm:right-0 top-0 h-full z-50 w-full sm:w-[min(100%,400px)] 3xl:w-[min(100%,440px)] bg-[var(--dash-card)] flex flex-col border-l dash-border shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
             role="dialog"
             aria-modal="true"
             aria-labelledby="new-ticket-title"
@@ -1466,7 +1851,7 @@ function NewTicketModal({
                   <p className="text-[11.5px] font-bold text-[var(--dash-ink-soft)] uppercase tracking-wide mb-1.5">
                     Priority
                   </p>
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                     {TICKET_PRIORITIES.map((p) => (
                       <button
                         key={p}
@@ -1489,7 +1874,7 @@ function NewTicketModal({
                   <p className="text-[11.5px] font-bold text-[var(--dash-ink-soft)] uppercase tracking-wide mb-1.5">
                     Channel
                   </p>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                     {TICKET_CHANNELS.map((c) => (
                       <button
                         key={c}
@@ -1554,18 +1939,18 @@ function NewTicketModal({
               </div>
 
               {/* Footer */}
-              <div className="flex items-center gap-2.5 px-5 py-4 border-t dash-border">
+              <div className="flex items-center gap-2.5 px-4 sm:px-5 py-4 border-t dash-border pb-[max(1rem,env(safe-area-inset-bottom))]">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 py-2 rounded-xl border dash-border text-[13px] font-semibold text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)] transition"
+                  className="flex-1 min-h-11 py-2.5 rounded-xl border dash-border text-[13px] font-semibold text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)] transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isPending}
-                  className={`flex-1 py-2 rounded-xl text-[13px] font-semibold transition ${
+                  className={`flex-1 min-h-11 py-2.5 rounded-xl text-[13px] font-semibold transition ${
                     !isPending
                       ? "bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] text-white shadow-[0_4px_14px_-4px_rgba(107,92,214,0.5)] hover:opacity-90"
                       : "bg-[var(--dash-bg-deep)] text-[var(--dash-ink-faint)] cursor-not-allowed"

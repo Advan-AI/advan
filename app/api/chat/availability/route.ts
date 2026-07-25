@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { and, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { organizations, users, widgetConfigs } from "@/lib/db/schema"
+import { isDbConnectivityFailure } from "@/lib/api/sanitize-trpc-error"
 import { countAgentsOnline, isOrgChatAccepting } from "@/lib/realtime/event-bus"
 
 export const runtime = "nodejs"
@@ -42,61 +43,77 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "widgetKey is required" }, { status: 400 })
   }
 
-  const config = await db.query.widgetConfigs.findFirst({
-    where: eq(widgetConfigs.widgetKey, widgetKey),
-    columns: {
-      orgId: true,
-      preChatFormEnabled: true,
-      brandingConfig: true,
-    },
-  })
+  try {
+    const config = await db.query.widgetConfigs.findFirst({
+      where: eq(widgetConfigs.widgetKey, widgetKey),
+      columns: {
+        orgId: true,
+        preChatFormEnabled: true,
+        brandingConfig: true,
+      },
+    })
 
-  if (!config) {
-    return NextResponse.json({ error: "Unknown widgetKey" }, { status: 404 })
+    if (!config) {
+      return NextResponse.json({ error: "Unknown widgetKey" }, { status: 404 })
+    }
+
+    const [agentsOnline, socketCount, org] = await Promise.all([
+      isOrgChatAccepting(config.orgId),
+      countAgentsOnline(config.orgId),
+      db.query.organizations.findFirst({
+        where: eq(organizations.id, config.orgId),
+        columns: { name: true },
+      }),
+    ])
+
+    const branding = (config.brandingConfig ?? {}) as {
+      teamName?: string
+      agentName?: string
+    }
+
+    const teamName =
+      branding.teamName?.trim() ||
+      org?.name?.trim() ||
+      "Support"
+
+    // Prefer real available agents for avatar stack; fall back to synthetic count.
+    const availableUsers = await db
+      .select({ id: users.id, name: users.name, email: users.email })
+      .from(users)
+      .where(and(eq(users.orgId, config.orgId), eq(users.chatAvailable, true)))
+      .limit(8)
+
+    const agentCount = agentsOnline
+      ? Math.max(socketCount, availableUsers.length > 0 ? 1 : 0)
+      : 0
+
+    const agents = agentsOnline
+      ? (availableUsers.length > 0
+          ? availableUsers
+          : [{ id: "support", name: teamName, email: "support@local" }]
+        )
+          .slice(0, 3)
+          .map((u) => {
+            const name = displayName(u.name, u.email)
+            return { id: u.id, name, initials: initialsFromName(name) }
+          })
+      : []
+
+    return NextResponse.json({
+      agentsOnline,
+      agentCount,
+      teamName,
+      agents,
+      preChatFormEnabled: config.preChatFormEnabled,
+    })
+  } catch (error) {
+    if (isDbConnectivityFailure(error as { message?: string; cause?: unknown })) {
+      console.error("[chat/availability] database unavailable", error)
+      return NextResponse.json(
+        { error: "Database temporarily unavailable. Please try again." },
+        { status: 503 }
+      )
+    }
+    throw error
   }
-
-  const [agentsOnline, socketCount, org] = await Promise.all([
-    isOrgChatAccepting(config.orgId),
-    countAgentsOnline(config.orgId),
-    db.query.organizations.findFirst({
-      where: eq(organizations.id, config.orgId),
-      columns: { name: true },
-    }),
-  ])
-
-  const branding = (config.brandingConfig ?? {}) as {
-    teamName?: string
-    agentName?: string
-  }
-
-  const teamName =
-    branding.teamName?.trim() ||
-    org?.name?.trim() ||
-    "Support"
-
-  // Prefer real available agents for avatar stack; fall back to synthetic count.
-  const availableUsers = await db
-    .select({ id: users.id, name: users.name, email: users.email })
-    .from(users)
-    .where(and(eq(users.orgId, config.orgId), eq(users.chatAvailable, true)))
-    .limit(8)
-
-  const agentCount = agentsOnline ? Math.max(socketCount, availableUsers.length > 0 ? 1 : 0) : 0
-
-  const agents = agentsOnline
-    ? (availableUsers.length > 0 ? availableUsers : [{ id: "support", name: teamName, email: "support@local" }])
-        .slice(0, 3)
-        .map((u) => {
-          const name = displayName(u.name, u.email)
-          return { id: u.id, name, initials: initialsFromName(name) }
-        })
-    : []
-
-  return NextResponse.json({
-    agentsOnline,
-    agentCount,
-    teamName,
-    agents,
-    preChatFormEnabled: config.preChatFormEnabled,
-  })
 }

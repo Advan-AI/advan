@@ -47,16 +47,16 @@ function fail(label: string, detail?: string): never {
   process.exit(1)
 }
 
-async function fetchSession(): Promise<{ token: string; visitorSessionId: string; orgId: string }> {
+async function fetchSession(): Promise<{ token: string; visitorId: string; orgId: string }> {
   const res = await fetch(`${BASE_URL}/api/chat/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ widgetKey: WIDGET_KEY, origin: ORIGIN }),
   })
   if (!res.ok) fail("POST /api/chat/session", `${res.status} ${await res.text()}`)
-  const { token, visitorSessionId } = await res.json() as { token: string; visitorSessionId: string }
+  const { token, visitorId } = await res.json() as { token: string; visitorId: string }
   const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString())
-  return { token, visitorSessionId, orgId: payload.orgId as string }
+  return { token, visitorId, orgId: payload.orgId as string }
 }
 
 async function fetchIntake(body: Record<string, unknown>) {
@@ -149,7 +149,7 @@ async function main() {
   const intake1 = await fetchIntake({
     orgId,
     content: "What are the API rate limits for the Growth plan?",
-    visitorSessionId: routineSessionId,
+    visitorId: routineSessionId,
     subject: "API rate limits inquiry",
   })
   pass("Intake accepted", `conversationId=${intake1.conversationId}`)
@@ -228,7 +228,7 @@ async function main() {
   const intake2 = await fetchIntake({
     orgId,
     content: "This is the THIRD time my order has not arrived. I demand a full refund immediately!",
-    visitorSessionId: complaintSessionId,
+    visitorId: complaintSessionId,
   })
 
   const session2 = await fetchSession()
@@ -294,7 +294,7 @@ async function main() {
   const intake3 = await fetchIntake({
     orgId,
     content: "Hello, I need help with my account while you're offline.",
-    visitorSessionId: offlineSessionId,
+    visitorId: offlineSessionId,
     visitorEmail,
     visitorName: "Prompt7 Tester",
   })

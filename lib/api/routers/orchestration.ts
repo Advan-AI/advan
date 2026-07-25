@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { TRPCError } from "@trpc/server"
-import { router, protectedProcedure, activeSubscriptionProcedure } from "../trpc"
+import { router, permissionedProcedure } from "../trpc"
 import { db } from "@/lib/db"
 import { workflows, pipelineRuns, pipelineRunSteps } from "@/lib/db/schema"
 import { eq, and, desc, asc, sql } from "drizzle-orm"
@@ -19,7 +19,7 @@ const DEFAULT_TASK_QUEUE = "advan-agents"
  * Bridges the visual pipeline (Pipeline JSON) to the durable Temporal engine.
  */
 export const orchestrationRouter = router({
-  getWorkflows: protectedProcedure.query(async ({ ctx }) => {
+  getWorkflows: permissionedProcedure("workflows.manage").query(async ({ ctx }) => {
     const rows = await db.query.workflows.findMany({
       where: eq(workflows.orgId, ctx.user.orgId),
       orderBy: [desc(workflows.updatedAt)],
@@ -32,11 +32,11 @@ export const orchestrationRouter = router({
   }),
 
   // Legacy single-prompt LangGraph execution (kept for the Copilot fallback path).
-  runWorkflow: protectedProcedure
+  runWorkflow: permissionedProcedure("workflows.manage")
     .input(z.object({ workflowId: z.string().uuid().optional(), input: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => WorkflowExecutor.run(ctx.user.orgId, input.input)),
 
-  saveWorkflow: activeSubscriptionProcedure
+  saveWorkflow: permissionedProcedure("workflows.manage")
     .input(
       z.object({
         id: z.string().uuid().optional(),
@@ -83,11 +83,11 @@ export const orchestrationRouter = router({
       return row
     }),
 
-  validateWorkflow: protectedProcedure
+  validateWorkflow: permissionedProcedure("workflows.manage")
     .input(z.object({ definition: PipelineSchema }))
     .query(async ({ input }) => analyzeWorkflowDefinition(input.definition)),
 
-  setWorkflowActive: activeSubscriptionProcedure
+  setWorkflowActive: permissionedProcedure("workflows.manage")
     .input(z.object({ id: z.string().uuid(), isActive: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
       const existing = await db.query.workflows.findFirst({
@@ -115,7 +115,7 @@ export const orchestrationRouter = router({
       return row
     }),
 
-  duplicateWorkflow: activeSubscriptionProcedure
+  duplicateWorkflow: permissionedProcedure("workflows.manage")
     .input(z.object({ id: z.string().uuid(), name: z.string().min(1).optional() }))
     .mutation(async ({ input, ctx }) => {
       const existing = await db.query.workflows.findFirst({
@@ -139,7 +139,7 @@ export const orchestrationRouter = router({
       return row
     }),
 
-  deleteWorkflow: activeSubscriptionProcedure
+  deleteWorkflow: permissionedProcedure("workflows.manage")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ input, ctx }) => {
       const [row] = await db
@@ -153,7 +153,7 @@ export const orchestrationRouter = router({
     }),
 
   // Compile the visual DAG and launch the durable execution workflow.
-  runPipeline: protectedProcedure
+  runPipeline: permissionedProcedure("workflows.manage")
     .input(
       z.object({
         workflowId: z.string().uuid().optional(),
@@ -202,7 +202,7 @@ export const orchestrationRouter = router({
       }
     }),
 
-  preflightPipeline: protectedProcedure
+  preflightPipeline: permissionedProcedure("workflows.manage")
     .input(
       z.object({
         workflowId: z.string().uuid().optional(),
@@ -246,7 +246,7 @@ export const orchestrationRouter = router({
       }
     }),
 
-  getPipelineRuns: protectedProcedure
+  getPipelineRuns: permissionedProcedure("workflows.manage")
     .input(
       z.object({
         workflowId: z.string().uuid().optional(),
@@ -278,7 +278,7 @@ export const orchestrationRouter = router({
       return runs
     }),
 
-  getPipelineRunDetails: protectedProcedure
+  getPipelineRunDetails: permissionedProcedure("workflows.manage")
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ input, ctx }) => {
       const run = await db.query.pipelineRuns.findFirst({

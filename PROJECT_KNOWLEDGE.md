@@ -1,6 +1,6 @@
 # v0-advan Project Knowledge
 
-Last updated: 2026-07-25
+Last updated: 2026-07-25 (Supabase pool / DNS resilience)
 
 Use this file as the first stop for future Codex work in this repo. Keep it concise and update it after meaningful features, fixes, architecture changes, migrations, or command changes.
 
@@ -37,7 +37,7 @@ Core product themes:
 
 ## Commands
 
-- Install: `npm ci`
+- Install: `npm install --legacy-peer-deps` (no committed lockfile; CI/Vercel/Docker resolve deps server-side from `package.json`)
 - Dev web only: `npm run dev`
 - Dev all services: `npm run dev:all`
 - Build: `npm run build`
@@ -50,12 +50,13 @@ Core product themes:
 - DB migrate: `npx drizzle-kit migrate`
 - DB seed: `npx tsx lib/db/seed.ts`
 
-`scripts/dev-all.sh` loads `.env` first, then `.env.local`, starts optional workers, writes logs to `scripts/logs/*.log`, and supports:
+`scripts/dev-all.sh` loads `.env` first, then `.env.local`, kills leftover workers from prior runs (prevents double pools against Supabase), starts optional workers with `DB_POOL_ROLE=worker` / small `DB_MAX_CONNECTIONS`, writes logs to `scripts/logs/*.log`, and supports:
 
 - `DEV_ALL_SKIP_EMBEDDING=1`
 - `DEV_ALL_SKIP_NOTIFICATION=1`
 - `DEV_ALL_SKIP_TEMPORAL=1`
 - `DEV_ALL_SKIP_SOCKET=1`
+- `WORKER_DB_MAX_CONNECTIONS` (default `2`)
 
 ## Important Environment
 
@@ -64,6 +65,8 @@ Required for full app:
 - `DATABASE_URL`
 - `NEXTAUTH_SECRET` or `AUTH_SECRET`
 - `NEXTAUTH_URL` or `AUTH_URL`
+
+DB client (`lib/db/index.ts`): HMR-safe `globalThis` singleton, IPv4-first DNS, auto `ssl: require` for Supabase hosts, default pool max `3` (Next) / `2` (`DB_POOL_ROLE=worker`). Override with `DB_MAX_CONNECTIONS` / `DB_SSL`. Symptoms of pool/DNS pressure: `getaddrinfo EAI_AGAIN` or `CONNECT_TIMEOUT` against `*.pooler.supabase.com` — restart a single `dev:all` (do not stack runs).
 
 Often needed by specific systems:
 
@@ -117,6 +120,17 @@ Use this map before broad exploration:
 - Marketing/homepage changes: start with `app/page.tsx`, then the specific `components/*-section.tsx`, plus `app/globals.css` for theme tokens.
 - Legal/about/sign-in pages: `app/privacy/page.tsx`, `app/terms/page.tsx`, `app/about/page.tsx`, `app/signin/page.tsx`, `app/signin/forgot/page.tsx`.
 - Dashboard frame/nav/counts: `components/dashboard/dashboard-shell.tsx`, `components/dashboard/sidebar.tsx`, `components/dashboard/topbar.tsx`, `components/dashboard/overview.tsx`.
+- Dashboard responsive frame (mobile → 4K): CSS tokens/utilities in `app/globals.css` (`.dash-shell` vars, `.dash-main`, `.dash-page` max-width centering, `.dash-workbench`). Shell uses mobile drawer with Esc/scroll-lock; conversations uses list↔thread pane switching below `xl`; content caps at ~1600–2048px on ultrawide/4K so layouts do not stretch unreadably.
+- Tickets queue responsive (`app/dashboard/tickets/page.tsx`): below `lg` (1024px) renders a touch-first card stack with always-visible View CTA + mobile sort control; at `lg+` mounts a sticky-header data table (single layout via `useSyncExternalStore` so keyboard row refs stay stable). Subject column truncates with fluid max-widths through `4xl`; channel label collapses to icon-only until `xl`; View link stays visible on touch and fades in on hover-capable pointers. Bulk bar + new-ticket sheet use safe-area insets; `.tickets-page` in `globals.css` hides chip-rail scrollbars and pads when the bulk toolbar is open.
+- Customers directory responsive (`app/dashboard/customers/page.tsx`): below `xl` uses list↔profile pane switching (Back to directory); at `xl+` side-by-side workbench with profile column widening through `3xl`/`4xl`. Directory itself is cards below `lg` and a sticky-header table at `lg+` (company column appears at `xl`). KPI strip is 2→3→5 cols; add-customer modal is a bottom sheet on phones with safe-area padding.
+- Knowledge base responsive (`app/dashboard/knowledge-base/page.tsx`): below `xl` list↔inspector pane switching (Back to sources); at `xl+` split workbench with inspector column scaling through `4xl`. Sources are cards below `lg` and sticky-header table at `lg+`. KPI strip 2→3→6; create/edit/view/delete modals are bottom sheets on mobile with safe-area insets; content preview max-height uses `dvh`.
+- Analytics responsive (`app/dashboard/analytics/page.tsx`): segmented 7d/30d/90d range control; KPI strip 2→3→5; chart heights fluid via `min(vw,…)` then step up through `3xl`/`4xl`; pie/axis margins adapt via `useMediaQuery`; dual Y-axis collapses on phones; triage breakdown stacks 1→2→3 cols; side panels widen on ultrawide.
+- Copilot responsive (`app/dashboard/copilot/page.tsx`): below `xl` conversation list↔detail pane switching (Back to conversations); at `xl+` split context workbench with list column widening through `4xl`. Draft + reasoning stack below `lg`, then side-by-side with reasoning column scaling on ultrawide. Generate bar / edit actions use full-width touch targets on phones; desktop no longer auto-selects a thread until `xl`.
+- Tap Box responsive (`app/dashboard/tap-box/page.tsx`): Pending Reviews stay a single scrollable queue with stacked Approve/Reject and touch-sized controls; Audit Trail uses queue↔detail pane switching below `xl` (Back to decision queue) and a three-column workbench at `xl+` with list/inspector/metadata columns scaling through `4xl`. KPI strip 2→3→5; scrollable tabs; fluid `dvh` decision-list heights; Copy/JSON available on phones.
+- Workflows responsive (`app/dashboard/workflows/page.tsx`): below `xl` registry/logs↔inspector pane switching (Back to registry / execution logs); at `xl+` split workbench with inspector column scaling through `4xl`. KPI strip 2→3→6; registry cards 1→2→3 cols; desktop auto-selects first workflow/run, mobile does not until tap. Create/delete are bottom sheets with safe-area; touch-sized Activate/Copy/Delete and preflight actions.
+- Orchestration builder responsive (`components/pipeline/pipeline-builder.tsx`): below `lg` canvas-first with floating Nodes/Config controls and bottom sheets (safe-area); palette uses tap-to-add (HTML5 DnD kept for desktop). At `lg+` three-column palette/canvas/inspector with column widths scaling through `4xl`. Compact toolbar wrap, MiniMap hidden on phones, fluid `dvh` canvas + trace heights.
+- Integrations responsive (`app/dashboard/integrations/*`): stacked settings cards stay single-column; marketplace grid 1→2→3→4 cols through `4xl`. Team invite/remove are bottom sheets with safe-area; widget key/origins/forms stack on phones with touch targets; long emails/keys use `break-all`; content max-width steps up on ultrawide.
+- Billing responsive (`app/dashboard/billing/page.tsx`): subscription + metering stack below `lg` then 1+2 workbench; plan cards 1→2→3 cols; invoices are touch cards below `lg` and a sticky-feel table at `lg+`; plan-change confirm is a bottom sheet with safe-area; Stripe portal / payment CTAs are full-width on phones.
 - tRPC API shape: `lib/api/root.ts`, `lib/api/trpc.ts`, `app/api/trpc/[trpc]/route.ts`.
 - Auth/session issues: root `auth.ts`, `auth.config.ts`, `lib/auth-server.ts`, `proxy.ts`, `types/next-auth.d.ts`. `lib/auth.ts` is an older localStorage demo helper; do not confuse it with real NextAuth.
 - Database/model changes: `lib/db/schema.ts`, matching `lib/db/migrations/*`, and `lib/db/seed.ts`.
@@ -134,9 +148,11 @@ Use this map before broad exploration:
 - Visual pipeline builder: `app/dashboard/orchestration/page.tsx`, `components/pipeline/*`, `lib/pipeline/*`.
 - Durable pipeline execution: `lib/api/routers/orchestration.ts`, `lib/pipeline/compiler.ts`, `lib/temporal/workflows/pipeline-execution.ts`, `lib/temporal/activities/pipeline-activities.ts`, `lib/pipeline/executors/index.ts`.
 - Realtime pipeline/HITL updates: `lib/realtime/socket-server.ts`, `lib/realtime/event-bus.ts`, `lib/pipeline/use-pipeline-realtime.ts`, `app/api/hitl/route.ts`. Socket server supports two connection modes: agent (orgId only → joins `org:{orgId}`) and chat visitor (conversationId + orgId → DB-verified, joins `conversation:{conversationId}`). Chat visitor events: `chat:agent_reply` (AI auto-replied) and `chat:triage_pending` (escalated; show "agent will respond" state). Event bus has two new channels: `CHAT_AGENT_REPLY_CHANNEL` and `CHAT_TRIAGE_PENDING_CHANNEL`.
-- Chat widget namespace: `lib/realtime/chat-widget-namespace.ts` — `/chat-widget` Socket.IO namespace mounted on the existing server (no second process). Auth middleware verifies the 1-hour JWT from `POST /api/chat/session` AND re-checks the origin against `widget_configs.allowedOrigins` (separate trust boundary). Visitors join `widget:{conversationId}` + `widget-org:{orgId}` rooms. Server events to visitor: `session:ready`, `agent:message`, `triage:pending`, `typing:start`/`typing:stop` (with `role:"agent"`), `presence:agent-online`. Visitor events: `visitor:message`, `typing:start`/`typing:stop`. Reconnect: if no conversationId in auth, server looks up by visitorSessionId; client fetches missed messages via REST after receiving `session:ready`. Agent typing relayed from default-ns `agent:typing:start`/`agent:typing:stop` → widget room. Tests: `lib/realtime/chat-widget-namespace.test.ts`.
-- Chat session: `app/api/chat/session/route.ts` — public unauthenticated POST endpoint for the embedded widget. Accepts `{ widgetKey, origin, visitorSessionId? }`. Looks up `widget_configs` by widgetKey, enforces exact-match origin allowlist (rejects 403 on mismatch), mints or reuses a UUID visitorSessionId, signs a 1-hour HS256 JWT (`{ orgId, widgetKey, visitorSessionId }`, issuer `advan:chat-session`) using `AUTH_SECRET`/`NEXTAUTH_SECRET` via jose. Returns `{ token, visitorSessionId }`. Dual rate-limited: 20/min per IP via Upstash (fails closed in production) AND 60/min per widgetKey (fails closed in production) to prevent tenant starvation. Tests: `app/api/chat/session/route.test.ts`.
-- Chat intake: `app/api/chat/intake/route.ts` — public unauthenticated POST endpoint for widget messages. Accepts `{ orgId, content, visitorSessionId?, subject? }`. Calls `resolveOrCreateIntake` with `channel: "chat"`. Returns `{ conversationId, messageId, ticketId, isNewTicket, status: "received" }`. Dual rate-limited: 30/min per IP (in-memory) AND 120/min per widgetKey via Upstash (fails closed in production) to support high, burstable chat session traffic while preventing broad system exhaustion.
+- Chat widget namespace: `lib/realtime/chat-widget-namespace.ts` — `/chat-widget` Socket.IO namespace mounted on the existing server (no second process). Auth middleware verifies the 1-hour JWT from `POST /api/chat/session`, re-checks origin allowlist, and rejects unknown visitor identities (`visitorId`) not scoped to `orgId+widgetKey`. Sockets join `widget-org:{orgId}` on connect, then must explicitly emit `join:conversation` to enter `widget:{conversationId}` (ownership-verified via shared helper `lib/chat/conversation-ownership.ts`). `leave:conversation` removes room membership. Server events: `session:ready`, `joined:conversation`, `left:conversation`, `agent:message`, `triage:pending`, `typing:start`/`typing:stop`, `presence:agent-online`.
+- Chat session: `app/api/chat/session/route.ts` — public unauthenticated POST endpoint for the embedded widget. Accepts `{ widgetKey, origin, visitorId? }`. Looks up `widget_configs` by widgetKey, enforces exact-match origin allowlist, validates/reuses an existing `visitors.id` scoped to `orgId+widgetKey` (updates `lastSeenAt`) or creates a new visitors row. Signs a 1-hour HS256 JWT (`{ orgId, widgetKey, visitorId }`, issuer `advan:chat-session`) and returns `{ token, visitorId }`. Dual rate-limited: 20/min per IP + 60/min per widgetKey.
+- Chat intake: `app/api/chat/intake/route.ts` — public unauthenticated POST endpoint for widget messages. Requires session token; derives `{ orgId, widgetKey, visitorId }` from JWT and rejects unknown visitor identities before intake. Calls `resolveOrCreateIntake` with `channel: "chat"` and returns `{ conversationId, messageId, ticketId, isNewTicket, status: "received" }`.
+- Chat sessions list/create: `app/api/chat/sessions/route.ts` — authenticated by visitor JWT only. `GET` returns visitor-scoped sessions with customer-facing status labels (`active`/`waiting`/`resolved`) and unread hints from client-supplied last-viewed map. `POST` creates new chat sessions with sanitized displayName and optional initialMessage; explicit `forceNew` path prevents silent open-ticket reuse.
+- Chat session messages: `app/api/chat/sessions/[conversationId]/messages/route.ts` — paginated message history for one session. Ownership is enforced via shared helper (`visitorId+orgId+conversationId`) and returns 403 on mismatch.
 - Workers/dev services: `scripts/dev-all.sh`, `lib/queue/workers/*`, `lib/temporal/worker.ts`, `lib/temporal/workers/daemon.worker.ts`, `lib/mcp/http-server.ts`.
 
 ## Chat Widget Verification and Hardening (Prompt 7)
@@ -147,7 +163,8 @@ Use this map before broad exploration:
 - **TODO/FIXME sweep**: Full grep of the chat code path — zero TODOs or FIXMEs found.
 - **Load test script**: `scripts/load-test-widget.ts` — hits 100 concurrent sessions against `POST /api/chat/session` and `GET /api/chat/availability`, optionally 50 concurrent socket connections (`LOAD_TEST_SOCKET=1`). Uses `forceNew: true` + `extraHeaders: { origin }` + polling transport for Node socket clients. Verified: 50/50 sessions ok, 50/50 sockets connected, no 5xx.
 - **Triage worker in dev**: Started by `scripts/dev-all.sh` (skip with `DEV_ALL_SKIP_TRIAGE=1`).
-- **Migrations 0008–0011**: `widget_configs`, `customers_org_visitor_session_unique`, `conversations.chat_offline_delivery`, `users.chat_available`. If `drizzle-kit migrate` stops at 0007, apply SQL manually and insert journal hashes (see `drizzle.__drizzle_migrations`).
+- **Migrations 0008–0011**: `widget_configs`, `customers_org_visitor_session_unique`, `conversations.chat_offline_delivery`, `users.chat_available`.
+- **Migration 0018**: visitor identity split (`visitors` table; `conversations.visitor_id`; `conversations.customer_display_name` with best-effort backfill from `customers.name` and `messages.metadata.visitorName`).
 - **Live verification results (2026-07-08)**:
   - ✅ Complaint chat → `triage:pending` with `priority=complaint`, HITL row with `[COMPLAINT]` prefix, no auto-send (~5s latency)
   - ✅ Offline intake → `offlineMode=true`, `chatOfflineDelivery=true`, visitor email stored on customer
@@ -175,10 +192,11 @@ Use this map before broad exploration:
   Creates a floating bubble (bottom-right) that expands to a panel on click. Bubble icon toggles open/close; Escape key also closes. postMessage accepts `{ type: 'advan:close' }` from the frame.
 
 - Widget iframe: `app/chat-widget-frame/page.tsx` — standalone Next.js page, `"use client"`, no nav/header/footer.
-  URL params: `key` (widgetKey) and `origin` (embedding page's origin, forwarded to session endpoint).
-  Flow: availability → session JWT → intake (first message) → socket connect → messages.
-  localStorage keys: `advan_widget_vsid` (visitorSessionId), `advan_widget_cid` (conversationId) for reconnect.
-  Socket: connects to `/chat-widget` namespace at `NEXT_PUBLIC_SOCKET_URL ?? :3002`. First message uses REST `/api/chat/intake`; subsequent messages use socket `visitor:message`. Reconnect re-uses stored conversationId.
+  URL params: `key` (widgetKey), `origin` (embedding page origin), and `visitorId` relayed by the parent embed script.
+  Flow: availability → session JWT → sessions list/new session flow → explicit room join → messages.
+  Visitor identity is not persisted by iframe storage; the frame uses the parent-relayed `visitorId`.
+  Socket: connects to `/chat-widget` namespace at `NEXT_PUBLIC_SOCKET_URL ?? :3002`; per-conversation delivery requires explicit `join:conversation` and `leave:conversation`.
+  UI is now three-view: session list, new-session form, and active chat (with back navigation for multi-session visitors and resolved-session reopen notice).
   postMessage to parent: `{ type: 'advan:ready' }` on mount, `{ type: 'advan:close' }` on X button.
 
 - Widget bare layout: `app/chat-widget-frame/layout.tsx` — no chrome, renders children directly.
@@ -241,6 +259,15 @@ Dashboard route groups:
 - `/dashboard/workflows`
 - `/dashboard/orchestration`
 - `/dashboard/integrations`
+- `/dashboard/billing`
+- `/dashboard/settings?tab=team`: team access control studio with add-user flow, custom org-scoped roles, granular permissions, and inline member role reassignment.
+
+Team settings implementation notes:
+
+- Backend API is in `lib/api/routers/team.ts` with procedures: `listMembers`, `listRoles`, `createRole`, `updateRole`, `deleteRole`, `addMember`, `updateMemberRole`, `removeMember`.
+- Permission catalog and built-in role baselines are centralized in `lib/team-permissions.ts`.
+- Persistence is via `org_roles` table plus `users.role_id` foreign key (migration `lib/db/migrations/0020_team_custom_roles.sql`).
+- Built-in roles (`admin`, `member`, `viewer`) remain the baseline for existing guards; custom roles map to a base role and carry additional permission metadata.
 
 Dashboard shell:
 
@@ -264,6 +291,7 @@ Tap Box dashboard:
 - It supports decision search, risk filters (`all`, auto-pass, review, blocked), source filters, selectable audit history, refresh, copy trace, and JSON export.
 - The inspector surfaces confidence against the 85% gate, citations, policy checks, hallucination flags, AI input/output, decision metadata, and links to Copilot, Analytics, and Knowledge Base.
 - Empty, loading, and error states are handled directly in the page; the prior non-functional filter button was removed.
+- Responsive: below `xl`, audit queue and inspector/metadata use single-pane switching; at `xl+` sticky three-column workbench. HITL approve/reject are full-width on phones.
 
 Customers dashboard:
 
@@ -288,6 +316,7 @@ Workflows dashboard:
 - Workflow validation lives in `lib/workflows/analyzer.ts`; lifecycle run/activation policy lives in `lib/workflows/lifecycle.ts`, with focused Vitest coverage.
 - `orchestration.getWorkflows` returns each workflow with analysis. Router lifecycle procedures now include `validateWorkflow`, `setWorkflowActive`, `duplicateWorkflow`, `deleteWorkflow`, `preflightPipeline`, and guarded `runPipeline`.
 - Dashboard "Run preflight" compiles and validates without Temporal. "Start durable run" uses Temporal and now returns a clear `SERVICE_UNAVAILABLE` message if the durable runner is offline.
+- Responsive: below `xl`, list↔inspector pane switching for both registry and execution logs; at `xl+` side-by-side workbench. Create/delete modals are mobile bottom sheets.
 
 Orchestration builder:
 
@@ -297,6 +326,7 @@ Orchestration builder:
 - Wire editing supports edge selection, detach, endpoint drag-reconnect, selected-wire body drag-to-block reconnect, inspector dropdown reassignment for source/target blocks, and select-wire-then-click-target-block reassignment. Knowledge Retrieval intentionally accepts `any` input so users can wire either raw message context or detected intent into retrieval.
 - `orchestration.saveWorkflow` saves invalid in-progress graphs as inactive drafts instead of returning 400; activation/run paths remain guarded by deployability checks.
 - Focused tests cover connection validation plus workflow analyzer/lifecycle policy.
+- Responsive: below `lg`, canvas-first with Nodes/Config bottom sheets and tap-to-add palette; at `lg+` three-column builder with palette/inspector columns scaling through `4xl`.
 
 ## API and Data Model
 
@@ -332,7 +362,8 @@ Important data model details:
 - `knowledgeSources.embedding` is `vector(768)` and must match `EMBEDDING_DIMENSION`.
 - `conversations` has email threading fields: `emailRootMessageId`, `emailReplyToAddress`.
 - `conversations` also has workbench metadata from migration `0005_conversation_workbench`: nullable `title`, `pinnedAt`, `archivedAt`, integer `unreadCount`, json `tags`, and `updatedAt`.
-- `conversations` also has `visitorSessionId` (text, nullable, indexed) added by migration `0008_widget_configs` — ties a chat conversation to a browser session for reconnect, parallel to `emailReplyToAddress`.
+- `conversations` has both legacy `visitorSessionId` (text) and canonical `visitorId` (uuid FK to `visitors`, indexed). New widget/session flows use `visitorId`; `visitorSessionId` remains for backward compatibility.
+- `conversations.customerDisplayName` stores a chat-safe display label snapshot; dashboard falls back to `"Chat visitor"` when legacy rows have no name.
 - `messages.metadata.email` tracks `messageId`, `inReplyTo`, `resendId`, delivery status, and errors.
 - `tickets.create` also creates a conversation so queue "View" actions resolve.
 - `tickets.create` rejects `channel=email` unless the selected customer belongs to the org and has a syntactically valid email address; dashboard ticket creation mirrors this with a customer picker.

@@ -17,7 +17,7 @@
  * The token is verified via lib/chat/verify-widget-token.ts — the same
  * function used by the /chat-widget Socket.IO namespace middleware.
  *
- * orgId, widgetKey, and visitorSessionId are derived EXCLUSIVELY from the
+ * orgId, widgetKey, and visitorId are derived EXCLUSIVELY from the
  * verified token claims. No client-supplied orgId is ever trusted.
  *
  * If no valid token is present, the endpoint returns 401.
@@ -46,7 +46,7 @@ import { resolveOrCreateIntake } from "@/lib/tickets/auto-intake"
 import { isOrgChatAccepting } from "@/lib/realtime/event-bus"
 import { sanitizeInboundText } from "@/lib/email/parse-inbound"
 import { PIIMasker } from "@/lib/governance/pii-masker"
-import { verifyWidgetToken } from "@/lib/chat/verify-widget-token"
+import { verifyWidgetSession } from "@/lib/chat/widget-session-auth"
 
 export const runtime = "nodejs"
 
@@ -211,13 +211,16 @@ export async function POST(req: NextRequest) {
   }
 
   let orgId: string
-  let visitorSessionId: string
+  let visitorId: string
   let widgetKey: string
   try {
-    const claims = await verifyWidgetToken(rawToken)
-    // All tenant identity comes exclusively from the verified JWT.
+    const authReq = new NextRequest(req.url, {
+      method: req.method,
+      headers: { authorization: `Bearer ${rawToken}` },
+    })
+    const claims = await verifyWidgetSession(authReq)
     orgId = claims.orgId
-    visitorSessionId = claims.visitorSessionId
+    visitorId = claims.visitorId
     widgetKey = claims.widgetKey
   } catch {
     return NextResponse.json(
@@ -243,8 +246,8 @@ export async function POST(req: NextRequest) {
   // ── Intake ─────────────────────────────────────────────────────────────────
   try {
     const customerIdentifier = visitorEmail
-      ? { visitorSessionId, email: visitorEmail }
-      : { visitorSessionId }
+      ? { visitorId, email: visitorEmail }
+      : { visitorId }
 
     const result = await resolveOrCreateIntake({
       orgId,

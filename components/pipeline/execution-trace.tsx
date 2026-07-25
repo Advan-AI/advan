@@ -21,8 +21,8 @@ export function PipelineExecutionTrace() {
     : "bg-[var(--dash-accent)]"
 
   return (
-    <div className="flex h-[220px] shrink-0 flex-col border-t dash-border-soft bg-white/80">
-      <div className="flex items-center justify-between border-b dash-border-soft px-3 py-2">
+    <div className="flex h-[min(28dvh,13rem)] sm:h-[220px] 3xl:h-[240px] shrink-0 flex-col border-t dash-border-soft bg-white/80">
+      <div className="flex items-center justify-between border-b dash-border-soft px-3 py-2 min-h-10">
         <div className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-[var(--dash-ink-soft)]">
           <Activity className="h-3 w-3 text-[var(--dash-accent)]" />
           Execution trace

@@ -203,7 +203,7 @@ describe("Bulletproof Tenant Isolation Integration Test Suite", () => {
         ticketId: ticketA_Id,
         customerId: customerA_Id,
         channel: "chat",
-        visitorSessionId: `session-a-${testId}`,
+        visitorId: "40000000-0000-0000-0000-000000000001",
       })
       .returning()
     conversationA_Id = convA.id
@@ -290,7 +290,7 @@ describe("Bulletproof Tenant Isolation Integration Test Suite", () => {
         ticketId: ticketB_Id,
         customerId: customerB_Id,
         channel: "chat",
-        visitorSessionId: `session-b-${testId}`,
+        visitorId: "50000000-0000-0000-0000-000000000002",
       })
       .returning()
     conversationB_Id = convB.id

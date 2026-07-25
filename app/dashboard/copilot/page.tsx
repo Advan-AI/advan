@@ -1,6 +1,6 @@
 "use client"
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { motion, useReducedMotion } from "framer-motion"
 import { useHotkeys } from "react-hotkeys-hook"
@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Archive,
   ArchiveRestore,
+  ArrowLeft,
   Box,
   BookOpen,
   CheckCircle2,
@@ -34,8 +35,26 @@ import { Kbd } from "@/components/ui/kbd"
 import { api } from "@/lib/api/trpc-client"
 import { useCopilot } from "@/lib/copilot/store"
 import { useCopilotStream } from "@/lib/copilot/use-copilot-stream"
+import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 30
+const WORKBENCH_MQ = "(min-width: 1280px)"
+
+type MobilePane = "list" | "detail"
+
+function subscribeMq(query: string, onChange: () => void) {
+  const mql = window.matchMedia(query)
+  mql.addEventListener("change", onChange)
+  return () => mql.removeEventListener("change", onChange)
+}
+
+function useMediaQuery(query: string, serverSnapshot = false) {
+  return useSyncExternalStore(
+    (onChange) => subscribeMq(query, onChange),
+    () => window.matchMedia(query).matches,
+    () => serverSnapshot,
+  )
+}
 
 type DbRole = "user" | "assistant" | "agent"
 type Channel = "email" | "chat" | "voice" | "slack" | "portal"
@@ -176,11 +195,13 @@ function priorityTone(priority: TicketPriority | null) {
 export default function CopilotPage() {
   const utils = api.useUtils()
   const { start, stop } = useCopilotStream()
+  const isWorkbench = useMediaQuery(WORKBENCH_MQ)
   const [coPilotOn, setCoPilotOn] = useState(true)
   const [guidance, setGuidance] = useState("")
   const [search, setSearch] = useState("")
   const [showArchived, setShowArchived] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [mobilePane, setMobilePane] = useState<MobilePane>("list")
   const [createOpen, setCreateOpen] = useState(false)
   const [createDraft, setCreateDraft] = useState<CreateDraft>({
     title: "",
@@ -280,8 +301,13 @@ export default function CopilotPage() {
   const decide = api.copilot.decide.useMutation()
 
   useEffect(() => {
-    if (!activeId && conversations[0]?.id) setActiveId(conversations[0].id)
-  }, [activeId, conversations])
+    // Desktop workbench: auto-select first thread. Mobile starts on the list pane.
+    if (!activeId && conversations[0]?.id && isWorkbench) setActiveId(conversations[0].id)
+  }, [activeId, conversations, isWorkbench])
+
+  useEffect(() => {
+    if (isWorkbench) setMobilePane("list")
+  }, [isWorkbench])
 
   // Synchronize active conversation with the copilot store and persist existing drafts
   useEffect(() => {
@@ -326,6 +352,7 @@ export default function CopilotPage() {
     requestSeq.current += 1
     stop()
     setActiveId(id)
+    if (!isWorkbench) setMobilePane("detail")
   }
 
   async function handleDecision(action: "accept" | "reject" | "modify") {
@@ -398,6 +425,7 @@ export default function CopilotPage() {
       setCreateOpen(false)
       await utils.conversations.listWorkbench.invalidate()
       setActiveId(created.id)
+      if (!isWorkbench) setMobilePane("detail")
       toast.success("Conversation created")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create conversation")
@@ -431,7 +459,10 @@ export default function CopilotPage() {
       if (!old) return old
       return { ...old, items: old.items.filter((item) => item.id !== conversation.id) }
     })
-    if (activeId === conversation.id) setActiveId(null)
+    if (activeId === conversation.id) {
+      setActiveId(null)
+      if (!isWorkbench) setMobilePane("list")
+    }
 
     try {
       await archiveThread.mutateAsync({ ids: [conversation.id], archived: !showArchived })
@@ -451,7 +482,10 @@ export default function CopilotPage() {
       if (!old) return old
       return { ...old, items: old.items.filter((item) => item.id !== conversation.id) }
     })
-    if (activeId === conversation.id) setActiveId(null)
+    if (activeId === conversation.id) {
+      setActiveId(null)
+      if (!isWorkbench) setMobilePane("list")
+    }
 
     try {
       await deleteThreads.mutateAsync({ ids: [conversation.id] })
@@ -463,7 +497,7 @@ export default function CopilotPage() {
   }
 
   return (
-    <div>
+    <div className="copilot-page min-w-0 w-full max-w-full">
       <DashPageHeader
         eyebrow="AI Copilot"
         title="Co-pilot for support agents"
@@ -471,9 +505,10 @@ export default function CopilotPage() {
         actions={
           <Link
             href="/dashboard/tap-box"
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] font-semibold text-[var(--dash-ink-soft)] hover:dash-shadow-sm transition"
+            className="inline-flex min-h-10 h-10 sm:h-9 w-full sm:w-auto items-center justify-center gap-1.5 px-3.5 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] font-semibold text-[var(--dash-ink-soft)] hover:dash-shadow-sm transition"
           >
-            <Box className="w-4 h-4" /> Inspect with Tap Box
+            <Box className="w-4 h-4 shrink-0" />
+            <span className="truncate">Inspect with Tap Box</span>
           </Link>
         }
       />
@@ -491,10 +526,14 @@ export default function CopilotPage() {
         createOpen={createOpen}
         createDraft={createDraft}
         creating={createThread.isPending}
+        isWorkbench={isWorkbench}
+        mobilePane={mobilePane}
+        onMobilePane={setMobilePane}
         onSearch={setSearch}
         onToggleArchived={() => {
           setShowArchived((value) => !value)
           setActiveId(null)
+          if (!isWorkbench) setMobilePane("list")
         }}
         onRetry={() => void listQuery.refetch()}
         onSelect={(id) => void selectConversation(id)}
@@ -506,10 +545,10 @@ export default function CopilotPage() {
         onCreate={() => void createConversation()}
       />
 
-      <div className="mb-4 rounded-xl border dash-border bg-[var(--dash-card)] shadow-[0_14px_34px_-28px_rgba(42,37,32,0.55)] p-2">
+      <div className="mb-3 sm:mb-4 rounded-xl border dash-border bg-[var(--dash-card)] shadow-[0_14px_34px_-28px_rgba(42,37,32,0.55)] p-2 sm:p-2.5">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-          <div className="flex min-w-0 items-center gap-2 px-2">
-            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${
+          <div className="flex min-w-0 items-center gap-2 px-2 py-1 lg:py-0">
+            <span className={`flex h-9 w-9 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg border ${
               thread ? "border-[#D7CFF2] bg-[#ECE9FB] text-[#4E3FB6]" : "border-[var(--dash-line-soft)] bg-[var(--dash-bg)] text-[var(--dash-ink-faint)]"
             }`}>
               <MessageSquare className="h-4 w-4" />
@@ -532,13 +571,13 @@ export default function CopilotPage() {
               }}
               placeholder={thread ? "Add guidance: tone, outcome, details to include..." : "Select a real conversation to generate a sourced reply..."}
               aria-label="Agent guidance for AI draft"
-              className="h-10 w-full rounded-lg border dash-border bg-white px-3 text-[13px] text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] outline-none transition focus:border-[var(--dash-accent)] focus:shadow-[0_0_0_3px_var(--dash-accent-wash)]"
+              className="h-11 sm:h-10 w-full rounded-lg border dash-border bg-white px-3 text-[13px] text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] outline-none transition focus:border-[var(--dash-accent)] focus:shadow-[0_0_0_3px_var(--dash-accent-wash)]"
             />
           </div>
           <button
             onClick={runStream}
             disabled={isCopilotTyping || !thread || !coPilotOn}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(107,92,214,0.75)] transition hover:-translate-y-px hover:shadow-[0_14px_30px_-14px_rgba(107,92,214,0.85)] disabled:translate-y-0 disabled:opacity-55"
+            className="inline-flex min-h-11 h-11 sm:h-10 w-full lg:w-auto shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(107,92,214,0.75)] transition hover:-translate-y-px hover:shadow-[0_14px_30px_-14px_rgba(107,92,214,0.85)] disabled:translate-y-0 disabled:opacity-55"
           >
             {isCopilotTyping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {isCopilotTyping ? "Generating..." : "Generate Draft"}
@@ -546,22 +585,22 @@ export default function CopilotPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] 3xl:grid-cols-[minmax(0,1fr)_minmax(19rem,24rem)] 4xl:grid-cols-[minmax(0,1fr)_minmax(21rem,26rem)]">
         <DashCard
           title="AI Copilot"
           icon={<Sparkles className="w-[18px] h-[18px]" />}
           right={
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-[var(--dash-accent-deep)] bg-[var(--dash-accent-wash)] rounded-full px-2.5 py-0.5">
+              <span className="hidden sm:inline text-[11px] font-bold text-[var(--dash-accent-deep)] bg-[var(--dash-accent-wash)] rounded-full px-2.5 py-0.5">
                 Co-Pilot Mode
               </span>
               <button
                 aria-pressed={coPilotOn}
                 aria-label="Toggle Co-Pilot mode"
                 onClick={() => { setCoPilotOn((v) => !v); stop() }}
-                className={`relative w-[38px] h-[21px] rounded-full transition ${coPilotOn ? "bg-[var(--dash-accent)]" : "bg-[var(--dash-ink-faint)]"}`}
+                className={`relative w-[42px] h-[24px] sm:w-[38px] sm:h-[21px] rounded-full transition ${coPilotOn ? "bg-[var(--dash-accent)]" : "bg-[var(--dash-ink-faint)]"}`}
               >
-                <span className={`absolute top-[3px] w-[15px] h-[15px] rounded-full bg-white shadow transition-all ${coPilotOn ? "left-[3px]" : "left-[20px]"}`} />
+                <span className={`absolute top-[3px] w-[18px] h-[18px] sm:w-[15px] sm:h-[15px] rounded-full bg-white shadow transition-all ${coPilotOn ? "left-[3px]" : "left-[21px] sm:left-[20px]"}`} />
               </button>
             </div>
           }
@@ -575,9 +614,9 @@ export default function CopilotPage() {
           />
 
           {hitl.required && (
-            <div className="mt-2 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--dash-amber-wash)] border border-[#E5D2A8] text-[12px] text-[#5a3e1c]">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span><b>Human review required:</b> {hitl.reason}</span>
+            <div className="mt-2 flex items-start gap-2 p-2.5 rounded-lg bg-[var(--dash-amber-wash)] border border-[#E5D2A8] text-[12px] text-[#5a3e1c]">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="min-w-0 break-words"><b>Human review required:</b> {hitl.reason}</span>
             </div>
           )}
 
@@ -603,6 +642,9 @@ function ConversationContext({
   createOpen,
   createDraft,
   creating,
+  isWorkbench,
+  mobilePane,
+  onMobilePane,
   onSearch,
   onToggleArchived,
   onRetry,
@@ -626,6 +668,9 @@ function ConversationContext({
   createOpen: boolean
   createDraft: CreateDraft
   creating: boolean
+  isWorkbench: boolean
+  mobilePane: MobilePane
+  onMobilePane: (pane: MobilePane) => void
   onSearch: (value: string) => void
   onToggleArchived: () => void
   onRetry: () => void
@@ -637,30 +682,54 @@ function ConversationContext({
   onCreateDraft: (value: CreateDraft) => void
   onCreate: () => void
 }) {
+  const showList = isWorkbench || mobilePane === "list"
+  const showDetail = isWorkbench || mobilePane === "detail" || createOpen
+
   return (
     <DashCard
+      className="mb-3 sm:mb-4"
       title="Live conversation context"
       icon={<BookOpen className="w-[18px] h-[18px]" />}
       right={
         <div className="flex items-center gap-2">
           <button
             onClick={onToggleArchived}
-            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border dash-border bg-transparent text-[12px] font-semibold text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg)] transition"
+            className="inline-flex items-center gap-1 min-h-9 h-9 sm:h-8 px-2.5 rounded-lg border dash-border bg-transparent text-[12px] font-semibold text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg)] transition"
           >
             {showArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-            {showArchived ? "Archived" : "Active"}
+            <span>{showArchived ? "Archived" : "Active"}</span>
           </button>
           <button
-            onClick={() => onCreateOpen(!createOpen)}
-            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] transition"
+            onClick={() => {
+              onCreateOpen(!createOpen)
+              if (!isWorkbench && !createOpen) onMobilePane("detail")
+            }}
+            className="inline-flex items-center gap-1 min-h-9 h-9 sm:h-8 px-2.5 rounded-lg text-[12px] font-semibold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] transition"
           >
             <Plus className="w-3.5 h-3.5" /> New
           </button>
         </div>
       }
     >
-      <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr] gap-3">
-        <div className="rounded-xl border dash-border-soft bg-white overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+      {!isWorkbench && showDetail && (
+        <button
+          type="button"
+          onClick={() => {
+            onCreateOpen(false)
+            onMobilePane("list")
+          }}
+          className="mb-3 inline-flex items-center gap-1.5 self-start min-h-10 px-2 -ml-1 rounded-lg text-[13px] font-semibold text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)] transition"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to conversations
+        </button>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] 3xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] 4xl:grid-cols-[minmax(20rem,24rem)_minmax(0,1fr)]">
+        <div className={cn(
+          showList ? "min-w-0" : "hidden",
+          "xl:block rounded-xl border dash-border-soft bg-white overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]",
+        )}>
           <div className="p-3 border-b dash-border-soft bg-[linear-gradient(180deg,#fff,rgba(252,250,244,0.72))]">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--dash-ink-faint)]" />
@@ -668,12 +737,13 @@ function ConversationContext({
                 value={search}
                 onChange={(event) => onSearch(event.target.value)}
                 placeholder="Search conversations..."
-                className="w-full h-9 pl-8 pr-3 rounded-lg border border-transparent bg-[var(--dash-bg)] text-[12.5px] text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] outline-none transition focus:border-[var(--dash-accent)] focus:bg-white focus:shadow-[0_0_0_3px_var(--dash-accent-wash)]"
+                aria-label="Search conversations"
+                className="w-full h-10 sm:h-9 pl-8 pr-3 rounded-lg border border-transparent bg-[var(--dash-bg)] text-[13px] sm:text-[12.5px] text-[var(--dash-ink)] placeholder:text-[var(--dash-ink-faint)] outline-none transition focus:border-[var(--dash-accent)] focus:bg-white focus:shadow-[0_0_0_3px_var(--dash-accent-wash)]"
               />
             </div>
           </div>
 
-          <div className="max-h-[224px] overflow-y-auto">
+          <div className="max-h-[min(55dvh,28rem)] xl:max-h-[min(50dvh,22rem)] 3xl:max-h-[min(52dvh,26rem)] overflow-y-auto overscroll-contain">
             {isLoading ? (
               <div className="p-3 space-y-2">
                 {Array.from({ length: 4 }).map((_, index) => (
@@ -683,7 +753,7 @@ function ConversationContext({
             ) : isError ? (
               <div className="p-4 text-center">
                 <p className="text-[12px] text-[var(--dash-rose)] mb-2">Could not load conversations.</p>
-                <button onClick={onRetry} className="text-[12px] font-bold text-[var(--dash-accent-deep)] hover:underline">Retry</button>
+                <button onClick={onRetry} className="inline-flex min-h-9 items-center text-[12px] font-bold text-[var(--dash-accent-deep)] hover:underline">Retry</button>
               </div>
             ) : conversations.length === 0 ? (
               <div className="p-5 text-center">
@@ -698,15 +768,15 @@ function ConversationContext({
                     <li key={conversation.id} className="px-2 py-1 first:pt-2 last:pb-2">
                       <button
                         onClick={() => onSelect(conversation.id)}
-                        className={`relative w-full rounded-lg text-left px-3 py-2.5 transition focus:outline-none focus:shadow-[0_0_0_3px_var(--dash-accent-wash)] ${
+                        className={`relative w-full rounded-lg text-left px-3 py-3 sm:py-2.5 transition focus:outline-none focus:shadow-[0_0_0_3px_var(--dash-accent-wash)] ${
                           active
                             ? "bg-[var(--dash-accent-wash)] shadow-[inset_3px_0_0_var(--dash-accent)]"
-                            : "hover:bg-[var(--dash-bg)]"
+                            : "hover:bg-[var(--dash-bg)] active:bg-[var(--dash-bg)]"
                         }`}
                       >
                         <span className="flex items-center gap-2 min-w-0">
                           {conversation.pinnedAt && <Pin className="w-3.5 h-3.5 text-[var(--dash-accent-deep)] shrink-0" />}
-                          <span className="truncate text-[12.5px] font-bold text-[var(--dash-ink)]">{displayTitle(conversation)}</span>
+                          <span className="truncate text-[13px] sm:text-[12.5px] font-bold text-[var(--dash-ink)]">{displayTitle(conversation)}</span>
                           {conversation.unreadCount > 0 && (
                             <span className="ml-auto shrink-0 text-[10px] font-bold rounded-full bg-[var(--dash-accent)] text-white px-1.5">
                               {conversation.unreadCount}
@@ -717,7 +787,7 @@ function ConversationContext({
                           <UserRound className="h-3 w-3 shrink-0" />
                           <span className="truncate">{conversation.customerName ?? conversation.customerEmail ?? channelLabel(conversation.channel)}</span>
                           <Clock className="ml-auto h-3 w-3 shrink-0" />
-                          <span className="shrink-0">{relativeTime(conversation.updatedAt)}</span>
+                          <span className="shrink-0 tabular-nums">{relativeTime(conversation.updatedAt)}</span>
                         </span>
                         <span className="mt-2 flex flex-wrap items-center gap-1.5">
                           <MetaPill tone="blue">{channelLabel(conversation.channel)}</MetaPill>
@@ -739,29 +809,32 @@ function ConversationContext({
           </div>
         </div>
 
-        <div className="rounded-xl border dash-border-soft bg-white p-4 min-h-[224px] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+        <div className={cn(
+          showDetail ? "min-w-0" : "hidden",
+          "xl:block rounded-xl border dash-border-soft bg-white p-3.5 sm:p-4 min-h-[min(50dvh,14rem)] xl:min-h-[224px] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]",
+        )}>
           {createOpen ? (
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <div>
+              <div className="flex items-start sm:items-center justify-between gap-3 mb-3">
+                <div className="min-w-0">
                   <div className="text-[12px] font-bold text-[var(--dash-ink)]">Create real conversation</div>
-                  <div className="text-[11px] text-[var(--dash-ink-faint)]">Use this for manual QA or portal-originated requests.</div>
+                  <div className="text-[11px] text-[var(--dash-ink-faint)] leading-snug">Use this for manual QA or portal-originated requests.</div>
                 </div>
-                <button onClick={() => onCreateOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--dash-ink-faint)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)] focus:outline-none focus:shadow-[0_0_0_3px_var(--dash-accent-wash)]">
+                <button onClick={() => onCreateOpen(false)} className="inline-flex min-h-9 min-w-9 h-9 w-9 items-center justify-center rounded-lg text-[var(--dash-ink-faint)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)] focus:outline-none focus:shadow-[0_0_0_3px_var(--dash-accent-wash)] shrink-0">
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_150px] gap-2 mb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_150px] gap-2 mb-2">
                 <input
                   value={createDraft.title}
                   onChange={(event) => onCreateDraft({ ...createDraft, title: event.target.value })}
                   placeholder="Ticket subject"
-                  className="h-9 px-3 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] text-[var(--dash-ink)] outline-none focus:border-[var(--dash-accent)]"
+                  className="h-11 sm:h-9 px-3 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] text-[var(--dash-ink)] outline-none focus:border-[var(--dash-accent)]"
                 />
                 <select
                   value={createDraft.priority}
                   onChange={(event) => onCreateDraft({ ...createDraft, priority: event.target.value as TicketPriority })}
-                  className="h-9 px-2 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] text-[var(--dash-ink)] outline-none focus:border-[var(--dash-accent)]"
+                  className="h-11 sm:h-9 px-2 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] text-[var(--dash-ink)] outline-none focus:border-[var(--dash-accent)]"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -774,12 +847,12 @@ function ConversationContext({
                 onChange={(event) => onCreateDraft({ ...createDraft, initialMessage: event.target.value })}
                 placeholder="Customer message"
                 rows={3}
-                className="w-full px-3 py-2 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] text-[var(--dash-ink)] outline-none resize-none focus:border-[var(--dash-accent)]"
+                className="w-full px-3 py-2.5 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] text-[var(--dash-ink)] outline-none resize-none focus:border-[var(--dash-accent)]"
               />
               <button
                 onClick={onCreate}
                 disabled={creating}
-                className="mt-2 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-[13px] font-semibold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_8px_18px_-12px_rgba(107,92,214,0.7)] disabled:opacity-60 transition"
+                className="mt-2 inline-flex items-center justify-center gap-1.5 min-h-11 h-11 sm:h-9 w-full sm:w-auto px-3.5 rounded-lg text-[13px] font-semibold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_8px_18px_-12px_rgba(107,92,214,0.7)] disabled:opacity-60 transition"
               >
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 Create
@@ -796,7 +869,7 @@ function ConversationContext({
                     )}
                     {activeConversation.ticketStatus && <MetaPill>{activeConversation.ticketStatus}</MetaPill>}
                   </div>
-                  <h3 className="truncate text-[18px] font-bold tracking-tight text-[var(--dash-ink)]">{displayTitle(activeConversation)}</h3>
+                  <h3 className="text-[clamp(1rem,2.5vw+0.4rem,1.125rem)] font-bold tracking-tight text-[var(--dash-ink)] break-words">{displayTitle(activeConversation)}</h3>
                   <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--dash-ink-faint)]">
                     <span className="inline-flex min-w-0 items-center gap-1">
                       <UserRound className="h-3.5 w-3.5 shrink-0" />
@@ -805,24 +878,24 @@ function ConversationContext({
                     <span className="font-mono">#{activeConversation.ticketId.slice(0, 8)}</span>
                   </p>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => onTogglePinned(activeConversation)}
-                    className="inline-flex w-8 h-8 items-center justify-center rounded-lg border dash-border bg-transparent text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg)] transition focus:outline-none focus:shadow-[0_0_0_3px_var(--dash-accent-wash)]"
+                    className="inline-flex min-h-9 min-w-9 w-9 h-9 items-center justify-center rounded-lg border dash-border bg-transparent text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg)] transition focus:outline-none focus:shadow-[0_0_0_3px_var(--dash-accent-wash)]"
                     aria-label={activeConversation.pinnedAt ? "Unpin conversation" : "Pin conversation"}
                   >
                     {activeConversation.pinnedAt ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
                   </button>
                   <button
                     onClick={() => onArchive(activeConversation)}
-                    className="inline-flex w-8 h-8 items-center justify-center rounded-lg border dash-border bg-transparent text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg)] transition focus:outline-none focus:shadow-[0_0_0_3px_var(--dash-accent-wash)]"
+                    className="inline-flex min-h-9 min-w-9 w-9 h-9 items-center justify-center rounded-lg border dash-border bg-transparent text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg)] transition focus:outline-none focus:shadow-[0_0_0_3px_var(--dash-accent-wash)]"
                     aria-label={showArchived ? "Restore conversation" : "Archive conversation"}
                   >
                     {showArchived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                   </button>
                   <button
                     onClick={() => onDelete(activeConversation)}
-                    className="inline-flex w-8 h-8 items-center justify-center rounded-lg border dash-border bg-transparent text-[var(--dash-rose)] hover:bg-[var(--dash-bg)] transition focus:outline-none focus:shadow-[0_0_0_3px_var(--dash-rose-wash)]"
+                    className="inline-flex min-h-9 min-w-9 w-9 h-9 items-center justify-center rounded-lg border dash-border bg-transparent text-[var(--dash-rose)] hover:bg-[var(--dash-bg)] transition focus:outline-none focus:shadow-[0_0_0_3px_var(--dash-rose-wash)]"
                     aria-label="Delete conversation"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -837,20 +910,20 @@ function ConversationContext({
               </div>
 
               <div className="mt-3 rounded-xl bg-[var(--dash-bg)] border dash-border-soft p-3">
-                <div className="mb-1.5 flex items-center justify-between gap-2">
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                   <div className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--dash-ink-soft)]">Latest customer context</div>
                   <span className="text-[10.5px] font-bold text-[var(--dash-sage)] dash-bg-sage-wash rounded-md px-1.5 py-0.5">
                     Ready for draft
                   </span>
                 </div>
-                <p className="text-[12px] leading-[1.55] text-[var(--dash-ink-soft)] line-clamp-3">
+                <p className="text-[12px] leading-[1.55] text-[var(--dash-ink-soft)] line-clamp-4 sm:line-clamp-3">
                   {activeConversation.lastMessage?.content ?? "No messages yet."}
                 </p>
               </div>
 
               {activeConversation.lastMessage?.metadata?.triage?.decision === "orchestrated" && (
                 <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/50 p-3.5 dark:border-violet-950/20 dark:bg-violet-950/5">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5 text-[11.5px] font-bold text-violet-700 dark:text-violet-400">
                       <Sparkles className="h-3.5 w-3.5 animate-pulse text-violet-500" />
                       Visual Orchestration Live
@@ -865,7 +938,7 @@ function ConversationContext({
                   <div className="mt-3">
                     <Link
                       href={`/dashboard/orchestration?workflowId=${activeConversation.lastMessage.metadata.triage.activeWorkflowId ?? ""}&runId=${activeConversation.lastMessage.metadata.triage.temporalWorkflowId ?? ""}`}
-                      className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-3 text-[11.5px] font-bold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.98]"
+                      className="inline-flex min-h-10 h-10 sm:h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-3 text-[11.5px] font-bold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.98]"
                     >
                       <GitBranch className="h-3.5 w-3.5" />
                       View Live Execution Trace
@@ -875,7 +948,7 @@ function ConversationContext({
               )}
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center text-center">
+            <div className="h-full min-h-[10rem] flex items-center justify-center text-center px-2">
               <div>
                 <span className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl border dash-border-soft bg-[var(--dash-bg)]">
                   <Sparkles className="w-5 h-5 text-[var(--dash-ink-faint)]" />
@@ -1041,9 +1114,9 @@ function EditPanel({ onDecision }: { onDecision: (a: "accept" | "reject" | "modi
         <textarea
           value={edited}
           onChange={(e) => setEdited(e.target.value)}
-          rows={9}
+          rows={7}
           aria-label="Editable AI response"
-          className="w-full px-4 py-3.5 text-[13.5px] leading-[1.65] text-[var(--dash-ink)] outline-none bg-transparent resize-none placeholder:text-[var(--dash-ink-faint)]"
+          className="w-full min-h-[min(40dvh,12rem)] sm:min-h-0 px-3.5 sm:px-4 py-3 sm:py-3.5 text-[13.5px] leading-[1.65] text-[var(--dash-ink)] outline-none bg-transparent resize-y sm:resize-none placeholder:text-[var(--dash-ink-faint)]"
           placeholder="Your approved reply will appear here after generation."
         />
         <div className="flex items-center gap-3.5 px-3 py-2 border-t dash-border-soft bg-[var(--dash-bg)]">
@@ -1054,11 +1127,11 @@ function EditPanel({ onDecision }: { onDecision: (a: "accept" | "reject" | "modi
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-end gap-2.5">
+      <div className="mt-4 flex flex-col-reverse sm:flex-row sm:flex-wrap items-stretch sm:items-center sm:justify-end gap-2 sm:gap-2.5">
         <button
           onClick={() => setEdited(draft)}
           disabled={!ready}
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border dash-border bg-transparent text-[13px] font-semibold text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg)] transition disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-1.5 min-h-11 h-11 sm:h-9 px-4 rounded-lg border dash-border bg-transparent text-[13px] font-semibold text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg)] transition disabled:opacity-50"
         >
           <X className="w-4 h-4" /> Reset
         </button>
@@ -1066,7 +1139,7 @@ function EditPanel({ onDecision }: { onDecision: (a: "accept" | "reject" | "modi
           onClick={() => onDecision("reject")}
           disabled={!ready || decision === "sending"}
           aria-keyshortcuts="Control+Shift+Backspace"
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] font-semibold text-[var(--dash-rose)] hover:dash-shadow-sm transition disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-1.5 min-h-11 h-11 sm:h-9 px-4 rounded-lg border dash-border bg-[var(--dash-card)] text-[13px] font-semibold text-[var(--dash-rose)] hover:dash-shadow-sm transition disabled:opacity-50"
         >
           <ThumbsDown className="w-4 h-4" /> Reject
         </button>
@@ -1074,13 +1147,13 @@ function EditPanel({ onDecision }: { onDecision: (a: "accept" | "reject" | "modi
           onClick={() => onDecision("accept")}
           disabled={!ready || decision === "sending" || !edited.trim()}
           aria-keyshortcuts="Control+Enter"
-          className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-semibold text-white transition shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] ${
+          className={`inline-flex items-center justify-center gap-1.5 min-h-11 h-11 sm:h-9 px-4 rounded-lg text-[13px] font-semibold text-white transition shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] ${
             decision === "accepted"
               ? "bg-gradient-to-br from-[#5C9A70] to-[#3f7a52]"
               : "bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] hover:-translate-y-px"
           } disabled:opacity-60`}
         >
-          {decision === "none" && <><Send className="w-4 h-4" /> Send Reply <Kbd className="ml-0.5">⌘↵</Kbd></>}
+          {decision === "none" && <><Send className="w-4 h-4" /> Send Reply <Kbd className="ml-0.5 hidden sm:inline-flex">⌘↵</Kbd></>}
           {decision === "sending" && <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>}
           {decision === "accepted" && <><CheckCircle2 className="w-4 h-4" /></>}
           {decision === "rejected" && <><Pencil className="w-4 h-4" /> Rejected</>}

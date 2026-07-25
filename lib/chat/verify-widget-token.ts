@@ -2,7 +2,7 @@
  * Shared JWT verification helper for the chat widget session token.
  *
  * The token is issued by POST /api/chat/session and carries:
- *   { orgId, widgetKey, visitorSessionId }
+ *   { orgId, widgetKey, visitorId }
  *
  * This function is the single source of truth for token verification.
  * It is used by:
@@ -19,7 +19,7 @@ import { jwtVerify } from "jose"
 export interface WidgetTokenPayload {
   orgId: string
   widgetKey: string
-  visitorSessionId: string
+  visitorId: string
 }
 
 function getSigningKey(): Uint8Array {
@@ -41,13 +41,13 @@ export async function verifyWidgetToken(rawToken: string): Promise<WidgetTokenPa
   })
 
   const p = payload as Partial<WidgetTokenPayload>
-  if (!p.orgId || !p.widgetKey || !p.visitorSessionId) {
-    throw new Error("Invalid token claims: missing orgId, widgetKey, or visitorSessionId")
+  if (!p.orgId || !p.widgetKey || !p.visitorId) {
+    throw new Error("Invalid token claims: missing orgId, widgetKey, or visitorId")
   }
 
   return {
     orgId: p.orgId,
     widgetKey: p.widgetKey,
-    visitorSessionId: p.visitorSessionId,
+    visitorId: p.visitorId,
   }
 }

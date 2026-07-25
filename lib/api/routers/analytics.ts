@@ -1,10 +1,11 @@
 import { z } from "zod"
 import { eq, and, desc, gte, sql, count, avg } from "drizzle-orm"
 import { protectedProcedure, router } from "../trpc"
-import { auditLogs, tickets } from "@/lib/db/schema"
+import { auditLogs, tickets, conversations, customers } from "@/lib/db/schema"
 import { db } from "@/lib/db"
 import { getOrgOverview } from "@/lib/analytics/org-overview"
 import { getTriageBreakdown } from "@/lib/analytics/triage-breakdown"
+import { resolveDashboardCustomerName } from "@/lib/chat/customer-display-name"
 
 function normalizeConfidence(value: unknown): number | null {
   if (value == null) return null
@@ -236,15 +237,26 @@ export const analyticsRouter = router({
           // JOIN tickets to surface the channel (email / chat / …) so the
           // Tap Box can label each audit log by originating channel.
           channel: tickets.channel,
+          customerName: customers.name,
+          chatDisplayName: conversations.customerDisplayName,
         })
         .from(auditLogs)
         .leftJoin(tickets, eq(auditLogs.ticketId, tickets.id))
+        .leftJoin(conversations, eq(tickets.id, conversations.ticketId))
+        .leftJoin(customers, eq(conversations.customerId, customers.id))
         .where(eq(auditLogs.orgId, ctx.user.orgId))
         .orderBy(desc(auditLogs.createdAt))
         .limit(input.limit)
         .offset(input.offset)
 
-      return rows
+      return rows.map((row) => ({
+        ...row,
+        customerDisplayName: resolveDashboardCustomerName({
+          channel: row.channel,
+          customerDisplayName: row.chatDisplayName,
+          customerName: row.customerName,
+        }),
+      }))
     }),
 
   latestAuditLog: protectedProcedure

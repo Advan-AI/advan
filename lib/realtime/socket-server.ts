@@ -58,10 +58,18 @@ const PORT = parseInt(process.env.SOCKET_PORT ?? "3002", 10)
 const httpServer = createServer()
 const io = new SocketIOServer(httpServer, {
   cors: {
-    // Default namespace (agents/dashboard): same-origin restriction.
-    // /chat-widget namespace has its own per-widgetKey origin allowlist
-    // enforced inside registerChatWidgetNamespace middleware.
-    origin: process.env.NEXTAUTH_URL ?? "http://localhost:3000",
+    // Agents load from the Next app origin. Allow common local variants so
+    // dashboard alerts work whether the user opens localhost or 127.0.0.1.
+    // /chat-widget namespace still enforces per-widgetKey origin allowlists.
+    origin: (
+      process.env.SOCKET_CORS_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ??
+      [
+        process.env.NEXTAUTH_URL,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://0.0.0.0:3000",
+      ].filter(Boolean) as string[]
+    ),
     methods: ["GET", "POST"],
     credentials: true,
   },

@@ -5,10 +5,15 @@ import { PipelineBuilder } from "@/components/pipeline/pipeline-builder"
 
 export default function OrchestrationPage() {
   return (
-    <div>
+    <div className="orchestration-page min-w-0 w-full max-w-full">
       <DashPageHeader
         eyebrow="Automation"
-        title="Agent Orchestration Builder"
+        title={
+          <>
+            <span className="sm:hidden">Orchestration</span>
+            <span className="hidden sm:inline">Agent Orchestration Builder</span>
+          </>
+        }
         subtitle="Drag nodes from the palette, connect them into an acyclic pipeline, and deploy. Cycles are blocked automatically; new node types plug in without touching the engine."
       />
       <PipelineBuilder />

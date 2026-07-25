@@ -5,23 +5,18 @@
  * Visitors connect here to send messages and receive real-time replies.
  *
  * Connection flow:
- *   1. Widget calls POST /api/chat/session → receives { token, visitorSessionId }.
+ *   1. Widget calls POST /api/chat/session → receives { token, visitorId }.
  *   2. Widget calls POST /api/chat/intake  → receives { conversationId }.
- *   3. Widget connects here with handshake.auth = { token, conversationId }.
+ *   3. Widget connects here with handshake.auth = { token }.
  *   4. Middleware verifies the JWT and re-checks the Origin header against
  *      widget_configs.allowedOrigins (separate trust boundary from the HTTP check).
- *   5. On connect, visitor joins widgetRoom(conversationId) + widgetOrgRoom(orgId).
- *   6. Server emits "session:ready" so the client knows its resolved state.
- *
- * Reconnect flow:
- *   The client may not have the conversationId in storage on a fresh device.
- *   If handshake.auth.conversationId is absent, the server looks it up by
- *   visitorSessionId from the DB. session:ready carries the resolved id, and
- *   the client must then fetch missed messages from the REST API (messages
- *   after last-seen id/timestamp) — socket delivery is best-effort, the DB is truth.
+ *   5. On connect, visitor joins widgetOrgRoom(orgId) only.
+ *   6. Client explicitly emits join:conversation with a selected conversationId.
  *
  * Events (server → visitor):
- *   session:ready         { conversationId: string | null, visitorSessionId: string }
+ *   session:ready         { visitorId: string }
+ *   joined:conversation   { conversationId: string }
+ *   left:conversation     { conversationId: string }
  *   agent:message         { conversationId, messageId, content }
  *   triage:pending        { conversationId, priority }
  *   typing:start          { role: "agent" }
@@ -32,8 +27,8 @@
  * Events (server → agent org room, in default namespace):
  *   visitor:online        { conversationId: string }  — visitor widget connected
  *   visitor:offline       { conversationId: string }  — visitor widget disconnected
- *   visitor:typing:start  { conversationId, visitorSessionId }
- *   visitor:typing:stop   { conversationId, visitorSessionId }
+ *   visitor:typing:start  { conversationId, visitorId }
+ *   visitor:typing:stop   { conversationId, visitorId }
  *
  * Events (visitor → server):
  *   visitor:message  { conversationId: string, content: string }
@@ -76,14 +71,12 @@ export interface ChatWidgetDeps {
     allowedOrigins: string[]
   } | null>
 
-  /**
-   * Reconnect path: find the most recent chat conversation for this
-   * (orgId, visitorSessionId) pair.
-   */
-  findConversationBySession(
-    orgId: string,
-    visitorSessionId: string,
-  ): Promise<{ id: string } | null>
+  /** True when conversationId belongs to this visitor+org scope. */
+  isConversationOwnedByVisitor(input: {
+    orgId: string
+    visitorId: string
+    conversationId: string
+  }): Promise<boolean>
 
   /**
    * Route a visitor message through the intake pipeline (creates/threads
@@ -91,10 +84,13 @@ export interface ChatWidgetDeps {
    */
   processVisitorMessage(input: {
     orgId: string
-    visitorSessionId: string
+    visitorId: string
     conversationId: string
     content: string
   }): Promise<void>
+
+  /** Verifies the visitor identity is still valid for org+widget scope. */
+  findVisitor(input: { orgId: string; widgetKey: string; visitorId: string }): Promise<{ id: string } | null>
 
   /**
    * Clear the chatOfflineDelivery flag so subsequent agent replies are
@@ -115,8 +111,8 @@ export interface ChatWidgetDeps {
 interface SocketData {
   orgId: string
   widgetKey: string
-  visitorSessionId: string
-  /** Resolved after room join; may be undefined if no conversation exists yet. */
+  visitorId: string
+  /** Active conversation selected by the visitor in this socket session. */
   conversationId?: string
 }
 
@@ -199,10 +195,22 @@ export function registerChatWidgetNamespace(
       return next(new Error("orgId mismatch"))
     }
 
+    const visitor = await deps
+      .findVisitor({
+        orgId: tokenPayload.orgId,
+        widgetKey: tokenPayload.widgetKey,
+        visitorId: tokenPayload.visitorId,
+      })
+      .catch(() => null)
+
+    if (!visitor) {
+      return next(new Error("Unknown visitor identity"))
+    }
+
     socket.data = {
       orgId: tokenPayload.orgId,
       widgetKey: tokenPayload.widgetKey,
-      visitorSessionId: tokenPayload.visitorSessionId,
+      visitorId: tokenPayload.visitorId,
     } satisfies SocketData
 
     next()
@@ -210,39 +218,15 @@ export function registerChatWidgetNamespace(
 
   // ── Connection handler ────────────────────────────────────────────────────
   ns.on("connection", async (socket) => {
-    const { orgId, visitorSessionId } = socket.data as SocketData
-
-    // Resolve conversationId.
-    //  - Fresh session: client supplies conversationId from a prior /api/chat/intake call.
-    //  - Reconnect path: conversationId may be absent; look it up by visitorSessionId.
-    //    The client receives it via session:ready and then fetches missed messages
-    //    from the REST API (messages after last-seen id/timestamp) — the DB is truth.
-    let conversationId = socket.handshake.auth?.conversationId as string | undefined
-
-    if (!conversationId) {
-      const found = await deps.findConversationBySession(orgId, visitorSessionId).catch(() => null)
-      conversationId = found?.id
-    }
-
-    if (conversationId) {
-      socket.data.conversationId = conversationId
-      socket.join(widgetRoom(conversationId))
-    }
+    const { orgId, visitorId } = socket.data as SocketData
 
     // Org room: used for server-side presence broadcasts.
     socket.join(widgetOrgRoom(orgId))
 
     // Inform the client of its resolved session state.
     socket.emit("session:ready", {
-      conversationId: conversationId ?? null,
-      visitorSessionId,
+      visitorId,
     })
-
-    // Notify the agent dashboard that a visitor is now online for this
-    // conversation so it can show a live badge.
-    if (conversationId) {
-      io.to(`org:${orgId}`).emit("visitor:online", { conversationId })
-    }
 
     // Emit initial agent presence using the default namespace's org room.
     // fetchSockets() is async but best-effort — fall back to offline on error.
@@ -256,33 +240,73 @@ export function registerChatWidgetNamespace(
       socket.emit("presence:agent-online", { online: false, count: 0 })
     }
 
-    // Live-switch: if this conversation was created in offline mode (visitor
-    // submitted the pre-chat form when no agent was available) but an agent is
-    // now online, clear the offline delivery flag.  Subsequent insertAgentMessage
-    // calls will route via Socket.IO instead of the notification email queue.
-    if (agentsOnline && conversationId) {
-      deps.clearOfflineDelivery(conversationId, orgId).catch((err) => {
-        console.warn("[ChatWidget] clearOfflineDelivery failed:", (err as Error).message)
-      })
-    }
+
+    socket.on("join:conversation", async (data: { conversationId: string }) => {
+      const requestedConversationId = data?.conversationId?.trim()
+      if (!requestedConversationId) {
+        socket.emit("error", { code: "INVALID_CONVERSATION" })
+        return
+      }
+
+      const owned = await deps
+        .isConversationOwnedByVisitor({
+          orgId,
+          visitorId,
+          conversationId: requestedConversationId,
+        })
+        .catch(() => false)
+
+      if (!owned) {
+        socket.emit("error", { code: "FORBIDDEN_CONVERSATION" })
+        return
+      }
+
+      const previous = (socket.data as SocketData).conversationId
+      if (previous && previous !== requestedConversationId) {
+        socket.leave(widgetRoom(previous))
+      }
+
+      socket.join(widgetRoom(requestedConversationId))
+      socket.data.conversationId = requestedConversationId
+      socket.emit("joined:conversation", { conversationId: requestedConversationId })
+      io.to(`org:${orgId}`).emit("visitor:online", { conversationId: requestedConversationId })
+
+      if (agentsOnline) {
+        deps.clearOfflineDelivery(requestedConversationId, orgId).catch((err) => {
+          console.warn("[ChatWidget] clearOfflineDelivery failed:", (err as Error).message)
+        })
+      }
+    })
+
+    socket.on("leave:conversation", (data: { conversationId: string }) => {
+      const requestedConversationId = data?.conversationId?.trim()
+      if (!requestedConversationId) return
+
+      socket.leave(widgetRoom(requestedConversationId))
+      if ((socket.data as SocketData).conversationId === requestedConversationId) {
+        delete (socket.data as SocketData).conversationId
+      }
+
+      socket.emit("left:conversation", { conversationId: requestedConversationId })
+      io.to(`org:${orgId}`).emit("visitor:offline", { conversationId: requestedConversationId })
+    })
 
     // ── visitor:message ──────────────────────────────────────────────────
     socket.on(
       "visitor:message",
       async (data: { conversationId: string; content: string }) => {
-        if (!data?.conversationId || !data?.content?.trim()) return
+        const activeConversationId = (socket.data as SocketData).conversationId
+        if (!activeConversationId || !data?.content?.trim()) return
         try {
           await deps.processVisitorMessage({
             orgId,
-            visitorSessionId,
-            conversationId: data.conversationId,
+            visitorId,
+            conversationId: activeConversationId,
             content: data.content,
           })
-          // Broadcast to default namespace (all dashboard agents) in real-time
-          io.to(`org:${orgId}`).emit("visitor:message", {
-            conversationId: data.conversationId,
-            content: data.content,
-          })
+          // Dashboard alerts are published from resolveOrCreateIntake via Redis
+          // (customer:message). Do not also emit visitor:message here — that
+          // caused duplicate toasts when both paths fired.
         } catch (err) {
           console.error("[ChatWidget] visitor:message error:", (err as Error).message)
           socket.emit("error", { code: "MESSAGE_FAILED" })
@@ -299,7 +323,7 @@ export function registerChatWidgetNamespace(
       if (!cid) return
       io.to(`org:${orgId}`).emit("visitor:typing:start", {
         conversationId: cid,
-        visitorSessionId,
+        visitorId,
       })
     })
 
@@ -308,12 +332,12 @@ export function registerChatWidgetNamespace(
       if (!cid) return
       io.to(`org:${orgId}`).emit("visitor:typing:stop", {
         conversationId: cid,
-        visitorSessionId,
+        visitorId,
       })
     })
 
     socket.on("disconnect", () => {
-      console.log(`[ChatWidget] Visitor disconnected (${socket.id}) org:${orgId} session:${visitorSessionId}`)
+      console.log(`[ChatWidget] Visitor disconnected (${socket.id}) org:${orgId} visitor:${visitorId}`)
       // Notify the agent dashboard that this visitor has gone offline.
       const cid = (socket.data as SocketData).conversationId
       if (cid) {
@@ -336,9 +360,10 @@ export function registerChatWidgetNamespace(
  */
 export async function buildProductionChatWidgetDeps(): Promise<ChatWidgetDeps> {
   const { db } = await import("@/lib/db")
-  const { widgetConfigs, conversations } = await import("@/lib/db/schema")
+  const { widgetConfigs, conversations, visitors } = await import("@/lib/db/schema")
   const { eq, and } = await import("drizzle-orm")
   const { resolveOrCreateIntake } = await import("@/lib/tickets/auto-intake")
+  const { isConversationOwnedByVisitor } = await import("@/lib/chat/conversation-ownership")
 
   return {
     async findWidgetConfig(widgetKey) {
@@ -350,20 +375,11 @@ export async function buildProductionChatWidgetDeps(): Promise<ChatWidgetDeps> {
       return { orgId: row.orgId, allowedOrigins: row.allowedOrigins as string[] }
     },
 
-    async findConversationBySession(orgId, visitorSessionId) {
-      const row = await db.query.conversations.findFirst({
-        where: and(
-          eq(conversations.orgId, orgId),
-          eq(conversations.visitorSessionId, visitorSessionId),
-        ),
-        columns: { id: true },
-        // Most recent conversation wins on reconnect.
-        orderBy: (c, { desc }) => [desc(c.createdAt)],
-      })
-      return row ?? null
+    async isConversationOwnedByVisitor({ orgId, visitorId, conversationId }) {
+      return isConversationOwnedByVisitor({ orgId, visitorId, conversationId })
     },
 
-    async processVisitorMessage({ orgId, visitorSessionId, conversationId, content }) {
+    async processVisitorMessage({ orgId, visitorId, conversationId, content }) {
       // Sanitize visitor-authored content before storage.
       // Chat widgets carry the same XSS risk as inbound email: user-supplied
       // text can contain HTML that would be rendered by the dashboard UI.
@@ -377,10 +393,22 @@ export async function buildProductionChatWidgetDeps(): Promise<ChatWidgetDeps> {
       await resolveOrCreateIntake({
         orgId,
         channel: "chat",
-        customerIdentifier: { visitorSessionId },
+        customerIdentifier: { visitorId },
         content: sanitized,
         conversationId,
       })
+    },
+
+    async findVisitor({ orgId, widgetKey, visitorId }) {
+      const row = await db.query.visitors.findFirst({
+        where: and(
+          eq(visitors.id, visitorId),
+          eq(visitors.orgId, orgId),
+          eq(visitors.widgetKey, widgetKey),
+        ),
+        columns: { id: true },
+      })
+      return row ?? null
     },
 
     async clearOfflineDelivery(conversationId, orgId) {

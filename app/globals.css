@@ -313,13 +313,130 @@
     --dash-rose-wash:     #F1DFDE;
     --dash-blue:          #5A85C3;
     --dash-blue-wash:     #E1E9F3;
+    --dash-sidebar-w: 14.25rem;
+    --dash-topbar-h: 3.75rem;
+    --dash-page-pad-x: 1rem;
+    --dash-page-pad-y: 1rem;
+    --dash-content-max: 100%;
     background:
       radial-gradient(1200px 700px at 80% -10%, rgba(107,92,214,.07), transparent 60%),
       radial-gradient(900px 600px at -5% 110%, rgba(92,154,112,.07), transparent 55%),
       var(--dash-bg);
     color: var(--dash-ink);
     font-family: 'Hanken Grotesk', 'Inter', system-ui, sans-serif;
+    min-height: 100dvh;
     min-height: 100vh;
+  }
+
+  @media (min-width: 640px) {
+    .dash-shell {
+      --dash-page-pad-x: 1.5rem;
+      --dash-page-pad-y: 1.25rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .dash-shell {
+      --dash-page-pad-x: 1.75rem;
+      --dash-page-pad-y: 1.5rem;
+    }
+  }
+  /* Ultrawide / 4K: cap reading width so layouts don't stretch into unreadability */
+  @media (min-width: 1920px) {
+    .dash-shell {
+      --dash-sidebar-w: 15.5rem;
+      --dash-page-pad-x: 2rem;
+      --dash-content-max: 100rem; /* 1600px */
+    }
+  }
+  @media (min-width: 2560px) {
+    .dash-shell {
+      --dash-sidebar-w: 16.5rem;
+      --dash-page-pad-x: 2.5rem;
+      --dash-content-max: 112rem; /* 1792px */
+    }
+  }
+  @media (min-width: 3840px) {
+    .dash-shell {
+      --dash-sidebar-w: 18rem;
+      --dash-page-pad-x: 3rem;
+      --dash-content-max: 128rem; /* 2048px */
+    }
+  }
+
+  /* Main column: fluid padding + centered max-width on large displays */
+  .dash-main {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+  }
+  .dash-page {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: var(--dash-content-max);
+    margin-inline: auto;
+    padding:
+      max(var(--dash-page-pad-y), env(safe-area-inset-top, 0px))
+      max(var(--dash-page-pad-x), env(safe-area-inset-right, 0px))
+      max(var(--dash-page-pad-y), env(safe-area-inset-bottom, 0px))
+      max(var(--dash-page-pad-x), env(safe-area-inset-left, 0px));
+  }
+
+  /* Scrollable workbench panes (conversations, builders) */
+  .dash-workbench {
+    min-height: min(70dvh, 36rem);
+  }
+  @media (min-width: 1280px) {
+    .dash-workbench {
+      height: calc(100dvh - var(--dash-topbar-h) - 9.5rem);
+      min-height: 28rem;
+    }
+  }
+
+  /* Tickets queue: hide chrome scrollbars on filter chip rails */
+  .tickets-page .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .tickets-page .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  /* Comfortable bottom inset when the floating bulk bar is up */
+  .tickets-page:has([role="toolbar"][aria-label="Bulk actions"]) {
+    padding-bottom: 5.5rem;
+  }
+  @media (min-width: 640px) {
+    .tickets-page:has([role="toolbar"][aria-label="Bulk actions"]) {
+      padding-bottom: 4.5rem;
+    }
+  }
+
+  /* Customers directory: hide filter/sort chip scrollbars if present */
+  .customers-page .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .customers-page .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Touch-friendly nav row */
+  .dash-nav-item {
+    min-height: 2.75rem;
+  }
+  @media (min-width: 1024px) {
+    .dash-nav-item {
+      min-height: 2.25rem;
+    }
+  }
+
+  /* Prevent accidental horizontal page scroll from wide tables/toolbars */
+  .dash-shell,
+  .dash-main,
+  .dash-page {
+    overflow-x: clip;
   }
   .dash-card {
     background: var(--dash-card);

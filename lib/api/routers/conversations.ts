@@ -2,10 +2,11 @@ import { z } from "zod"
 import { eq, and, desc, inArray, isNull, isNotNull, sql } from "drizzle-orm"
 import { TRPCError } from "@trpc/server"
 import { protectedProcedure, router } from "../trpc"
-import { conversations, messages, tickets, customers, users } from "@/lib/db/schema"
+import { conversations, messages, tickets, customers, users, hitlQueue } from "@/lib/db/schema"
 import { db } from "@/lib/db"
 import { notificationQueue } from "@/lib/queue/queues"
 import { insertAgentMessage } from "@/lib/conversations/insert-agent-message"
+import { resolveDashboardCustomerName } from "@/lib/chat/customer-display-name"
 
 type MessageMetadata = NonNullable<typeof messages.$inferInsert.metadata>
 type EmailDeliveryStatus = NonNullable<MessageMetadata["email"]>["deliveryStatus"]
@@ -88,6 +89,7 @@ async function getWorkbenchConversation(orgId: string, id: string) {
       ticketSubject: tickets.subject,
       ticketStatus: tickets.status,
       ticketPriority: tickets.priority,
+      chatDisplayName: conversations.customerDisplayName,
       customerName: customers.name,
       customerEmail: customers.email,
       customerTier: customers.tier,
@@ -128,6 +130,7 @@ export const conversationsRouter = router({
           ticketSubject: tickets.subject,
           ticketStatus: tickets.status,
           ticketPriority: tickets.priority,
+          chatDisplayName: conversations.customerDisplayName,
           customerName: customers.name,
           customerEmail: customers.email,
           customerTier: customers.tier,
@@ -172,7 +175,15 @@ export const conversationsRouter = router({
       }
 
       return {
-        items: page.map((r) => ({ ...r, lastMessage: lastMsgMap.get(r.id) ?? null })),
+        items: page.map((r) => ({
+          ...r,
+          customerName: resolveDashboardCustomerName({
+            channel: r.channel,
+            customerDisplayName: r.chatDisplayName,
+            customerName: r.customerName,
+          }),
+          lastMessage: lastMsgMap.get(r.id) ?? null,
+        })),
         nextOffset: rows.length > input.limit ? input.offset + input.limit : null,
       }
     }),
@@ -201,6 +212,7 @@ export const conversationsRouter = router({
           ticketSubject: tickets.subject,
           ticketStatus: tickets.status,
           ticketPriority: tickets.priority,
+          chatDisplayName: conversations.customerDisplayName,
           customerName: customers.name,
           customerEmail: customers.email,
           customerTier: customers.tier,
@@ -214,6 +226,19 @@ export const conversationsRouter = router({
         .offset(input.offset)
 
       if (rows.length === 0) return []
+
+      const ticketIds = rows.map((r) => r.ticketId)
+      const pendingHitl = await db
+        .select({ ticketId: hitlQueue.ticketId })
+        .from(hitlQueue)
+        .where(
+          and(
+            eq(hitlQueue.orgId, ctx.user.orgId),
+            eq(hitlQueue.status, "pending"),
+            inArray(hitlQueue.ticketId, ticketIds),
+          ),
+        )
+      const pendingTicketIds = new Set(pendingHitl.map((r) => r.ticketId).filter((v): v is string => Boolean(v)))
 
       // Fetch last message per conversation in one query then map.
       // metadata is included so the conversation list can render triage
@@ -241,6 +266,12 @@ export const conversationsRouter = router({
 
       return rows.map((r) => ({
         ...r,
+        customerName: resolveDashboardCustomerName({
+          channel: r.channel,
+          customerDisplayName: r.chatDisplayName,
+          customerName: r.customerName,
+        }),
+        awaitingHumanReview: pendingTicketIds.has(r.ticketId),
         lastMessage: lastMsgMap.get(r.id) ?? null,
       }))
     }),
@@ -263,6 +294,7 @@ export const conversationsRouter = router({
           ticketSubject: tickets.subject,
           ticketStatus: tickets.status,
           ticketPriority: tickets.priority,
+          chatDisplayName: conversations.customerDisplayName,
           customerName: customers.name,
           customerEmail: customers.email,
           customerTier: customers.tier,
@@ -284,6 +316,18 @@ export const conversationsRouter = router({
       const [conv] = rows
       if (!conv) return null
 
+      const [pending] = await db
+        .select({ id: hitlQueue.id })
+        .from(hitlQueue)
+        .where(
+          and(
+            eq(hitlQueue.orgId, ctx.user.orgId),
+            eq(hitlQueue.ticketId, conv.ticketId),
+            eq(hitlQueue.status, "pending"),
+          )
+        )
+        .limit(1)
+
       const msgs = await db
         .select()
         .from(messages)
@@ -300,11 +344,16 @@ export const conversationsRouter = router({
         ticketSubject: conv.ticketSubject,
         ticketStatus: conv.ticketStatus,
         ticketPriority: conv.ticketPriority,
-        customerName: conv.customerName,
+        customerName: resolveDashboardCustomerName({
+          channel: conv.channel,
+          customerDisplayName: conv.chatDisplayName,
+          customerName: conv.customerName,
+        }),
         customerEmail: conv.customerEmail,
         customerTier: conv.customerTier,
         customerCompany: conv.customerCompany,
         customerCsatAvg: conv.customerCsatAvg,
+        awaitingHumanReview: Boolean(pending),
         messages: msgs,
       }
     }),
