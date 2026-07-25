@@ -395,6 +395,33 @@
     }
   }
 
+  /* Tickets queue: hide chrome scrollbars on filter chip rails */
+  .tickets-page .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .tickets-page .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  /* Comfortable bottom inset when the floating bulk bar is up */
+  .tickets-page:has([role="toolbar"][aria-label="Bulk actions"]) {
+    padding-bottom: 5.5rem;
+  }
+  @media (min-width: 640px) {
+    .tickets-page:has([role="toolbar"][aria-label="Bulk actions"]) {
+      padding-bottom: 4.5rem;
+    }
+  }
+
+  /* Customers directory: hide filter/sort chip scrollbars if present */
+  .customers-page .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .customers-page .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Touch-friendly nav row */
   .dash-nav-item {
     min-height: 2.75rem;

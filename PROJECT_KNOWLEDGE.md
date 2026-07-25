@@ -1,6 +1,6 @@
 # v0-advan Project Knowledge
 
-Last updated: 2026-07-25
+Last updated: 2026-07-25 (billing mobile→4K responsive)
 
 Use this file as the first stop for future Codex work in this repo. Keep it concise and update it after meaningful features, fixes, architecture changes, migrations, or command changes.
 
@@ -118,6 +118,16 @@ Use this map before broad exploration:
 - Legal/about/sign-in pages: `app/privacy/page.tsx`, `app/terms/page.tsx`, `app/about/page.tsx`, `app/signin/page.tsx`, `app/signin/forgot/page.tsx`.
 - Dashboard frame/nav/counts: `components/dashboard/dashboard-shell.tsx`, `components/dashboard/sidebar.tsx`, `components/dashboard/topbar.tsx`, `components/dashboard/overview.tsx`.
 - Dashboard responsive frame (mobile → 4K): CSS tokens/utilities in `app/globals.css` (`.dash-shell` vars, `.dash-main`, `.dash-page` max-width centering, `.dash-workbench`). Shell uses mobile drawer with Esc/scroll-lock; conversations uses list↔thread pane switching below `xl`; content caps at ~1600–2048px on ultrawide/4K so layouts do not stretch unreadably.
+- Tickets queue responsive (`app/dashboard/tickets/page.tsx`): below `lg` (1024px) renders a touch-first card stack with always-visible View CTA + mobile sort control; at `lg+` mounts a sticky-header data table (single layout via `useSyncExternalStore` so keyboard row refs stay stable). Subject column truncates with fluid max-widths through `4xl`; channel label collapses to icon-only until `xl`; View link stays visible on touch and fades in on hover-capable pointers. Bulk bar + new-ticket sheet use safe-area insets; `.tickets-page` in `globals.css` hides chip-rail scrollbars and pads when the bulk toolbar is open.
+- Customers directory responsive (`app/dashboard/customers/page.tsx`): below `xl` uses list↔profile pane switching (Back to directory); at `xl+` side-by-side workbench with profile column widening through `3xl`/`4xl`. Directory itself is cards below `lg` and a sticky-header table at `lg+` (company column appears at `xl`). KPI strip is 2→3→5 cols; add-customer modal is a bottom sheet on phones with safe-area padding.
+- Knowledge base responsive (`app/dashboard/knowledge-base/page.tsx`): below `xl` list↔inspector pane switching (Back to sources); at `xl+` split workbench with inspector column scaling through `4xl`. Sources are cards below `lg` and sticky-header table at `lg+`. KPI strip 2→3→6; create/edit/view/delete modals are bottom sheets on mobile with safe-area insets; content preview max-height uses `dvh`.
+- Analytics responsive (`app/dashboard/analytics/page.tsx`): segmented 7d/30d/90d range control; KPI strip 2→3→5; chart heights fluid via `min(vw,…)` then step up through `3xl`/`4xl`; pie/axis margins adapt via `useMediaQuery`; dual Y-axis collapses on phones; triage breakdown stacks 1→2→3 cols; side panels widen on ultrawide.
+- Copilot responsive (`app/dashboard/copilot/page.tsx`): below `xl` conversation list↔detail pane switching (Back to conversations); at `xl+` split context workbench with list column widening through `4xl`. Draft + reasoning stack below `lg`, then side-by-side with reasoning column scaling on ultrawide. Generate bar / edit actions use full-width touch targets on phones; desktop no longer auto-selects a thread until `xl`.
+- Tap Box responsive (`app/dashboard/tap-box/page.tsx`): Pending Reviews stay a single scrollable queue with stacked Approve/Reject and touch-sized controls; Audit Trail uses queue↔detail pane switching below `xl` (Back to decision queue) and a three-column workbench at `xl+` with list/inspector/metadata columns scaling through `4xl`. KPI strip 2→3→5; scrollable tabs; fluid `dvh` decision-list heights; Copy/JSON available on phones.
+- Workflows responsive (`app/dashboard/workflows/page.tsx`): below `xl` registry/logs↔inspector pane switching (Back to registry / execution logs); at `xl+` split workbench with inspector column scaling through `4xl`. KPI strip 2→3→6; registry cards 1→2→3 cols; desktop auto-selects first workflow/run, mobile does not until tap. Create/delete are bottom sheets with safe-area; touch-sized Activate/Copy/Delete and preflight actions.
+- Orchestration builder responsive (`components/pipeline/pipeline-builder.tsx`): below `lg` canvas-first with floating Nodes/Config controls and bottom sheets (safe-area); palette uses tap-to-add (HTML5 DnD kept for desktop). At `lg+` three-column palette/canvas/inspector with column widths scaling through `4xl`. Compact toolbar wrap, MiniMap hidden on phones, fluid `dvh` canvas + trace heights.
+- Integrations responsive (`app/dashboard/integrations/*`): stacked settings cards stay single-column; marketplace grid 1→2→3→4 cols through `4xl`. Team invite/remove are bottom sheets with safe-area; widget key/origins/forms stack on phones with touch targets; long emails/keys use `break-all`; content max-width steps up on ultrawide.
+- Billing responsive (`app/dashboard/billing/page.tsx`): subscription + metering stack below `lg` then 1+2 workbench; plan cards 1→2→3 cols; invoices are touch cards below `lg` and a sticky-feel table at `lg+`; plan-change confirm is a bottom sheet with safe-area; Stripe portal / payment CTAs are full-width on phones.
 - tRPC API shape: `lib/api/root.ts`, `lib/api/trpc.ts`, `app/api/trpc/[trpc]/route.ts`.
 - Auth/session issues: root `auth.ts`, `auth.config.ts`, `lib/auth-server.ts`, `proxy.ts`, `types/next-auth.d.ts`. `lib/auth.ts` is an older localStorage demo helper; do not confuse it with real NextAuth.
 - Database/model changes: `lib/db/schema.ts`, matching `lib/db/migrations/*`, and `lib/db/seed.ts`.
@@ -242,6 +252,7 @@ Dashboard route groups:
 - `/dashboard/workflows`
 - `/dashboard/orchestration`
 - `/dashboard/integrations`
+- `/dashboard/billing`
 
 Dashboard shell:
 
@@ -265,6 +276,7 @@ Tap Box dashboard:
 - It supports decision search, risk filters (`all`, auto-pass, review, blocked), source filters, selectable audit history, refresh, copy trace, and JSON export.
 - The inspector surfaces confidence against the 85% gate, citations, policy checks, hallucination flags, AI input/output, decision metadata, and links to Copilot, Analytics, and Knowledge Base.
 - Empty, loading, and error states are handled directly in the page; the prior non-functional filter button was removed.
+- Responsive: below `xl`, audit queue and inspector/metadata use single-pane switching; at `xl+` sticky three-column workbench. HITL approve/reject are full-width on phones.
 
 Customers dashboard:
 
@@ -289,6 +301,7 @@ Workflows dashboard:
 - Workflow validation lives in `lib/workflows/analyzer.ts`; lifecycle run/activation policy lives in `lib/workflows/lifecycle.ts`, with focused Vitest coverage.
 - `orchestration.getWorkflows` returns each workflow with analysis. Router lifecycle procedures now include `validateWorkflow`, `setWorkflowActive`, `duplicateWorkflow`, `deleteWorkflow`, `preflightPipeline`, and guarded `runPipeline`.
 - Dashboard "Run preflight" compiles and validates without Temporal. "Start durable run" uses Temporal and now returns a clear `SERVICE_UNAVAILABLE` message if the durable runner is offline.
+- Responsive: below `xl`, list↔inspector pane switching for both registry and execution logs; at `xl+` side-by-side workbench. Create/delete modals are mobile bottom sheets.
 
 Orchestration builder:
 
@@ -298,6 +311,7 @@ Orchestration builder:
 - Wire editing supports edge selection, detach, endpoint drag-reconnect, selected-wire body drag-to-block reconnect, inspector dropdown reassignment for source/target blocks, and select-wire-then-click-target-block reassignment. Knowledge Retrieval intentionally accepts `any` input so users can wire either raw message context or detected intent into retrieval.
 - `orchestration.saveWorkflow` saves invalid in-progress graphs as inactive drafts instead of returning 400; activation/run paths remain guarded by deployability checks.
 - Focused tests cover connection validation plus workflow analyzer/lifecycle policy.
+- Responsive: below `lg`, canvas-first with Nodes/Config bottom sheets and tap-to-add palette; at `lg+` three-column builder with palette/inspector columns scaling through `4xl`.
 
 ## API and Data Model
 

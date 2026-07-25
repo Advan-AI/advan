@@ -62,9 +62,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     api.createClient({
       links: [
         loggerLink({
-          enabled: (opts) =>
-            process.env.NODE_ENV === "development" ||
-            (opts.direction === "down" && opts.result instanceof Error),
+          enabled: (opts) => {
+            // Keep logger output local-only. In production, rely on server logs and
+            // explicit UI error states instead of browser console noise.
+            if (process.env.NODE_ENV !== "development") return false
+            return opts.direction === "up" || (opts.direction === "down" && opts.result instanceof Error)
+          },
         }),
         httpBatchLink({
           url: getTrpcUrl(),

@@ -55,7 +55,7 @@ export function PipelineInspector() {
         <button
           type="button"
           onClick={() => deleteEdge(edge.id)}
-          className="mt-3 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border dash-border bg-white text-[12px] font-bold text-[var(--dash-rose)] transition hover:dash-shadow-sm"
+          className="mt-3 inline-flex min-h-11 h-11 sm:h-9 w-full items-center justify-center gap-1.5 rounded-lg border dash-border bg-white text-[12px] font-bold text-[var(--dash-rose)] transition hover:dash-shadow-sm"
         >
           <Trash2 className="h-3.5 w-3.5" />
           Detach wire
@@ -87,7 +87,7 @@ export function PipelineInspector() {
         <button
           type="button"
           onClick={() => duplicateNode(node.id)}
-          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border dash-border bg-white text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm"
+          className="inline-flex min-h-11 h-11 sm:h-8 items-center justify-center gap-1 rounded-lg border dash-border bg-white text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm"
         >
           <Copy className="h-3.5 w-3.5" />
           Copy
@@ -95,7 +95,7 @@ export function PipelineInspector() {
         <button
           type="button"
           onClick={() => deleteNode(node.id)}
-          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border dash-border bg-white text-[11.5px] font-bold text-[var(--dash-rose)] transition hover:dash-shadow-sm"
+          className="inline-flex min-h-11 h-11 sm:h-8 items-center justify-center gap-1 rounded-lg border dash-border bg-white text-[11.5px] font-bold text-[var(--dash-rose)] transition hover:dash-shadow-sm"
         >
           <Trash2 className="h-3.5 w-3.5" />
           Delete
@@ -138,7 +138,7 @@ function WireSelect({
         id={`wire-${label}`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-8 w-full rounded-lg border dash-border bg-white px-2 text-[12px] font-bold text-[var(--dash-ink)] outline-none focus:border-[var(--dash-accent)]"
+        className="mt-1 h-11 sm:h-8 w-full rounded-lg border dash-border bg-white px-2 text-[12px] font-bold text-[var(--dash-ink)] outline-none focus:border-[var(--dash-accent)]"
       >
         {nodes.map((node) => (
           <option key={node.id} value={node.id}>
@@ -172,7 +172,7 @@ function Field({
   )
 
   const base =
-    "w-full h-8 px-2.5 rounded-lg border dash-border bg-white text-[12.5px] text-[var(--dash-ink)] outline-none focus:border-[var(--dash-accent)]"
+    "w-full h-11 sm:h-8 px-2.5 rounded-lg border dash-border bg-white text-[12.5px] text-[var(--dash-ink)] outline-none focus:border-[var(--dash-accent)]"
 
   if (kind.type === "enum") {
     return (
@@ -204,8 +204,8 @@ function Field({
 
   if (kind.type === "boolean") {
     return (
-      <label className="flex items-center gap-2 text-[12.5px] text-[var(--dash-ink)]">
-        <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
+      <label className="flex min-h-11 items-center gap-2 text-[12.5px] text-[var(--dash-ink)]">
+        <input type="checkbox" className="h-4 w-4" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
         {label}
       </label>
     )

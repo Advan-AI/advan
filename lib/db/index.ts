@@ -9,10 +9,19 @@ import * as schema from './schema';
  */
 
 const connectionString = process.env.DATABASE_URL!;
-const maxConnections = process.env.DB_MAX_CONNECTIONS ? parseInt(process.env.DB_MAX_CONNECTIONS) : undefined;
+const maxConnections = process.env.DB_MAX_CONNECTIONS
+  ? parseInt(process.env.DB_MAX_CONNECTIONS, 10)
+  : 5;
 
-// Disable prefetch as it is not supported for "Transaction" mode in Supabase/Neon
-const client = postgres(connectionString, { prepare: false, max: maxConnections });
+// Disable prefetch as it is not supported for "Transaction" mode in Supabase/Neon.
+// Keep the pool small: Next.js + workers share the same Supabase pooler quota.
+const client = postgres(connectionString, {
+  prepare: false,
+  max: Number.isFinite(maxConnections) && maxConnections > 0 ? maxConnections : 5,
+  idle_timeout: 20,
+  connect_timeout: 15,
+  max_lifetime: 60 * 30,
+});
 
 export const db = drizzle(client, { schema });
 

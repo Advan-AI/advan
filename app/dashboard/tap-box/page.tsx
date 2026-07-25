@@ -1,11 +1,12 @@
 "use client"
 
-import { type ReactNode, useEffect, useMemo, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
 import {
   AlertTriangle,
+  ArrowLeft,
   BookOpen,
   Box,
   CheckCircle2,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react"
 import { DashCard, DashPageHeader } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
+import { getSafeClientErrorMessage } from "@/lib/api/safe-client-error"
 import { cn } from "@/lib/utils"
 import { useSession } from "next-auth/react"
 import * as SocketIO from "socket.io-client"
@@ -113,11 +115,45 @@ type SourceFilter = "all" | "sourced" | "unsourced"
 type OriginFilter = "all" | "auto_triage" | "manual"
 
 const CONFIDENCE_GATE = 85
+const WORKBENCH_MQ = "(min-width: 1280px)"
+
+type MobilePane = "queue" | "detail"
+
+function subscribeMq(query: string, onChange: () => void) {
+  const mql = window.matchMedia(query)
+  mql.addEventListener("change", onChange)
+  return () => mql.removeEventListener("change", onChange)
+}
+
+function useMediaQuery(query: string, serverSnapshot = false) {
+  return useSyncExternalStore(
+    (onChange) => subscribeMq(query, onChange),
+    () => window.matchMedia(query).matches,
+    () => serverSnapshot,
+  )
+}
+
+function getTapBoxAuditErrorMessage(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "data" in error &&
+    (error as { data?: { code?: string } }).data?.code === "UNAUTHORIZED"
+  ) {
+    return "Session not available for analytics API. If frontend and API are on different domains, configure shared auth/cookie or use a same-origin API proxy."
+  }
+
+  return getSafeClientErrorMessage(
+    error,
+    "Unable to load audit logs right now. Please retry in a moment."
+  )
+}
 
 export default function TapBoxPage() {
   const utils = api.useUtils()
   const { data: session } = useSession()
   const orgId = session?.user?.orgId
+  const isWorkbench = useMediaQuery(WORKBENCH_MQ)
 
   useEffect(() => {
     if (!orgId) return
@@ -149,6 +185,7 @@ export default function TapBoxPage() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all")
   const [originFilter, setOriginFilter] = useState<OriginFilter>("all")
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [mobilePane, setMobilePane] = useState<MobilePane>("queue")
   const [ringValue, setRingValue] = useState(0)
   const [editingHitl, setEditingHitl] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<"pending" | "audits">("pending")
@@ -263,11 +300,21 @@ export default function TapBoxPage() {
   }, [filteredLogs, selectedId])
 
   useEffect(() => {
+    if (isWorkbench) setMobilePane("queue")
+  }, [isWorkbench])
+
+  useEffect(() => {
     setRingValue(0)
     if (!open || !selectedLog) return
     const id = window.setTimeout(() => setRingValue(confidence), 100)
     return () => window.clearTimeout(id)
   }, [open, selectedLog, confidence])
+
+  function selectDecision(id: string) {
+    setSelectedId(id)
+    setOpen(true)
+    if (!isWorkbench) setMobilePane("detail")
+  }
 
   async function refresh() {
     await utils.analytics.auditLogs.invalidate()
@@ -297,7 +344,7 @@ export default function TapBoxPage() {
   }
 
   return (
-    <div>
+    <div className="tap-box-page min-w-0 w-full max-w-full">
       <DashPageHeader
         eyebrow="AI Transparency"
         title="Tap Box"
@@ -308,40 +355,42 @@ export default function TapBoxPage() {
               type="button"
               onClick={refresh}
               disabled={logsQuery.isFetching}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border dash-border bg-[var(--dash-card)] px-3.5 text-[13px] font-semibold text-[var(--dash-ink-soft)] transition hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-10 h-10 sm:h-9 flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg border dash-border bg-[var(--dash-card)] px-3 sm:px-3.5 text-[13px] font-semibold text-[var(--dash-ink-soft)] transition hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <RefreshCw className={cn("h-4 w-4", logsQuery.isFetching && "animate-spin")} />
-              Refresh
+              <RefreshCw className={cn("h-4 w-4 shrink-0", logsQuery.isFetching && "animate-spin")} />
+              <span className="truncate">Refresh</span>
             </button>
             <Link
               href="/dashboard/copilot"
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] transition hover:-translate-y-px"
+              className="inline-flex min-h-10 h-10 sm:h-9 flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-3.5 sm:px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_-10px_rgba(107,92,214,0.6)] transition hover:-translate-y-px"
             >
-              <Sparkles className="h-4 w-4" />
-              Open Copilot
+              <Sparkles className="h-4 w-4 shrink-0" />
+              <span className="truncate sm:hidden">Copilot</span>
+              <span className="hidden sm:inline truncate">Open Copilot</span>
             </Link>
           </>
         }
       />
 
-      {/* ── Tabs Selector ── */}
-      <div className="mb-5 flex border-b border-[var(--dash-bg-deep)]">
+      {/* Tabs */}
+      <div className="mb-4 sm:mb-5 flex overflow-x-auto overscroll-x-contain border-b border-[var(--dash-bg-deep)] -mx-1 px-1 scrollbar-none">
         <button
           onClick={() => setActiveTab("pending")}
           className={cn(
-            "flex items-center gap-2 border-b-2 px-4 py-3 text-[13px] font-bold transition-all duration-200 outline-none",
+            "flex items-center gap-2 border-b-2 px-3 sm:px-4 py-3 text-[12.5px] sm:text-[13px] font-bold transition-all duration-200 outline-none whitespace-nowrap shrink-0 min-h-11",
             activeTab === "pending"
               ? "border-[var(--dash-accent)] text-[var(--dash-accent-deep)]"
               : "border-transparent text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)]"
           )}
         >
-          <Inbox className="h-4 w-4" />
-          Pending Reviews
+          <Inbox className="h-4 w-4 shrink-0" />
+          <span className="sm:hidden">Reviews</span>
+          <span className="hidden sm:inline">Pending Reviews</span>
           {hitlItems.length > 0 && (
             <span className={cn(
-              "ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-extrabold leading-none",
-              complaintCount > 0 
-                ? "bg-[var(--dash-rose-wash)] text-[var(--dash-rose)]" 
+              "ml-0.5 sm:ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-extrabold leading-none",
+              complaintCount > 0
+                ? "bg-[var(--dash-rose-wash)] text-[var(--dash-rose)]"
                 : "bg-[var(--dash-amber-wash)] text-[var(--dash-amber)]"
             )}>
               {hitlItems.length}
@@ -351,15 +400,16 @@ export default function TapBoxPage() {
         <button
           onClick={() => setActiveTab("audits")}
           className={cn(
-            "flex items-center gap-2 border-b-2 px-4 py-3 text-[13px] font-bold transition-all duration-200 outline-none",
+            "flex items-center gap-2 border-b-2 px-3 sm:px-4 py-3 text-[12.5px] sm:text-[13px] font-bold transition-all duration-200 outline-none whitespace-nowrap shrink-0 min-h-11",
             activeTab === "audits"
               ? "border-[var(--dash-accent)] text-[var(--dash-accent-deep)]"
               : "border-transparent text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink-soft)]"
           )}
         >
-          <History className="h-4 w-4" />
-          Audit Trail &amp; Telemetry
-          <span className="ml-1.5 rounded-full bg-[var(--dash-bg)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--dash-ink-faint)] leading-none">
+          <History className="h-4 w-4 shrink-0" />
+          <span className="sm:hidden">Audits</span>
+          <span className="hidden sm:inline">Audit Trail &amp; Telemetry</span>
+          <span className="ml-0.5 sm:ml-1.5 rounded-full bg-[var(--dash-bg)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--dash-ink-faint)] leading-none">
             {stats.total}
           </span>
         </button>
@@ -374,22 +424,20 @@ export default function TapBoxPage() {
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.25, ease: "easeInOut" }}
           >
-            {/* Explanatory Context Card */}
-            <div className="mb-4 rounded-xl border border-[var(--dash-line)] bg-gradient-to-br from-[#FEFDFB] to-[#F8F5ED] p-4.5 shadow-sm">
-              <div className="flex items-start gap-3.5">
+            <div className="mb-4 rounded-xl border border-[var(--dash-line)] bg-gradient-to-br from-[#FEFDFB] to-[#F8F5ED] p-3.5 sm:p-4.5 shadow-sm">
+              <div className="flex items-start gap-3 sm:gap-3.5">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]">
                   <Sparkles className="h-5 w-5" />
                 </div>
-                <div>
-                  <h4 className="text-[13.5px] font-bold text-[var(--dash-ink)]">Human-in-the-Loop (HITL) Governance Center</h4>
+                <div className="min-w-0">
+                  <h4 className="text-[13px] sm:text-[13.5px] font-bold text-[var(--dash-ink)]">Human-in-the-Loop (HITL) Governance Center</h4>
                   <p className="mt-1 text-[12px] leading-relaxed text-[var(--dash-ink-soft)]">
-                    Advan's AI triage backend routes customer tickets here when automated drafts trigger safety risks. This includes messages classified as high-severity <span className="font-semibold text-[var(--dash-rose)]">customer complaints</span>, violation of guardrail policy rules, or text confidence scores falling below the minimum <span className="font-semibold text-[var(--dash-accent-deep)]">{CONFIDENCE_GATE}% production gate</span>. Review, adjust, and authorize these replies before they send.
+                    Advan&apos;s AI triage backend routes customer tickets here when automated drafts trigger safety risks. This includes messages classified as high-severity <span className="font-semibold text-[var(--dash-rose)]">customer complaints</span>, violation of guardrail policy rules, or text confidence scores falling below the minimum <span className="font-semibold text-[var(--dash-accent-deep)]">{CONFIDENCE_GATE}% production gate</span>. Review, adjust, and authorize these replies before they send.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* ── Review Queue ── */}
             <DashCard
               title="Review queue"
               icon={<Inbox className="h-[18px] w-[18px]" />}
@@ -409,11 +457,11 @@ export default function TapBoxPage() {
               padded={false}
             >
               {hitlQuery.isLoading ? (
-                <div className="p-4 space-y-2">
+                <div className="p-3 sm:p-4 space-y-2">
                   {[1, 2, 3].map((i) => <div key={i} className="skeleton h-24 rounded-xl" />)}
                 </div>
               ) : hitlItems.length === 0 ? (
-                <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 p-8 text-center">
+                <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 p-6 sm:p-8 text-center">
                   <CheckCircle2 className="h-9 w-9 text-[var(--dash-sage)] opacity-80" />
                   <div className="text-[13.5px] font-bold text-[var(--dash-ink)]">All pending reviews resolved</div>
                   <p className="max-w-md text-[12px] leading-relaxed text-[var(--dash-ink-faint)]">
@@ -430,7 +478,7 @@ export default function TapBoxPage() {
                       <div
                         key={item.id}
                         className={cn(
-                          "p-4 transition",
+                          "p-3.5 sm:p-4 transition",
                           isComplaint
                             ? "bg-[var(--dash-rose-wash)] border-l-4 border-[var(--dash-rose)]"
                             : item.priority === "low_confidence"
@@ -455,7 +503,7 @@ export default function TapBoxPage() {
                           )}
                           {item.classificationMetadata?.draftConfidence != null && (
                             <span className={cn(
-                              "ml-auto rounded-md px-1.5 py-0.5 text-[10px] font-bold",
+                              "rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
                               (item.classificationMetadata.draftConfidence ?? 0) >= 85
                                 ? "bg-[var(--dash-sage-wash)] text-[var(--dash-sage)]"
                                 : "bg-[var(--dash-amber-wash)] text-[var(--dash-amber)]"
@@ -463,18 +511,18 @@ export default function TapBoxPage() {
                               {item.classificationMetadata.draftConfidence}% conf
                             </span>
                           )}
-                          <span className="flex items-center gap-1 text-[10.5px] text-[var(--dash-ink-faint)]">
-                            <Clock className="h-3 w-3" />
+                          <span className="ml-auto flex items-center gap-1 text-[10.5px] text-[var(--dash-ink-faint)] tabular-nums">
+                            <Clock className="h-3 w-3 shrink-0" />
                             {new Date(item.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                           </span>
                         </div>
 
                         {item.reason && (
-                          <p className="mb-2 text-[12px] italic text-[var(--dash-ink-soft)]">{item.reason}</p>
+                          <p className="mb-2 text-[12px] italic text-[var(--dash-ink-soft)] break-words">{item.reason}</p>
                         )}
 
                         {item.classificationMetadata?.reasoning && isComplaint && (
-                          <div className="mb-2 rounded-lg border border-[#F0CBCB] bg-white/60 px-3 py-2 text-[11.5px] leading-5 text-[#7a3535]">
+                          <div className="mb-2 rounded-lg border border-[#F0CBCB] bg-white/60 px-3 py-2 text-[11.5px] leading-5 text-[#7a3535] break-words">
                             <span className="font-bold">Classifier reasoning:</span> {item.classificationMetadata.reasoning}
                           </div>
                         )}
@@ -485,16 +533,16 @@ export default function TapBoxPage() {
                             value={editedText}
                             onChange={(e) => setEditingHitl((prev) => ({ ...prev, [item.id]: e.target.value }))}
                             rows={4}
-                            className="w-full resize-none rounded-lg border dash-border bg-white px-3 py-2 text-[12.5px] leading-5 text-[var(--dash-ink)] outline-none transition focus:border-[var(--dash-accent)] focus:ring-2 focus:ring-[var(--dash-accent-wash)]"
+                            className="w-full min-h-[6.5rem] resize-y sm:resize-none rounded-lg border dash-border bg-white px-3 py-2.5 text-[12.5px] leading-5 text-[var(--dash-ink)] outline-none transition focus:border-[var(--dash-accent)] focus:ring-2 focus:ring-[var(--dash-accent-wash)]"
                           />
                         </div>
 
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2">
                           <button
                             type="button"
                             disabled={isPending}
                             onClick={() => rejectHitl.mutate({ hitlId: item.id })}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-lg border dash-border bg-white px-3 text-[12px] font-semibold text-[var(--dash-rose)] transition hover:dash-shadow-sm disabled:opacity-50"
+                            className="inline-flex min-h-11 h-11 sm:h-9 items-center justify-center gap-1.5 rounded-lg border dash-border bg-white px-3 text-[12px] font-semibold text-[var(--dash-rose)] transition hover:dash-shadow-sm disabled:opacity-50"
                           >
                             <ThumbsDown className="h-3.5 w-3.5" /> Reject
                           </button>
@@ -502,7 +550,7 @@ export default function TapBoxPage() {
                             type="button"
                             disabled={isPending || !editedText.trim()}
                             onClick={() => approveHitl.mutate({ hitlId: item.id, finalText: editedText })}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-3 text-[12px] font-semibold text-white shadow-[0_8px_20px_-10px_rgba(107,92,214,0.6)] transition hover:-translate-y-px disabled:translate-y-0 disabled:opacity-50"
+                            className="inline-flex min-h-11 h-11 sm:h-9 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-3 text-[12px] font-semibold text-white shadow-[0_8px_20px_-10px_rgba(107,92,214,0.6)] transition hover:-translate-y-px disabled:translate-y-0 disabled:opacity-50"
                           >
                             {approveHitl.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                             Approve &amp; Send
@@ -523,26 +571,41 @@ export default function TapBoxPage() {
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.25, ease: "easeInOut" }}
           >
-            {/* Stat Cards Grid */}
-            <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <div className="mb-4 grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3 xl:grid-cols-5 3xl:gap-4">
               <StatCard label="Decisions" value={stats.total} icon={<History className="h-4 w-4" />} />
               <StatCard label="Avg confidence" value={`${stats.avgConfidence}%`} icon={<ShieldCheck className="h-4 w-4" />} tone={stats.avgConfidence >= CONFIDENCE_GATE ? "sage" : "amber"} />
               <StatCard label="Source cited" value={`${stats.sourced}/${stats.total}`} icon={<BookOpen className="h-4 w-4" />} />
               <StatCard label="Needs review" value={stats.review} icon={<AlertTriangle className="h-4 w-4" />} tone={stats.review ? "amber" : "sage"} />
-              <StatCard label="Blocked" value={stats.blocked} icon={<ShieldAlert className="h-4 w-4" />} tone={stats.blocked ? "rose" : "sage"} />
+              <div className="col-span-2 sm:col-span-1">
+                <StatCard label="Blocked" value={stats.blocked} icon={<ShieldAlert className="h-4 w-4" />} tone={stats.blocked ? "rose" : "sage"} />
+              </div>
             </div>
 
-            {/* Decision Queue and Inspector Grid */}
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[390px_minmax(0,1fr)_320px]">
+            {!isWorkbench && mobilePane === "detail" && (
+              <button
+                type="button"
+                onClick={() => setMobilePane("queue")}
+                className="mb-3 inline-flex items-center gap-1.5 self-start min-h-10 px-2 -ml-1 rounded-lg text-[13px] font-semibold text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)] transition"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to decision queue
+              </button>
+            )}
+
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-[minmax(18rem,23rem)_minmax(0,1fr)] 2xl:grid-cols-[minmax(18rem,23rem)_minmax(0,1fr)_minmax(17rem,21rem)] 3xl:grid-cols-[minmax(19rem,24rem)_minmax(0,1fr)_minmax(18rem,22rem)] 4xl:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)_minmax(19rem,24rem)] items-start">
+              {/* Queue */}
               <DashCard
                 title="Decision queue"
                 icon={<Filter className="h-[18px] w-[18px]" />}
                 right={
-                  <span className="rounded-md bg-[var(--dash-bg)] px-2 py-1 text-[10.5px] font-bold text-[var(--dash-ink-faint)]">
+                  <span className="rounded-md bg-[var(--dash-bg)] px-2 py-1 text-[10.5px] font-bold text-[var(--dash-ink-faint)] tabular-nums">
                     {filteredLogs.length} shown
                   </span>
                 }
-                className="xl:sticky xl:top-5 xl:max-h-[calc(100vh-112px)]"
+                className={cn(
+                  isWorkbench || mobilePane === "queue" ? "min-w-0" : "hidden",
+                  "xl:block xl:sticky xl:top-5 xl:max-h-[calc(100dvh-7rem)]",
+                )}
                 padded={false}
               >
                 <div className="border-b dash-border-soft p-3">
@@ -551,8 +614,9 @@ export default function TapBoxPage() {
                     <input
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
-                      placeholder="Search inputs, outputs, sources..."
-                      className="h-10 w-full rounded-lg border dash-border bg-white pl-9 pr-3 text-[13px] text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
+                      placeholder="Search inputs, outputs, sources…"
+                      aria-label="Search audit decisions"
+                      className="h-11 sm:h-10 w-full rounded-lg border dash-border bg-white pl-9 pr-3 text-[13px] text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
                     />
                   </label>
                   <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -575,14 +639,14 @@ export default function TapBoxPage() {
                   </div>
                 </div>
 
-                <div className="max-h-[620px] overflow-y-auto p-2">
+                <div className="max-h-[min(55dvh,28rem)] xl:max-h-[min(70dvh,38rem)] 3xl:max-h-[min(72dvh,42rem)] overflow-y-auto overscroll-contain p-2">
                   {logsQuery.isLoading ? (
                     <DecisionSkeleton />
                   ) : logsQuery.isError ? (
                     <StateMessage
                       icon={<XCircle className="h-5 w-5" />}
                       title="Audit trail unavailable"
-                      body={logsQuery.error.message}
+                      body={getTapBoxAuditErrorMessage(logsQuery.error)}
                     />
                   ) : filteredLogs.length === 0 ? (
                     <StateMessage
@@ -597,7 +661,7 @@ export default function TapBoxPage() {
                           key={log.id}
                           log={log}
                           active={selectedLog?.id === log.id}
-                          onSelect={() => setSelectedId(log.id)}
+                          onSelect={() => selectDecision(log.id)}
                         />
                       ))}
                     </div>
@@ -605,9 +669,13 @@ export default function TapBoxPage() {
                 </div>
               </DashCard>
 
-              <div className="min-w-0 rounded-2xl border dash-border bg-gradient-to-b from-white/95 to-[#F8F5ED]/95 shadow-[0_24px_80px_-50px_rgba(38,35,28,0.55)] backdrop-blur">
-                <div className="flex items-center gap-2.5 border-b dash-border-soft px-4 py-3.5" style={{ background: "linear-gradient(135deg, rgba(236,233,251,.7), transparent)" }}>
-                  <div className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6]">
+              {/* Inspector */}
+              <div className={cn(
+                isWorkbench || mobilePane === "detail" ? "min-w-0" : "hidden",
+                "xl:block rounded-2xl border dash-border bg-gradient-to-b from-white/95 to-[#F8F5ED]/95 shadow-[0_24px_80px_-50px_rgba(38,35,28,0.55)] backdrop-blur",
+              )}>
+                <div className="flex items-center gap-2.5 border-b dash-border-soft px-3 sm:px-4 py-3 sm:py-3.5" style={{ background: "linear-gradient(135deg, rgba(236,233,251,.7), transparent)" }}>
+                  <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6]">
                     <Box className="h-[16px] w-[16px] text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -620,25 +688,27 @@ export default function TapBoxPage() {
                     type="button"
                     onClick={copyDecision}
                     disabled={!selectedLog}
-                    className="hidden h-8 items-center gap-1.5 rounded-md border dash-border bg-white px-2.5 text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] disabled:opacity-50 sm:inline-flex"
+                    aria-label="Copy decision trace"
+                    className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-md border dash-border bg-white px-2 sm:px-2.5 text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] disabled:opacity-50"
                   >
                     <Clipboard className="h-3.5 w-3.5" />
-                    Copy
+                    <span className="hidden md:inline">Copy</span>
                   </button>
                   <button
                     type="button"
                     onClick={exportDecision}
                     disabled={!selectedLog}
-                    className="hidden h-8 items-center gap-1.5 rounded-md border dash-border bg-white px-2.5 text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] disabled:opacity-50 sm:inline-flex"
+                    aria-label="Export audit JSON"
+                    className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-md border dash-border bg-white px-2 sm:px-2.5 text-[11.5px] font-bold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] disabled:opacity-50"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    JSON
+                    <span className="hidden md:inline">JSON</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setOpen((value) => !value)}
                     aria-expanded={open}
-                    className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--dash-ink-faint)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)]"
+                    className="flex min-h-9 min-w-9 h-9 w-9 items-center justify-center rounded-md text-[var(--dash-ink-faint)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)]"
                   >
                     <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
                   </button>
@@ -654,7 +724,7 @@ export default function TapBoxPage() {
                       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
                       className="overflow-hidden"
                     >
-                      <div className="p-4 sm:p-5">
+                      <div className="p-3.5 sm:p-4 md:p-5">
                         {logsQuery.isLoading ? (
                           <div className="space-y-3">
                             <div className="skeleton h-28 w-full rounded-xl" />
@@ -670,8 +740,8 @@ export default function TapBoxPage() {
                           />
                         ) : (
                           <div className="space-y-4">
-                            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-                              <div className="flex items-center gap-4 rounded-xl border dash-border-soft bg-white p-4">
+                            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,14rem)]">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-xl border dash-border-soft bg-white p-3.5 sm:p-4">
                                 <ConfidenceRing value={ringValue} />
                                 <div className="min-w-0 flex-1">
                                   <StatusPill blocked={blocked} needsReview={needsHumanReview} />
@@ -708,7 +778,7 @@ export default function TapBoxPage() {
                               {hallucinationFlags.map((flag, index) => (
                                 <div key={`${flag}-${index}`} className="flex items-start gap-2 rounded-lg border border-[#F0CBCB] bg-[var(--dash-rose-wash)] px-3 py-2 text-[12px] leading-5 text-[#8a3e3e]">
                                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                  <span>{flag}</span>
+                                  <span className="min-w-0 break-words">{flag}</span>
                                 </div>
                               ))}
                             </Section>
@@ -727,7 +797,11 @@ export default function TapBoxPage() {
                 </AnimatePresence>
               </div>
 
-              <div className="flex flex-col gap-4">
+              {/* Metadata + actions — under inspector on mobile detail, side column on xl+ */}
+              <div className={cn(
+                isWorkbench || mobilePane === "detail" ? "flex" : "hidden",
+                "xl:flex xl:col-span-2 2xl:col-span-1 flex-col gap-3 sm:gap-4 min-w-0",
+              )}>
                 <DashCard title="Decision metadata" icon={<ShieldCheck className="h-[18px] w-[18px]" />}>
                   {logsQuery.isLoading ? (
                     <div className="space-y-2">
@@ -758,26 +832,26 @@ export default function TapBoxPage() {
                       type="button"
                       onClick={copyDecision}
                       disabled={!selectedLog}
-                      className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-left text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex w-full min-h-11 sm:min-h-10 items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2.5 text-left text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <Clipboard className="h-4 w-4" />
+                      <Clipboard className="h-4 w-4 shrink-0" />
                       Copy full trace
                     </button>
                     <button
                       type="button"
                       onClick={exportDecision}
                       disabled={!selectedLog}
-                      className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-left text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex w-full min-h-11 sm:min-h-10 items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2.5 text-left text-[12.5px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)] hover:dash-shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <Download className="h-4 w-4" />
+                      <Download className="h-4 w-4 shrink-0" />
                       Export audit JSON
                     </button>
-                    <Link href="/dashboard/analytics" className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-[12.5px] font-semibold text-[var(--dash-accent-deep)] transition hover:dash-shadow-sm">
-                      <ExternalLink className="h-4 w-4" />
+                    <Link href="/dashboard/analytics" className="flex w-full min-h-11 sm:min-h-10 items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2.5 text-[12.5px] font-semibold text-[var(--dash-accent-deep)] transition hover:dash-shadow-sm">
+                      <ExternalLink className="h-4 w-4 shrink-0" />
                       Open analytics
                     </Link>
-                    <Link href="/dashboard/knowledge-base" className="flex w-full items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2 text-[12.5px] font-semibold text-[var(--dash-accent-deep)] transition hover:dash-shadow-sm">
-                      <BookOpen className="h-4 w-4" />
+                    <Link href="/dashboard/knowledge-base" className="flex w-full min-h-11 sm:min-h-10 items-center gap-2 rounded-lg border dash-border bg-white px-3 py-2.5 text-[12.5px] font-semibold text-[var(--dash-accent-deep)] transition hover:dash-shadow-sm">
+                      <BookOpen className="h-4 w-4 shrink-0" />
                       Manage sources
                     </Link>
                   </div>
@@ -864,7 +938,7 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9 w-full rounded-lg border dash-border bg-white px-2.5 text-[12px] font-semibold text-[var(--dash-ink-soft)] outline-none transition focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
+        className="h-11 sm:h-9 w-full rounded-lg border dash-border bg-white px-2.5 text-[12px] font-semibold text-[var(--dash-ink-soft)] outline-none transition focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
       >
         {options.map(([optionValue, optionLabel]) => (
           <option key={optionValue} value={optionValue}>
@@ -886,7 +960,7 @@ function DecisionListItem({ log, active, onSelect }: { log: AuditLog; active: bo
       type="button"
       onClick={onSelect}
       className={cn(
-        "w-full rounded-xl border p-3 text-left transition",
+        "w-full min-h-[4.5rem] rounded-xl border p-3 text-left transition",
         active
           ? "border-[#9D91EA] bg-[#F6F4FF] shadow-[0_14px_30px_-24px_rgba(78,63,182,.75)]"
           : "border-transparent bg-white hover:border-[var(--dash-line)] hover:shadow-[0_12px_26px_-24px_rgba(38,35,28,.65)]",

@@ -2,13 +2,13 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Loader2, Plus, Trash2, Users, Lock, UserPlus } from "lucide-react"
+import { Loader2, Plus, Trash2, Users, Lock, UserPlus, X } from "lucide-react"
 import { DashCard } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
 import { useBillingRestriction } from "@/hooks/use-billing-restriction"
 
 const FIELD =
-  "h-10 w-full rounded-lg border dash-border bg-white px-3 text-[13px] text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
+  "h-11 sm:h-10 w-full rounded-lg border dash-border bg-white px-3 text-[13px] text-[var(--dash-ink)] outline-none transition placeholder:text-[var(--dash-ink-faint)] focus:border-[#9D91EA] focus:ring-2 focus:ring-[#6B5CD6]/15"
 
 const ROLES = ["admin", "member", "viewer"] as const
 type Role = (typeof ROLES)[number]
@@ -74,10 +74,11 @@ export function TeamSettings() {
               setOpen(true)
             }
           }}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-3 text-[12.5px] font-semibold text-white transition hover:-translate-y-px disabled:from-gray-400 disabled:to-gray-500 disabled:shadow-none disabled:cursor-not-allowed disabled:opacity-70"
+          className="inline-flex min-h-9 h-9 sm:h-8 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-2.5 sm:px-3 text-[12px] sm:text-[12.5px] font-semibold text-white transition hover:-translate-y-px disabled:from-gray-400 disabled:to-gray-500 disabled:shadow-none disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {isRestricted ? <Lock className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
-          Invite member
+          {isRestricted ? <Lock className="h-3.5 w-3.5 shrink-0" /> : <UserPlus className="h-3.5 w-3.5 shrink-0" />}
+          <span className="sm:hidden">Invite</span>
+          <span className="hidden sm:inline">Invite member</span>
         </button>
       }
     >
@@ -88,24 +89,24 @@ export function TeamSettings() {
       ) : !members?.length ? (
         <p className="py-6 text-center text-[13px] text-[var(--dash-ink-faint)]">No team members yet.</p>
       ) : (
-        <div className="divide-y dash-border-soft">
+        <div className="divide-y dash-border-soft -mx-1">
           {members.map((m) => (
-            <div key={m.id} className="flex items-center gap-3 py-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#ECE9FB] text-[13px] font-bold text-[var(--dash-accent-deep)]">
+            <div key={m.id} className="flex items-center gap-2.5 sm:gap-3 py-3 px-1 min-w-0">
+              <div className="flex h-9 w-9 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg bg-[#ECE9FB] text-[13px] font-bold text-[var(--dash-accent-deep)]">
                 {m.name?.charAt(0).toUpperCase() ?? "?"}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold text-[var(--dash-ink)]">{m.name}</div>
                 <div className="truncate text-[11.5px] text-[var(--dash-ink-faint)]">{m.email}</div>
               </div>
-              <span className="rounded-md bg-[var(--dash-bg)] px-2 py-0.5 text-[11px] font-bold capitalize text-[var(--dash-ink-soft)]">
+              <span className="shrink-0 rounded-md bg-[var(--dash-bg)] px-2 py-0.5 text-[10.5px] sm:text-[11px] font-bold capitalize text-[var(--dash-ink-soft)]">
                 {m.role}
               </span>
               <button
                 type="button"
                 onClick={() => setRemoveTarget(m.id)}
                 disabled={removeMember.isPending}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--dash-ink-faint)] transition hover:bg-white hover:text-[var(--dash-rose)] disabled:opacity-50"
+                className="flex min-h-10 min-w-10 h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-md text-[var(--dash-ink-faint)] transition hover:bg-white hover:text-[var(--dash-rose)] disabled:opacity-50 shrink-0"
                 aria-label={`Remove ${m.name}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -115,27 +116,34 @@ export function TeamSettings() {
         </div>
       )}
 
-      {/* Invite modal */}
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 p-0 sm:p-4 backdrop-blur-sm"
           onMouseDown={() => setOpen(false)}
         >
           <form
             onSubmit={submit}
             onMouseDown={(e) => e.stopPropagation()}
-            className="w-full max-w-[480px] overflow-hidden rounded-2xl border dash-border bg-[var(--dash-card)] shadow-[0_30px_90px_-45px_rgba(23,26,23,0.55)]"
+            className="w-full max-w-[480px] 3xl:max-w-[520px] max-h-[min(100dvh,100%)] overflow-y-auto overflow-x-hidden rounded-t-2xl sm:rounded-2xl border dash-border bg-[var(--dash-card)] shadow-[0_30px_90px_-45px_rgba(23,26,23,0.55)] pb-[env(safe-area-inset-bottom)]"
           >
-            <div className="flex items-center gap-3 border-b dash-border-soft px-5 py-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ECE9FB] text-[var(--dash-accent)]">
+            <div className="flex items-start sm:items-center gap-3 border-b dash-border-soft px-4 sm:px-5 py-4 sticky top-0 bg-[var(--dash-card)] z-10">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#ECE9FB] text-[var(--dash-accent)]">
                 <UserPlus className="h-4 w-4" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="text-[15px] font-bold text-[var(--dash-ink)]">Invite team member</div>
-                <div className="text-[12px] text-[var(--dash-ink-faint)]">Seat limits are enforced by your plan.</div>
+                <div className="text-[12px] text-[var(--dash-ink-faint)] leading-snug">Seat limits are enforced by your plan.</div>
               </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="flex min-h-9 min-w-9 h-9 w-9 items-center justify-center rounded-md text-[var(--dash-ink-faint)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)] shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <div className="grid gap-3 p-5">
+            <div className="grid gap-3 p-4 sm:p-5">
               <label className="block">
                 <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Name *</span>
                 <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="Jane Smith" className={FIELD} />
@@ -144,7 +152,7 @@ export function TeamSettings() {
                 <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Email *</span>
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@company.com" className={FIELD} />
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="block">
                   <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wider text-[var(--dash-ink-faint)]">Role</span>
                   <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={FIELD}>
@@ -159,11 +167,11 @@ export function TeamSettings() {
                 </label>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t dash-border-soft px-5 py-4">
-              <button type="button" onClick={() => setOpen(false)} className="h-9 rounded-lg border dash-border bg-white px-3.5 text-[13px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)]">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t dash-border-soft px-4 sm:px-5 py-4">
+              <button type="button" onClick={() => setOpen(false)} className="min-h-11 sm:min-h-9 h-11 sm:h-9 rounded-lg border dash-border bg-white px-3.5 text-[13px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)]">
                 Cancel
               </button>
-              <button type="submit" disabled={addMember.isPending} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="submit" disabled={addMember.isPending} className="inline-flex min-h-11 sm:min-h-9 h-11 sm:h-9 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60">
                 {addMember.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 Add member
               </button>
@@ -172,36 +180,35 @@ export function TeamSettings() {
         </div>
       )}
 
-      {/* Remove confirm */}
       {removeTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 p-0 sm:p-4 backdrop-blur-sm"
           onMouseDown={() => setRemoveTarget(null)}
         >
           <div
             onMouseDown={(e) => e.stopPropagation()}
-            className="w-full max-w-[400px] rounded-2xl border dash-border bg-[var(--dash-card)] p-5 shadow-[0_30px_90px_-45px_rgba(23,26,23,0.55)]"
+            className="w-full max-w-[400px] rounded-t-2xl sm:rounded-2xl border dash-border bg-[var(--dash-card)] p-4 sm:p-5 shadow-[0_30px_90px_-45px_rgba(23,26,23,0.55)] pb-[max(1rem,env(safe-area-inset-bottom))]"
           >
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--dash-rose-wash)] text-[var(--dash-rose)]">
                 <Trash2 className="h-5 w-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-[15px] font-bold text-[var(--dash-ink)]">Remove member?</div>
                 <p className="mt-1 text-[12.5px] leading-5 text-[var(--dash-ink-soft)]">
                   This will revoke their dashboard access immediately.
                 </p>
               </div>
             </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setRemoveTarget(null)} className="h-9 rounded-lg border dash-border bg-white px-3.5 text-[13px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)]">
+            <div className="mt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <button type="button" onClick={() => setRemoveTarget(null)} className="min-h-11 sm:min-h-9 h-11 sm:h-9 rounded-lg border dash-border bg-white px-3.5 text-[13px] font-semibold text-[var(--dash-ink-soft)] transition hover:text-[var(--dash-ink)]">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => removeMember.mutate({ userId: removeTarget })}
                 disabled={removeMember.isPending}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--dash-rose)] px-4 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-11 sm:min-h-9 h-11 sm:h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--dash-rose)] px-4 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {removeMember.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 Remove

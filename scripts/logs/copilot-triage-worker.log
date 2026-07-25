@@ -384,3 +384,30 @@ Error: Lock mismatch for job triage-5bf5bfc3-d002-4de2-94ad-e8f0aef38222. Cmd mo
 [TriageWorker] Job triage-c1276abf-9141-4ac8-a087-e7f5c025175a completed
 [TriageWorker] Starting...
 [TriageWorker] Starting...
+[TriageWorker] Processing message=def19e32-c750-4c3a-a4f8-cf64fd903132 ticket=b19b4776-5d09-4d61-bb0d-ac493df7aab6
+[OPA] Live policy evaluation unavailable, using inline fallback for this process: fetch failed (OPA_SERVICE_URL=http://127.0.0.1:8181)
+[TriageWorker] Classification: isComplaint=false severity=low intent=clarify topRetrieval=0.00 confidence=47 policyPassed=true latency=7670ms
+[TriageWorker] Auto-sent auto_clarify reply for message=def19e32-c750-4c3a-a4f8-cf64fd903132
+[TriageWorker] ✓ Done message=def19e32-c750-4c3a-a4f8-cf64fd903132 decision=auto_clarify totalMs=11970
+[TriageWorker] Job triage-def19e32-c750-4c3a-a4f8-cf64fd903132 completed
+[TriageWorker] Processing message=bf31c2a2-14ed-432f-8142-c1ad7355167a ticket=b19b4776-5d09-4d61-bb0d-ac493df7aab6
+[TriageWorker] Classification: isComplaint=false severity=low intent=clarify topRetrieval=0.00 confidence=47 policyPassed=true latency=6438ms
+[TriageWorker] Auto-sent auto_clarify reply for message=bf31c2a2-14ed-432f-8142-c1ad7355167a
+[TriageWorker] ✓ Done message=bf31c2a2-14ed-432f-8142-c1ad7355167a decision=auto_clarify totalMs=10699
+[TriageWorker] Job triage-bf31c2a2-14ed-432f-8142-c1ad7355167a completed
+[TriageWorker] Processing message=2133f4b6-ccad-482d-a4e5-f51b50b6b919 ticket=b19b4776-5d09-4d61-bb0d-ac493df7aab6
+[TriageWorker] Classification: isComplaint=false severity=low intent=clarify topRetrieval=0.41 confidence=65 policyPassed=true latency=14736ms
+[TriageWorker] Auto-sent auto_clarify reply for message=2133f4b6-ccad-482d-a4e5-f51b50b6b919
+[TriageWorker] ✓ Done message=2133f4b6-ccad-482d-a4e5-f51b50b6b919 decision=auto_clarify totalMs=18997
+[TriageWorker] Job triage-2133f4b6-ccad-482d-a4e5-f51b50b6b919 completed
+[TriageWorker] Processing message=2873fb20-867c-4ba7-8af4-0dfef3112253 ticket=b19b4776-5d09-4d61-bb0d-ac493df7aab6
+[TriageWorker] Classification: isComplaint=true severity=medium intent=clarify topRetrieval=0.65 confidence=83 policyPassed=true latency=7748ms
+[TriageWorker] Auto-sent auto_clarify reply for message=2873fb20-867c-4ba7-8af4-0dfef3112253
+[TriageWorker] ✓ Done message=2873fb20-867c-4ba7-8af4-0dfef3112253 decision=auto_clarify totalMs=12008
+[TriageWorker] Job triage-2873fb20-867c-4ba7-8af4-0dfef3112253 completed
+[TriageWorker] Processing message=8fc464da-29dc-44db-ab2a-1796e727a719 ticket=b19b4776-5d09-4d61-bb0d-ac493df7aab6
+[TriageWorker] Classification: isComplaint=true severity=high intent=complaint_review topRetrieval=0.56 confidence=77 policyPassed=true latency=8853ms
+[TriageWorker] Auto-sent hitl_collaborative reply for message=8fc464da-29dc-44db-ab2a-1796e727a719
+[TriageWorker] Enqueued HITL id=1f354471-2002-4b35-989b-65d9f3418bd2 decision=hitl_collaborative
+[TriageWorker] ✓ Done message=8fc464da-29dc-44db-ab2a-1796e727a719 decision=hitl_collaborative totalMs=13591
+[TriageWorker] Job triage-8fc464da-29dc-44db-ab2a-1796e727a719 completed

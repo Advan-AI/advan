@@ -2,9 +2,14 @@ import type { TRPCError } from "@trpc/server"
 import { ZodError } from "zod"
 
 const SAFE_INTERNAL_MESSAGE = "Something went wrong. Please try again."
+const DB_UNAVAILABLE_MESSAGE =
+  "Database temporarily unavailable. Check your network connection and try again."
 
 const LEAKY_ERROR_PATTERN =
   /Failed query|select\s+|insert\s+into|update\s+|delete\s+from|ECONNREFUSED|password authentication|relation .* does not exist|syntax error at|drizzle|postgres|stack trace|at\s+\S+\s+\(/i
+
+const DB_CONNECTIVITY_PATTERN =
+  /EAI_AGAIN|ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|CONNECT_TIMEOUT|getaddrinfo|Connection terminated|connection.*timed out|sorry, too many clients|Could not connect|fetch failed/i
 
 export type TrpcErrorShape = {
   message: string
@@ -28,7 +33,9 @@ export function sanitizeTrpcErrorShape(shape: TrpcErrorShape, error: TRPCError) 
 
   let message = shape.message
 
-  if (isInternal || LEAKY_ERROR_PATTERN.test(message)) {
+  if (isDbConnectivityFailure(error)) {
+    message = DB_UNAVAILABLE_MESSAGE
+  } else if (isInternal || LEAKY_ERROR_PATTERN.test(message)) {
     message = SAFE_INTERNAL_MESSAGE
   } else if (zodError) {
     const messages = zodError.issues.map((issue) => issue.message).filter(Boolean)
@@ -48,6 +55,19 @@ export function sanitizeTrpcErrorShape(shape: TrpcErrorShape, error: TRPCError) 
       zodError: zodError ? zodError.flatten() : null,
     },
   }
+}
+
+/** Walk drizzle / node error causes for DNS and connection failures. */
+export function isDbConnectivityFailure(error: { message?: string; cause?: unknown }): boolean {
+  let current: unknown = error
+  for (let depth = 0; depth < 5 && current; depth++) {
+    if (typeof current !== "object" || current === null) break
+    const record = current as { message?: unknown; code?: unknown; cause?: unknown }
+    const blob = `${String(record.message ?? "")} ${String(record.code ?? "")}`
+    if (DB_CONNECTIVITY_PATTERN.test(blob)) return true
+    current = record.cause
+  }
+  return false
 }
 
 function looksLikeSerializedZodIssues(message: string): boolean {
@@ -74,4 +94,4 @@ function humanizeSerializedZodMessage(message: string): string | null {
   return null
 }
 
-export { SAFE_INTERNAL_MESSAGE }
+export { SAFE_INTERNAL_MESSAGE, DB_UNAVAILABLE_MESSAGE }

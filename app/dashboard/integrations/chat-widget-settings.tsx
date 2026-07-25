@@ -68,14 +68,15 @@ export function ChatWidgetSettings() {
   if (!config) {
     return (
       <DashCard title="Chat Widget" icon={<Globe className="w-[18px] h-[18px]" />} padded>
-        <div className="flex flex-col items-start gap-3.5 max-w-xl">
+        <div className="flex flex-col items-stretch sm:items-start gap-3.5 max-w-xl">
           <p className="text-[13px] text-[var(--dash-ink-soft)] leading-relaxed">
             Deploy the Advan Chat Widget to your website to engage visitors, run automated ground-truth AI triage, and generate tracking tickets directly in your inbox.
           </p>
           <button
+            type="button"
             onClick={() => createMut.mutate()}
             disabled={createMut.isPending}
-            className="inline-flex h-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white shadow-[0_4px_12px_-5px_rgba(107,92,214,0.4)] hover:-translate-y-px transition active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex min-h-11 h-11 sm:h-9 w-full sm:w-auto items-center justify-center rounded-lg bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] px-4 text-[13px] font-semibold text-white shadow-[0_4px_12px_-5px_rgba(107,92,214,0.4)] hover:-translate-y-px transition active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {createMut.isPending ? "Configuring..." : "Set up chat widget"}
           </button>
@@ -150,29 +151,31 @@ export function ChatWidgetSettings() {
 
   return (
     <DashCard title="Chat Widget" icon={<Globe className="w-[18px] h-[18px]" />} padded>
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-5 sm:space-y-6 max-w-2xl 3xl:max-w-3xl 4xl:max-w-4xl">
         {/* Widget Key */}
         <div className="space-y-2">
           <label className="text-[13px] font-bold text-[var(--dash-ink)]">Widget Key</label>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 flex items-center justify-between border dash-border-soft rounded-lg px-3.5 py-2.5 bg-white shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]">
-              <span className="text-[13px] font-mono select-all text-[var(--dash-ink-soft)] tracking-tight">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="flex-1 min-w-0 flex items-center justify-between gap-2 border dash-border-soft rounded-lg px-3 sm:px-3.5 py-2.5 bg-white shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]">
+              <span className="min-w-0 text-[12px] sm:text-[13px] font-mono select-all text-[var(--dash-ink-soft)] tracking-tight break-all">
                 {showKey ? config.widgetKey : "wk_live_••••••••••••••••••••••••••••••••"}
               </span>
-              <div className="flex items-center gap-2.5 ml-3">
+              <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowKey(!showKey)}
-                  className="text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink)] transition-colors"
+                  className="flex min-h-9 min-w-9 h-9 w-9 items-center justify-center rounded-md text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink)] hover:bg-[var(--dash-bg)] transition-colors"
                   title={showKey ? "Hide key" : "Reveal key"}
+                  aria-label={showKey ? "Hide key" : "Reveal key"}
                 >
                   {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleCopy(config.widgetKey, false)}
-                  className="text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink)] transition-colors"
+                  className="flex min-h-9 min-w-9 h-9 w-9 items-center justify-center rounded-md text-[var(--dash-ink-faint)] hover:text-[var(--dash-ink)] hover:bg-[var(--dash-bg)] transition-colors"
                   title="Copy key"
+                  aria-label="Copy key"
                 >
                   {copiedKey ? <Check className="w-4 h-4 text-[var(--dash-sage)]" /> : <Copy className="w-4 h-4" />}
                 </button>
@@ -182,14 +185,16 @@ export function ChatWidgetSettings() {
               type="button"
               onClick={handleRotate}
               disabled={rotateMut.isPending}
-              className="inline-flex h-[38px] w-[38px] items-center justify-center border dash-border-soft bg-white text-[var(--dash-ink-soft)] rounded-lg hover:bg-[var(--dash-bg-deep)] transition active:scale-95 disabled:opacity-50"
+              className="inline-flex min-h-11 h-11 sm:h-[38px] w-full sm:w-[38px] items-center justify-center gap-1.5 border dash-border-soft bg-white text-[var(--dash-ink-soft)] rounded-lg hover:bg-[var(--dash-bg-deep)] transition active:scale-95 disabled:opacity-50"
               title="Rotate Key (Breaks old snippet)"
+              aria-label="Rotate widget key"
             >
               <RefreshCw className={`w-4 h-4 ${rotateMut.isPending ? "animate-spin text-[var(--dash-accent)]" : ""}`} />
+              <span className="sm:hidden text-[13px] font-semibold">Rotate key</span>
             </button>
           </div>
           <p className="text-[11.5px] text-[var(--dash-ink-faint)] leading-normal">
-            Your public key maps the widget's customer sessions straight to your organization account. Rotate only if your script is compromised.
+            Your public key maps the widget&apos;s customer sessions straight to your organization account. Rotate only if your script is compromised.
           </p>
         </div>
 
@@ -198,22 +203,23 @@ export function ChatWidgetSettings() {
           <label className="text-[13px] font-bold text-[var(--dash-ink)]">Allowed Origins</label>
           <div className="space-y-1.5">
             {config.allowedOrigins.length === 0 && (
-              <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-3.5 text-amber-800 text-[12.5px] leading-relaxed shadow-[0_2px_8px_-4px_rgba(245,158,11,0.15)]">
+              <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-3 sm:p-3.5 text-amber-800 text-[12.5px] leading-relaxed shadow-[0_2px_8px_-4px_rgba(245,158,11,0.15)]">
                 <AlertTriangle className="w-[18px] h-[18px] text-amber-600 shrink-0 mt-0.5" />
-                <div>
+                <div className="min-w-0">
                   <span className="font-bold text-amber-900 block mb-0.5">Widget is Locked (Fails Closed)</span>
-                  No allowed origins have been specified. For security, the widget will block any incoming sessions and fail closed until you add at least one verified origin domain below (e.g. <code>https://example.com</code> or <code>http://localhost:3000</code>).
+                  No allowed origins have been specified. For security, the widget will block any incoming sessions and fail closed until you add at least one verified origin domain below (e.g. <code className="break-all">https://example.com</code> or <code className="break-all">http://localhost:3000</code>).
                 </div>
               </div>
             )}
             {config.allowedOrigins.map((origin: string, i: number) => (
-              <div key={i} className="flex items-center justify-between border border-transparent hover:border-[var(--dash-line)] rounded-lg px-3 py-1.5 bg-[var(--dash-bg-deep)] transition">
-                <span className="text-[12.5px] font-mono text-[var(--dash-ink-soft)]">{String(origin)}</span>
+              <div key={i} className="flex items-center justify-between gap-2 border border-transparent hover:border-[var(--dash-line)] rounded-lg px-3 py-2 sm:py-1.5 bg-[var(--dash-bg-deep)] transition min-w-0">
+                <span className="min-w-0 text-[12px] sm:text-[12.5px] font-mono text-[var(--dash-ink-soft)] break-all">{String(origin)}</span>
                 <button
                   type="button"
                   onClick={() => handleRemoveOrigin(i)}
-                  className="text-[var(--dash-ink-faint)] hover:text-[var(--dash-rose)] transition-colors p-1"
+                  className="flex min-h-9 min-w-9 h-9 w-9 shrink-0 items-center justify-center rounded-md text-[var(--dash-ink-faint)] hover:text-[var(--dash-rose)] hover:bg-white transition-colors"
                   title="Remove Origin"
+                  aria-label={`Remove ${origin}`}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -221,35 +227,35 @@ export function ChatWidgetSettings() {
             ))}
           </div>
           
-          <form onSubmit={handleAddOrigin} className="flex gap-2">
+          <form onSubmit={handleAddOrigin} className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               placeholder="https://yourwebsite.com"
               value={newOrigin}
               onChange={(e) => setNewOrigin(e.target.value)}
-              className="flex-1 text-[13px] border border-input rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-[var(--dash-accent)] transition shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)]"
+              className="flex-1 min-h-11 sm:min-h-9 h-11 sm:h-9 text-[13px] border dash-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#6B5CD6]/15] focus:border-[#9D91EA] transition"
             />
             <button
               type="submit"
               disabled={!newOrigin.trim() || updateMut.isPending}
-              className="flex items-center gap-1.5 px-4 h-9 bg-[var(--dash-accent)] text-white hover:bg-[var(--dash-accent-deep)] rounded-lg text-[13px] font-bold transition disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-1.5 px-4 min-h-11 h-11 sm:h-9 bg-[var(--dash-accent)] text-white hover:bg-[var(--dash-accent-deep)] rounded-lg text-[13px] font-bold transition disabled:opacity-50"
             >
               <Plus className="w-4 h-4" /> Add
             </button>
           </form>
           <p className="text-[11.5px] text-[var(--dash-ink-faint)] leading-normal">
-            Enforce a strict exact-match domain allowlist (e.g. <code>https://example.com</code> or <code>http://localhost:3000</code>) to block unauthorized embeds or session hijackers.
+            Enforce a strict exact-match domain allowlist (e.g. <code className="break-all">https://example.com</code> or <code className="break-all">http://localhost:3000</code>) to block unauthorized embeds or session hijackers.
           </p>
         </div>
 
         {/* Embed Snippet */}
         <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="text-[13px] font-bold text-[var(--dash-ink)]">Embed Snippet</label>
             <button
               type="button"
               onClick={() => handleCopy(embedSnippet, true)}
-              className="text-[12px] font-bold text-[var(--dash-accent-deep)] hover:underline flex items-center gap-1"
+              className="min-h-9 inline-flex text-[12px] font-bold text-[var(--dash-accent-deep)] hover:underline items-center gap-1 px-1"
             >
               {copiedSnippet ? (
                 <>
@@ -263,7 +269,7 @@ export function ChatWidgetSettings() {
             </button>
           </div>
           <div className="relative">
-            <pre className="text-[11.5px] p-4 rounded-xl bg-zinc-950 text-zinc-50 overflow-x-auto border border-zinc-900 leading-relaxed font-mono">
+            <pre className="text-[11px] sm:text-[11.5px] p-3 sm:p-4 rounded-xl bg-zinc-950 text-zinc-50 overflow-x-auto overscroll-x-contain border border-zinc-900 leading-relaxed font-mono max-w-full">
               {embedSnippet}
             </pre>
           </div>
@@ -273,12 +279,12 @@ export function ChatWidgetSettings() {
         </div>
 
         {/* Danger Zone */}
-        <div className="pt-5 border-t dash-border-soft flex justify-end">
+        <div className="pt-5 border-t dash-border-soft flex justify-stretch sm:justify-end">
           <button
             type="button"
             onClick={handleDelete}
             disabled={deleteMut.isPending}
-            className="flex items-center gap-2 px-4 h-9 text-[var(--dash-rose)] border border-[var(--dash-rose)]/20 hover:bg-[var(--dash-rose-wash)] rounded-lg text-[13px] font-bold transition"
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 min-h-11 h-11 sm:h-9 text-[var(--dash-rose)] border border-[var(--dash-rose)]/20 hover:bg-[var(--dash-rose-wash)] rounded-lg text-[13px] font-bold transition"
           >
             <Trash2 className="w-4 h-4" /> Disable widget
           </button>
