@@ -130,7 +130,7 @@ async function findOrCreateMeteredPrice(productId: string, plan: (typeof PLANS)[
       interval: "month",
       usage_type: "metered",
       aggregate_usage: "sum",
-    },
+    } as any,
     billing_scheme: "per_unit",
     metadata: { advan_plan_key: plan.key, advan_price_type: "metered" },
   })

@@ -1,6 +1,8 @@
 "use client"
 
 import { DashboardOverview } from "@/components/dashboard/overview"
+import { motion } from "framer-motion"
+import { ArrowUpRight } from "lucide-react"
 
 export default function DashboardOverviewPage() {
   return <DashboardOverview />

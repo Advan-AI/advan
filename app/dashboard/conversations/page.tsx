@@ -2560,6 +2560,13 @@ function TypingDot({ delay }: { delay: string }) {
 
 // ─── Facebook Messenger-Style Floating Chat Tab Window ───────────────────────
 
+interface ChatTabState {
+  conversationId: string
+  customerName: string
+  isMinimized: boolean
+  unreadCount: number
+}
+
 interface FloatingChatTabProps {
   tab: ChatTabState
   onClose: () => void

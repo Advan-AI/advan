@@ -392,7 +392,13 @@ export function ChatWidgetSettings() {
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
-                        onClick={() => setEditingQuestion({ ...question })}
+                        onClick={() =>
+                          setEditingQuestion({
+                            ...question,
+                            options: question.options ?? [],
+                            required: question.required ?? true,
+                          })
+                        }
                         className="flex min-h-9 min-w-9 h-9 w-9 items-center justify-center rounded-md text-[var(--dash-ink-faint)] hover:text-[var(--dash-accent)] hover:bg-[var(--dash-bg)] transition-colors"
                         title="Edit question"
                       >

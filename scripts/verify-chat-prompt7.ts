@@ -95,7 +95,7 @@ function connectVisitor(token: string, conversationId: string) {
     reconnection: false,
     forceNew: true,
     extraHeaders: { origin: ORIGIN },
-  })
+  } as any)
 }
 
 function waitForEvent<T>(socket: ReturnType<typeof ioConnect>, event: string, timeoutMs: number): Promise<T> {
@@ -134,7 +134,7 @@ async function main() {
   const agent = connectAgent(orgId)
   await new Promise<void>((resolve, reject) => {
     agent.on("connect", () => resolve())
-    agent.on("connect_error", (e) => reject(e))
+    agent.on("connect_error", (e: any) => reject(e))
     setTimeout(() => reject(new Error("Agent socket connect timeout")), 5000)
   })
   pass("Agent socket connected (simulates online)")
@@ -157,7 +157,7 @@ async function main() {
   const visitor1 = connectVisitor(session1.token, intake1.conversationId)
   await new Promise<void>((resolve, reject) => {
     visitor1.on("connect", () => resolve())
-    visitor1.on("connect_error", (e) => reject(e))
+    visitor1.on("connect_error", (e: any) => reject(e))
     setTimeout(() => reject(new Error("Visitor socket connect timeout")), 5000)
   })
   await waitForEvent<{ conversationId: string }>(visitor1, "session:ready", 3000)

@@ -51,6 +51,7 @@ function widgetConfigFixture(overrides: Record<string, unknown> = {}) {
     widgetKey: WIDGET_KEY,
     allowedOrigins: [ALLOWED_ORIGIN],
     preChatFormEnabled: true,
+    preChatQuestions: [],
     brandingConfig: null,
     createdAt: new Date(),
     ...overrides,
