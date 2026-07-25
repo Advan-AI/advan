@@ -1159,3 +1159,7 @@ npm warn Unknown env config "devdir". This will stop working in the next major v
 [Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (pFwW-MYP8NY67i5gAAAF)
 [Socket] Agent disconnected (pFwW-MYP8NY67i5gAAAF)
 [Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (xsQr2-ZJVogHL-6sAAAJ)
+[ChatWidget] Visitor disconnected (CkLE8ui_0I9Iq-7oAAAH) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[ChatWidget] Visitor disconnected (UNTL5eDXwQz64ahXAAAL) org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 visitor:76eda684-4b75-4be1-a668-b83a8c26aee4
+[Socket] Agent disconnected (xsQr2-ZJVogHL-6sAAAJ)
+[Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (Ieb4nGRKI3sHeJRzAAAO)

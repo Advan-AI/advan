@@ -554,15 +554,17 @@ describe("Bulletproof Tenant Isolation Integration Test Suite", () => {
       await expect(
         callerA().conversations.addMessage({
           conversationId: conversationB_Id,
+          role: "agent",
           content: "Hacked!",
         })
       ).rejects.toThrow()
     })
 
-    it("createSupportThread — Caller A cannot create thread for Org B's ticket", async () => {
+    it("createSupportThread — Caller A cannot create thread for Org B's customer", async () => {
       await expect(
         callerA().conversations.createSupportThread({
-          ticketId: ticketB_Id,
+          title: "Thread for B",
+          customerId: customerB_Id,
           channel: "chat",
         })
       ).rejects.toThrow()
@@ -574,11 +576,11 @@ describe("Bulletproof Tenant Isolation Integration Test Suite", () => {
       ).rejects.toThrow()
 
       await expect(
-        callerA().conversations.setArchived({ id: conversationB_Id, archived: true })
+        callerA().conversations.setArchived({ ids: [conversationB_Id], archived: true })
       ).rejects.toThrow()
 
       await expect(
-        callerA().conversations.setTags({ id: conversationB_Id, tags: ["attacker"] })
+        callerA().conversations.setTags({ ids: [conversationB_Id], tags: ["attacker"] })
       ).rejects.toThrow()
     })
 
@@ -614,7 +616,6 @@ describe("Bulletproof Tenant Isolation Integration Test Suite", () => {
     it("create — Caller A creates ticket automatically scoped to Org A", async () => {
       const created = await callerA().tickets.create({
         subject: "New Ticket A",
-        status: "open",
         priority: "high",
         channel: "chat",
         customerId: customerA_Id,
@@ -680,7 +681,7 @@ describe("Bulletproof Tenant Isolation Integration Test Suite", () => {
       const s = await callerA().analytics.summary()
       expect(s).toBeDefined()
 
-      const rep = await callerA().analytics.report({ dateRange: "7d" })
+      const rep = await callerA().analytics.report({ days: 7 })
       expect(rep).toBeDefined()
 
       const tr = await callerA().analytics.triageBreakdown()
@@ -721,7 +722,7 @@ describe("Bulletproof Tenant Isolation Integration Test Suite", () => {
 
     it("update/delete — Caller A cannot modify or delete Org B's KB article", async () => {
       await expect(
-        callerA().knowledge.update({ id: kbArticleB_Id, title: "Hacked!" })
+        callerA().knowledge.update({ id: kbArticleB_Id, title: "Hacked!", content: "Hacked content", sourceType: "document" })
       ).rejects.toThrow()
 
       await expect(

@@ -88,8 +88,8 @@ export const usePipelineStore = create<PipelineStore>()(
 
         const sNode = get().nodes.find((n) => n.id === source)
         const tNode = get().nodes.find((n) => n.id === target)
-        if (sNode && tNode && nodeRegistry.has(sNode.type) && nodeRegistry.has(tNode.type)) {
-          const sReg = nodeRegistry.get(sNode.type)
+        if (sNode?.type && tNode?.type && nodeRegistry.has(sNode.type) && nodeRegistry.has(tNode.type)) {
+          const sReg = nodeRegistry.get(sNode.type)!
           const isSourceInput = sReg.inputs.some((p) => p.id === sourceHandle)
           if (isSourceInput) {
             source = conn.target!
@@ -136,8 +136,8 @@ export const usePipelineStore = create<PipelineStore>()(
 
         const sNode = get().nodes.find((n) => n.id === source)
         const tNode = get().nodes.find((n) => n.id === target)
-        if (sNode && tNode && nodeRegistry.has(sNode.type) && nodeRegistry.has(tNode.type)) {
-          const sReg = nodeRegistry.get(sNode.type)
+        if (sNode?.type && tNode?.type && nodeRegistry.has(sNode.type) && nodeRegistry.has(tNode.type)) {
+          const sReg = nodeRegistry.get(sNode.type)!
           const isSourceInput = sReg.inputs.some((p) => p.id === sourceHandle)
           if (isSourceInput) {
             source = conn.target!

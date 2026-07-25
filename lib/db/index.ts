@@ -50,14 +50,14 @@ type PgClient = ReturnType<typeof postgres>
 type GlobalDb = typeof globalThis & { __ADVAN_PG__?: PgClient }
 
 function createClient(): PgClient {
-  return postgres(connectionString, {
+  return postgres(connectionString!, {
     prepare: false,
     max: resolveMaxConnections(),
     idle_timeout: 20,
     // Fail faster than the old 15s default so UI retries recover sooner.
     connect_timeout: 10,
     max_lifetime: 60 * 15,
-    ssl: resolveSsl(connectionString),
+    ssl: resolveSsl(connectionString!),
     connection: {
       application_name: process.env.DB_APP_NAME ?? "advan",
     },

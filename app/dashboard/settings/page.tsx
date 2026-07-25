@@ -1375,7 +1375,7 @@ export default function SettingsPage() {
 
                     <div className="p-5 max-h-[70vh] overflow-y-auto space-y-2">
                       {previewMember.permissions.map((permissionKey) => {
-                        const meta = permissionByKey.get(permissionKey)
+                        const meta = permissionByKey.get(permissionKey as any)
                         return (
                           <div key={permissionKey} className="rounded-lg border dash-border px-3 py-2.5">
                             <div className="flex items-center justify-between gap-2">

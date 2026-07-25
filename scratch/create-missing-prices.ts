@@ -20,7 +20,7 @@ async function run() {
         interval: "month",
         usage_type: "metered",
         aggregate_usage: "sum",
-      },
+      } as any,
     })
     console.log(`✅ Starter Metered Price Created: ${starterMeteredPrice.id}`)
 
@@ -38,7 +38,7 @@ async function run() {
         interval: "month",
         usage_type: "metered",
         aggregate_usage: "sum",
-      },
+      } as any,
     })
     console.log(`✅ Pro Metered Price Created: ${proMeteredPrice.id}`)
 
@@ -56,7 +56,7 @@ async function run() {
         interval: "month",
         usage_type: "metered",
         aggregate_usage: "sum",
-      },
+      } as any,
     })
     console.log(`✅ Enterprise Metered Price Created: ${enterpriseMeteredPrice.id}`)
 

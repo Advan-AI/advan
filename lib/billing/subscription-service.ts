@@ -84,8 +84,8 @@ export async function startSubscription(orgId: string, planKey: string): Promise
 
   // Update local organization record
   const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null
-  const periodStart = new Date(subscription.current_period_start * 1000)
-  const periodEnd = new Date(subscription.current_period_end * 1000)
+  const periodStart = new Date((subscription as any).current_period_start * 1000)
+  const periodEnd = new Date((subscription as any).current_period_end * 1000)
 
   await db
     .update(organizations)
@@ -167,8 +167,8 @@ export async function changePlan(orgId: string, newPlanKey: string): Promise<any
     .set({
       planId: newPlan.id,
       subscriptionStatus: updatedSub.status,
-      currentPeriodStart: new Date(updatedSub.current_period_start * 1000),
-      currentPeriodEnd: new Date(updatedSub.current_period_end * 1000),
+      currentPeriodStart: new Date((updatedSub as any).current_period_start * 1000),
+      currentPeriodEnd: new Date((updatedSub as any).current_period_end * 1000),
     })
     .where(eq(organizations.id, org.id))
 
