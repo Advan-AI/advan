@@ -16,7 +16,7 @@ env_vars = {}
 env_vars["NODE_ENV"] = "production"
 env_vars["LLM_CHAT_PROVIDER"] = "vertex-anthropic"
 env_vars["GCP_PROJECT_ID"] = "arslantoor"
-env_vars["GCP_REGION"] = "us-east5"
+env_vars["GCP_REGION"] = "europe-west1"
 env_vars["CLAUDE_MODEL"] = "claude-3-5-sonnet-v2@20241022"
 
 # Dynamic service overrides based on deployment mode
@@ -66,8 +66,8 @@ if os.path.exists(env_path):
 try:
     print("🔍 Fetching active Google Cloud Run service URL...")
     gcloud_cmd = [
-        "gcloud", "run", "services", "describe", "advan-ai", 
-        "--region=us-east5", "--format=value(status.url)"
+        "gcloud", "run", "services", "describe", "advan", 
+        "--region=europe-west1", "--format=value(status.url)"
     ]
     res = subprocess.run(gcloud_cmd, capture_output=True, text=True, check=True)
     service_url = res.stdout.strip()
@@ -75,7 +75,7 @@ try:
         raise ValueError("Empty URL returned by gcloud")
 except Exception as e:
     print(f"⚠️ Warning: Could not detect URL automatically ({e}). Falling back to default URL pattern.")
-    service_url = "https://advan-ai-53330586668.us-east5.run.app"
+    service_url = "https://advan-53330586668.europe-west1.run.app"
 
 env_vars["NEXTAUTH_URL"] = service_url
 env_vars["AUTH_URL"] = service_url

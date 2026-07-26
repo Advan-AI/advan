@@ -5,9 +5,9 @@ set -eo pipefail
 # CONFIGURATION DEFINITIONS
 # ──────────────────────────────────────────────────────────────────────
 PROJECT_ID="arslantoor"
-REGION="us-east5"  # Modify as preferred (e.g., us-central1, us-east1)
-SERVICE_NAME="advan-ai"
-REPO_NAME="advan-registry"
+REGION="europe-west1"  # europe-west1 primary production deployment region
+SERVICE_NAME="advan"
+REPO_NAME="cloud-run-source-deploy"
 IMAGE_NAME="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:latest"
 
 echo "======================================================================"

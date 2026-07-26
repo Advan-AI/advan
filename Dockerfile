@@ -1,6 +1,5 @@
 # ── Stage 1: Dependency Resolver ──────────────────────────────────────
-FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
+FROM node:20-slim AS deps
 WORKDIR /app
 
 # Resolve deps from package.json on the server (no committed lockfile).
@@ -8,7 +7,7 @@ COPY package.json ./
 RUN npm install --legacy-peer-deps
 
 # ── Stage 2: Application Builder ───────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -16,20 +15,28 @@ COPY . .
 # Set environment variables required for building
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/advan_ai"
+ENV NEXTAUTH_SECRET="sFebVd7uh2iychvHmL9IBfEetUiXw3GQYvu0To2PGcQ="
+ENV NEXTAUTH_URL="http://localhost:3000"
+ENV AUTH_SECRET="sFebVd7uh2iychvHmL9IBfEetUiXw3GQYvu0To2PGcQ="
+ENV AUTH_URL="http://localhost:3000"
+ENV GOOGLE_CLIENT_ID="53330586668-4gml938cerv7j5kk323n7rmt8cgltf21.apps.googleusercontent.com"
+ENV GOOGLE_CLIENT_SECRET="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"
+ENV ANTHROPIC_API_KEY="sk-ant-stub-for-build"
 
 # Build Next.js standalone server
 RUN npm run build
 
 # ── Stage 3: Runner ───────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Create a non-root system user for security hardening
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN groupadd --system --gid 1001 nodejs
+RUN useradd --system --uid 1001 nextjs
 
 # Copy static public assets
 COPY --from=builder /app/public ./public
