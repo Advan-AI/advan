@@ -78,8 +78,8 @@ except Exception as e:
     print(f"⚠️ Warning: Could not detect URL automatically ({e}). Falling back to default URL pattern.")
     service_url = "https://advan-53330586668.europe-west1.run.app"
 
-env_vars["NEXTAUTH_URL"] = service_url
-env_vars["AUTH_URL"] = service_url
+env_vars["NEXTAUTH_URL"] = "https://www.advanai.net"
+env_vars["AUTH_URL"] = "https://www.advanai.net"
 
 # Write out YAML config for Cloud Run
 yaml_path = "/home/arslan/Documents/Remote/v0-advan/scratch/env.yaml"
