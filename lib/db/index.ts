@@ -20,10 +20,7 @@ try {
   // Node < 17
 }
 
-const connectionString = process.env.DATABASE_URL
-if (!connectionString) {
-  throw new Error("DATABASE_URL is not set")
-}
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/advan_ai"
 
 function resolveMaxConnections(): number {
   if (process.env.DB_MAX_CONNECTIONS) {
