@@ -18,6 +18,7 @@ env_vars["LLM_CHAT_PROVIDER"] = "vertex-anthropic"
 env_vars["GCP_PROJECT_ID"] = "arslantoor"
 env_vars["GCP_REGION"] = "europe-west1"
 env_vars["CLAUDE_MODEL"] = "claude-3-5-sonnet-v2@20241022"
+env_vars["DATABASE_URL"] = "postgresql://postgres.hoqfpdphunaskywximth:%3FXDZQ_%2Bwf53S%23iH@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
 
 # Dynamic service overrides based on deployment mode
 env_vars["SKIP_WEB"] = "0"
@@ -56,7 +57,7 @@ if os.path.exists(env_path):
                         "NODE_ENV", "GCP_PROJECT_ID", "GCP_REGION", "CLAUDE_MODEL", 
                         "NEXTAUTH_URL", "AUTH_URL", "OLLAMA_BASE_URL", 
                         "GOOGLE_APPLICATION_CREDENTIALS", "SKIP_WEB", 
-                        "SKIP_SOCKET", "SKIP_QUEUES", "SKIP_TEMPORAL"
+                        "SKIP_SOCKET", "SKIP_QUEUES", "SKIP_TEMPORAL", "DATABASE_URL"
                     ]:
                         continue
                     
