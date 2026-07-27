@@ -34,6 +34,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Install redis-server so in-container Redis pub/sub and BullMQ queues run locally on 127.0.0.1
+RUN apt-get update && apt-get install -y redis-server --no-install-recommends && rm -rf /var/lib/apt/lists/*
+
 # Create a non-root system user for security hardening
 RUN groupadd --system --gid 1001 nodejs
 RUN useradd --system --uid 1001 nextjs
