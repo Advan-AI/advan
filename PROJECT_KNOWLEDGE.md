@@ -489,6 +489,28 @@ Notable modified/untracked areas at that time:
 - `scripts/dev-all.sh` changes.
 - Log and build cache files changed.
 
+## Alibaba Cloud RAG & Agent Memory Integration
+
+- **Model Studio Client**: `lib/alibaba/model-studio-client.ts`
+  - `getChatCompletion()`: OpenAI-compatible API (`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`) using `qwen-plus`.
+  - `getEmbedding()`: Native DashScope REST endpoint (`https://dashscope-intl.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding`) using `text-embedding-v4`. Verified vector dimension: 1024.
+- **Tablestore Client & Schema**: `lib/alibaba/tablestore-client.ts` & `scripts/setup-tablestore.ts`
+  - Network Strategy: Uses public endpoints consistently across all environments (`https://<instance>.<region>.ots.aliyuncs.com`) for universal reachability without VPC subnet overhead.
+  - Requirement: Tablestore Search Index & `KnnVectorQuery` require a High-Performance Instance (SSD) in CU Mode.
+  - Table `knowledge_base`: Primary key (`orgId`, `chunkId`), vector index `knowledge_base_vector_idx` on column `embedding` (dimension 1024, metric `COSINE`).
+  - Table `agent_memory`: Primary key (`orgId`, `conversationId`), attributes (`summaryText`, `keyFacts`, `turnCount`, `lastUpdatedAt`).
+- **Document Ingestion & Idempotency**: `lib/alibaba/ingestion.ts`
+  - Org-scoped key structure: `{orgId}/knowledge-docs/{filename}`.
+  - Idempotency marker: Stores processed marker in Tablestore (`marker-{docId}`) to guarantee at-least-once OSS event delivery creates 0 duplicate chunks.
+- **RAG & Agent Memory Processor**: `lib/alibaba/rag-agent.ts` & `app/api/alibaba/rag/route.ts`
+  - Strict tenant isolation: `KnnVectorQuery` strictly filters by `orgId`.
+  - Multi-turn memory: Summarizes context every 4 turns via `getChatCompletion()` and updates `agent_memory`.
+- **Function Compute 3.0 & Serverless Devs**: `fc/s.yaml` & `fc/index.js`
+  - `ossEventHandler`: Native OSS event trigger on `oss:ObjectCreated:*`.
+  - `reconciliationHandler`: Daily cron timer trigger for missed documents.
+  - `httpAgentHandler`: Customer-facing HTTP RAG endpoint.
+- **E2E Test Suite**: `scripts/smoke-test-model-studio.ts`, `scripts/setup-tablestore.ts`, `scripts/test-alibaba-rag.ts`.
+
 ## Maintenance Rule
 
 For future tasks:
@@ -497,3 +519,4 @@ For future tasks:
 2. Use this file to decide the smallest source files to inspect next.
 3. After completing a meaningful feature, fix, migration, command change, or design decision, update this file with only the durable facts.
 4. Do not bloat this file with implementation transcripts, temporary debugging notes, or secrets.
+

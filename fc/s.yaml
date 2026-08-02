@@ -1,0 +1,78 @@
+# ============================================================================
+# ADVAN AI - ALIBABA CLOUD FUNCTION COMPUTE 3.0 MANIFEST
+# ============================================================================
+# ARCHITECTURAL & DEPLOYMENT DECISIONS:
+# 1. NETWORK STRATEGY: Public Endpoints used consistently across all clients & FC
+#    for hackathon simplicity and universal reachability without VPC subnet overhead.
+# 2. SERVERLESS AGENT MEMORY SAFETY: Summarization calls are synchronously awaited
+#    in rag_agent_http_fn BEFORE returning HTTP responses, preventing silent drops
+#    caused by FC execution environment freezes.
+# ============================================================================
+
+edition: 3.0.0
+name: advan-alibaba-rag-fc
+access: default
+
+vars:
+  region: ap-southeast-1
+
+resources:
+  # 1. Event-Triggered Document Ingestion Function (OSS ObjectCreated trigger)
+  oss_ingestion_fn:
+    component: fc3
+    props:
+      region: ${vars.region}
+      functionName: advan-oss-doc-ingestion
+      description: "Triggered on OSS document upload to chunk text, compute Model Studio embeddings, and store in Tablestore"
+      runtime: nodejs20
+      handler: index.ossEventHandler
+      memorySize: 512
+      timeout: 60
+      # Narrow IAM Role with least-privilege permissions
+      role: "acs:ram::account-id:role/AliyunFCReadOSSWriteOTSExecutionRole"
+      environmentVariables:
+        DASHSCOPE_API_KEY: ${env(DASHSCOPE_API_KEY)}
+        TABLESTORE_INSTANCE_NAME: ${env(TABLESTORE_INSTANCE_NAME)}
+        TABLESTORE_ENDPOINT: ${env(TABLESTORE_ENDPOINT)}
+        TABLESTORE_ACCESS_KEY_ID: ${env(TABLESTORE_ACCESS_KEY_ID)}
+        TABLESTORE_ACCESS_KEY_SECRET: ${env(TABLESTORE_ACCESS_KEY_SECRET)}
+
+  # 2. Daily Reconciliation Time Trigger Function
+  reconciliation_fn:
+    component: fc3
+    props:
+      region: ${vars.region}
+      functionName: advan-doc-reconciliation
+      description: "Daily cron trigger to reconcile missed OSS documents against Tablestore idempotency markers"
+      runtime: nodejs20
+      handler: index.reconciliationHandler
+      memorySize: 512
+      timeout: 300
+      role: "acs:ram::account-id:role/AliyunFCReadOSSWriteOTSExecutionRole"
+      triggers:
+        - triggerName: daily_cron
+          triggerType: timer
+          triggerConfig:
+            cronExpression: "0 0 2 * * *" # Daily at 02:00 UTC
+            enable: true
+
+  # 3. HTTP Customer Agent Endpoint
+  rag_agent_http_fn:
+    component: fc3
+    props:
+      region: ${vars.region}
+      functionName: advan-rag-agent-endpoint
+      description: "HTTP endpoint for customer-facing RAG agent and agent memory operations"
+      runtime: nodejs20
+      handler: index.httpAgentHandler
+      memorySize: 1024
+      timeout: 30
+      role: "acs:ram::account-id:role/AliyunFCReadOSSWriteOTSExecutionRole"
+      triggers:
+        - triggerName: http_trigger
+          triggerType: http
+          triggerConfig:
+            authType: anonymous
+            methods:
+              - POST
+              - OPTIONS
