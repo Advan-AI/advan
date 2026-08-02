@@ -56,3 +56,21 @@ Temporal Server:      localhost:7233
 Temporal Persistence: in-memory
 Temporal UI:          http://localhost:8233
 Temporal Metrics:     http://localhost:40985/metrics
+Temporal CLI 0.0.0-DEV (Server 1.31.2, UI 2.50.1)
+
+Temporal Server:      localhost:7233
+Temporal Persistence: in-memory
+Temporal UI:          http://localhost:8233
+Temporal Metrics:     http://localhost:45857/metrics
+Temporal CLI 0.0.0-DEV (Server 1.31.2, UI 2.50.1)
+
+Temporal Server:      localhost:7233
+Temporal Persistence: in-memory
+Temporal UI:          http://localhost:8233
+Temporal Metrics:     http://localhost:37829/metrics
+Temporal CLI 0.0.0-DEV (Server 1.31.2, UI 2.50.1)
+
+Temporal Server:      localhost:7233
+Temporal Persistence: in-memory
+Temporal UI:          http://localhost:8233
+Temporal Metrics:     http://localhost:46883/metrics

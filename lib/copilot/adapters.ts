@@ -26,9 +26,30 @@ import type {
 
 // ─── Retrieval ────────────────────────────────────────────────────────────────
 
-/** pgvector + Ollama embeddings retrieval. Degrades to empty set on failure. */
-export class PgVectorRetrieval implements RetrievalPort {
+import { searchKnowledgeVector, getTablestoreClient } from "@/lib/alibaba/tablestore-client"
+import { getEmbedding, getChatCompletion } from "@/lib/alibaba/model-studio-client"
+
+/** Alibaba Cloud Tablestore Vector Search Retrieval with pgvector/keyword fallback. */
+export class AlibabaCloudRetrieval implements RetrievalPort {
   async retrieve(orgId: string, query: string, k: number): Promise<Source[]> {
+    try {
+      const client = getTablestoreClient()
+      const queryVec = await getEmbedding(query.slice(0, 4000))
+      const searchResults = await searchKnowledgeVector(client, orgId, queryVec, k)
+
+      if (searchResults.length > 0) {
+        return searchResults.map((res, idx) => ({
+          id: `ots-chunk-${idx}`,
+          title: res.sourceFileName,
+          snippet: res.chunkText,
+          score: res.score > 0 ? res.score : 0.85,
+        }))
+      }
+    } catch (err: any) {
+      console.warn(`[AlibabaRetrieval] Tablestore search fallback: ${err.message}`)
+    }
+
+    // Fallback to PgVector / keyword search
     try {
       const vec = await embedWithOllama(query.slice(0, 8000))
       const matches = await queryEmbeddings(orgId, vec, k)
@@ -48,6 +69,13 @@ export class PgVectorRetrieval implements RetrievalPort {
     } catch {
       return keywordKnowledgeFallback(orgId, query, k)
     }
+  }
+}
+
+/** pgvector + Ollama embeddings retrieval. Degrades to empty set on failure. */
+export class PgVectorRetrieval implements RetrievalPort {
+  async retrieve(orgId: string, query: string, k: number): Promise<Source[]> {
+    return new AlibabaCloudRetrieval().retrieve(orgId, query, k)
   }
 }
 
@@ -137,8 +165,50 @@ export class StreamingComposer implements ComposerPort {
   async *compose(args: { input: string; intent?: string; sources: Source[] }): AsyncIterable<string> {
     const masked = PIIMasker.mask(args.input)
     const system = buildSystemPrompt(args.sources, args.intent)
-    const cfg = getLlmRuntimeConfig()
 
+    // Primary 0: Live Alibaba Function Compute Endpoint
+    const fcUrl = process.env.ALIBABA_FC_URL || process.env.NEXT_PUBLIC_ALIBABA_FC_URL
+    if (fcUrl && fcUrl.startsWith("http")) {
+      try {
+        console.log(`[StreamingComposer] Invoking live Alibaba Function Compute URL: '${fcUrl}'...`)
+        const fcRes = await fetch(fcUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orgId: "org-alpha-demo",
+            customerMessage: masked,
+            conversationId: "conv-dashboard-copilot-" + Math.random().toString(36).substring(2, 7),
+          }),
+        })
+
+        if (fcRes.ok) {
+          const fcData = await fcRes.json()
+          if (fcData.answer) {
+            yield fcData.answer
+            return
+          }
+        }
+      } catch (fcErr: any) {
+        console.warn(`[StreamingComposer] FC Invocation Warning: ${fcErr.message}`)
+      }
+    }
+
+    // Primary 1: Alibaba Model Studio qwen-plus inline
+    try {
+      const res = await getChatCompletion([
+        { role: "user", content: masked }
+      ], {
+        systemPrompt: system
+      })
+      if (res.text) {
+        yield res.text
+        return
+      }
+    } catch (err: any) {
+      console.warn(`[StreamingComposer] Model Studio fallback: ${err.message}`)
+    }
+
+    const cfg = getLlmRuntimeConfig()
     const model =
       cfg.chatProvider === "anthropic" || cfg.chatProvider === "vertex-anthropic"
         ? createAnthropicModel(cfg, "claude-3-5-sonnet-20240620", 0, true)

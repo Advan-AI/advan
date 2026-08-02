@@ -246,7 +246,7 @@ export default function KnowledgeBasePage() {
     if (!isWorkbench) setMobilePane("inspector")
   }
 
-  function submitSource(event: React.FormEvent<HTMLFormElement>) {
+  async function submitSource(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const title = draft.title.trim()
     const content = draft.content.trim()
@@ -255,6 +255,23 @@ export default function KnowledgeBasePage() {
     if (!title || !content) {
       toast.error("Title and content are required")
       return
+    }
+
+    // Sync to Alibaba Cloud OSS & Tablestore Vector Search
+    try {
+      const formData = new FormData()
+      formData.append("orgId", "org-alpha-demo")
+      const blob = new Blob([`${title}\n\n${content}`], { type: "text/plain" })
+      const safeFilename = `${title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.txt`
+      formData.append("file", blob, safeFilename)
+
+      await fetch("/api/alibaba/ingest", {
+        method: "POST",
+        body: formData,
+      })
+      toast.success("Synced to Alibaba OSS & Tablestore Vector Search!")
+    } catch (err: any) {
+      console.warn("[Alibaba Sync Warning]:", err)
     }
 
     addMutation.mutate({
@@ -1247,6 +1264,65 @@ function SourceFormModal({
               </select>
             </Field>
           </div>
+          {/* File Upload Dropzone */}
+          <div className="rounded-xl border border-dashed border-[#9D91EA]/50 bg-[#ECE9FB]/30 p-4 transition hover:bg-[#ECE9FB]/50">
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-1.5 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#6B5CD6] shadow-sm">
+                <FileText className="h-5 w-5" />
+              </div>
+              <span className="text-[13px] font-bold text-[var(--dash-ink)]">
+                Click to Upload Document (.pdf, .txt, .md)
+              </span>
+              <span className="text-[11.5px] text-[var(--dash-ink-faint)]">
+                Files are automatically uploaded to Alibaba OSS & indexed into Tablestore Vector Search
+              </span>
+              <input
+                type="file"
+                accept=".txt,.pdf,.md,.doc,.docx"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+
+                  try {
+                    toast.info(`Ingesting '${file.name}' into Alibaba OSS & Tablestore...`);
+                    const formData = new FormData();
+                    formData.append("orgId", "org-alpha-demo");
+                    formData.append("file", file);
+
+                    const res = await fetch("/api/alibaba/ingest", {
+                      method: "POST",
+                      body: formData,
+                    });
+
+                    if (!res.ok) {
+                      const errData = await res.json();
+                      throw new Error(errData.error || "Failed to process file");
+                    }
+
+                    const data = await res.json();
+                    let fileText = "";
+                    if (file.name.toLowerCase().endsWith(".pdf")) {
+                      fileText = `[Uploaded PDF Document: ${file.name}]\nStatus: Successfully processed and indexed into Alibaba OSS & Tablestore Vector Search (${data.chunksCreated} chunks created).\n\nDocument Title: ${file.name}`;
+                    } else {
+                      fileText = await file.text();
+                    }
+
+                    setDraft((prev) => ({
+                      ...prev,
+                      title: prev.title || file.name,
+                      content: fileText,
+                    }));
+                    toast.success(`✓ File '${file.name}' successfully uploaded to Alibaba OSS & Tablestore Vector Search!`);
+                  } catch (err: any) {
+                    console.error("File Ingestion Error:", err);
+                    toast.error(err.message || "Error processing file upload");
+                  }
+                }}
+                className="hidden"
+              />
+            </label>
+          </div>
+
           <Field label="URL">
             <input value={draft.url} onChange={(event) => setDraft((value) => ({ ...value, url: event.target.value }))} placeholder="https://docs.company.com/refunds" className={FIELD_CLASS} />
           </Field>

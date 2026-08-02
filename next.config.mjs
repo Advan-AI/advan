@@ -16,6 +16,7 @@ const nextConfig = {
     buildActivity: false,
   },
   output: "standalone",
+  serverExternalPackages: ["ali-oss", "urllib", "proxy-agent", "tablestore"],
 
   /**
    * Optional API rewrites when frontend (Vercel) and backend (Cloud Run) are hosted separately.
