@@ -16,6 +16,23 @@ const nextConfig = {
     buildActivity: false,
   },
   output: "standalone",
+  serverExternalPackages: ["ali-oss", "urllib", "proxy-agent", "tablestore"],
+
+  /**
+   * Optional API rewrites when frontend (Vercel) and backend (Cloud Run) are hosted separately.
+   */
+  async rewrites() {
+    const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL
+    if (backendUrl) {
+      return [
+        {
+          source: "/api/:path*",
+          destination: `${backendUrl.replace(/\/$/, "")}/api/:path*`,
+        },
+      ]
+    }
+    return []
+  },
 
   /**
    * Security headers applied to every response.

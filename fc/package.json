@@ -1,0 +1,9 @@
+{
+  "name": "advan-fc-agent",
+  "version": "1.0.0",
+  "description": "Advan AI Serverless RAG Agent & Memory Engine for Alibaba Function Compute 3.0",
+  "main": "index.js",
+  "dependencies": {
+    "tablestore": "^5.4.1"
+  }
+}

@@ -18,8 +18,14 @@ const t = initTRPC.context<Context>().create({
 });
 
 import { db } from "@/lib/db"
-import { organizations } from "@/lib/db/schema"
+import { organizations, orgRoles, users } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
+import {
+  DEFAULT_ROLE_PERMISSIONS,
+  TEAM_PERMISSION_KEYS,
+  sanitizePermissions,
+  type BaseTeamRole,
+} from "@/lib/team-permissions"
 
 export const router = t.router;
 export const publicProcedure = t.procedure;
@@ -60,3 +66,57 @@ export const activeSubscriptionProcedure = protectedProcedure.use(async ({ ctx, 
 
   return next()
 })
+
+type TeamPermissionKey = (typeof TEAM_PERMISSION_KEYS)[number]
+
+async function resolveUserPermissions(input: {
+  userId: string
+  orgId: string
+  fallbackRole: BaseTeamRole
+}): Promise<string[]> {
+  const userRow = await db.query.users.findFirst({
+    where: eq(users.id, input.userId),
+    columns: { id: true, orgId: true, role: true, roleId: true },
+  })
+
+  if (!userRow || userRow.orgId !== input.orgId) {
+    return DEFAULT_ROLE_PERMISSIONS[input.fallbackRole]
+  }
+
+  if (!userRow.roleId) {
+    return DEFAULT_ROLE_PERMISSIONS[userRow.role]
+  }
+
+  const customRole = await db.query.orgRoles.findFirst({
+    where: eq(orgRoles.id, userRow.roleId),
+    columns: { id: true, orgId: true, permissions: true },
+  })
+
+  if (!customRole || customRole.orgId !== input.orgId) {
+    return DEFAULT_ROLE_PERMISSIONS[userRow.role]
+  }
+
+  return sanitizePermissions(customRole.permissions || [])
+}
+
+/**
+ * Permission-aware procedure guard for org-scoped dashboard actions.
+ * Uses built-in role defaults unless a custom org role assignment exists.
+ */
+export const permissionedProcedure = (permission: TeamPermissionKey) =>
+  protectedProcedure.use(async ({ ctx, next }) => {
+    const permissions = await resolveUserPermissions({
+      userId: ctx.user.id,
+      orgId: ctx.user.orgId,
+      fallbackRole: ctx.user.role as BaseTeamRole,
+    })
+
+    if (!permissions.includes(permission)) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Missing required permission: ${permission}`,
+      })
+    }
+
+    return next()
+  })

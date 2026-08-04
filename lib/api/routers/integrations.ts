@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 import { TRPCError } from "@trpc/server"
 import crypto from "crypto"
 
-import { router, protectedProcedure } from "../trpc"
+import { router, permissionedProcedure, protectedProcedure } from "../trpc"
 import { db } from "@/lib/db"
 import { widgetConfigs, organizations } from "@/lib/db/schema"
 import { requireEmailConfig } from "@/lib/email/config"
@@ -18,7 +18,7 @@ export const integrationsRouter = router({
    * getOrganization:
    * Returns the organization details for the current user's org.
    */
-  getOrganization: protectedProcedure.query(async ({ ctx }) => {
+  getOrganization: permissionedProcedure("integrations.manage").query(async ({ ctx }) => {
     const org = await db.query.organizations.findFirst({
       where: eq(organizations.id, ctx.user.orgId),
     })
@@ -40,7 +40,7 @@ export const integrationsRouter = router({
    * getWidgetConfig:
    * Returns the single widget config for the caller's organization, or null if it doesn't exist.
    */
-  getWidgetConfig: protectedProcedure.query(async ({ ctx }) => {
+  getWidgetConfig: permissionedProcedure("integrations.manage").query(async ({ ctx }) => {
     const config = await db.query.widgetConfigs.findFirst({
       where: eq(widgetConfigs.orgId, ctx.user.orgId),
     })
@@ -52,7 +52,7 @@ export const integrationsRouter = router({
    * Provisions a new widget configuration for the org with a securely generated key.
    * Enforces 1:1 relation—if an org already has a config, it throws an error.
    */
-  createWidgetConfig: protectedProcedure.mutation(async ({ ctx }) => {
+  createWidgetConfig: permissionedProcedure("integrations.manage").mutation(async ({ ctx }) => {
     // Determine if one already exists
     const existing = await db.query.widgetConfigs.findFirst({
       where: eq(widgetConfigs.orgId, ctx.user.orgId),
@@ -85,7 +85,7 @@ export const integrationsRouter = router({
    * updateWidgetOrigins:
    * Updates the `allowedOrigins` array for the caller's widget config.
    */
-  updateWidgetOrigins: protectedProcedure
+  updateWidgetOrigins: permissionedProcedure("integrations.manage")
     .input(z.object({ allowedOrigins: z.array(z.string().url()) }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await db
@@ -108,7 +108,7 @@ export const integrationsRouter = router({
    * rotateWidgetKey:
    * Generates a new widget key, invalidating the old one immediately.
    */
-  rotateWidgetKey: protectedProcedure.mutation(async ({ ctx }) => {
+  rotateWidgetKey: permissionedProcedure("integrations.manage").mutation(async ({ ctx }) => {
     const newKey = generateWidgetKey()
 
     const [updated] = await db
@@ -131,7 +131,7 @@ export const integrationsRouter = router({
    * deleteWidgetConfig:
    * Disables the widget entirely by deleting the config row.
    */
-  deleteWidgetConfig: protectedProcedure.mutation(async ({ ctx }) => {
+  deleteWidgetConfig: permissionedProcedure("integrations.manage").mutation(async ({ ctx }) => {
     const [deleted] = await db
       .delete(widgetConfigs)
       .where(eq(widgetConfigs.orgId, ctx.user.orgId))

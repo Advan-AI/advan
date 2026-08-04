@@ -76,6 +76,28 @@ export const usageEvents = pgTable(
   ],
 )
 
+export const orgRoles = pgTable(
+  "org_roles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    baseRole: text("base_role", { enum: ["admin", "member", "viewer"] }).notNull(),
+    permissions: jsonb("permissions").$type<string[]>().default([]).notNull(),
+    isSystem: boolean("is_system").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    unique("org_roles_org_key_unique").on(table.orgId, table.key),
+    unique("org_roles_org_name_unique").on(table.orgId, table.name),
+    index("org_roles_org_idx").on(table.orgId),
+  ],
+)
+
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")
@@ -88,6 +110,7 @@ export const users = pgTable("users", {
   role: text("role", { enum: ["admin", "member", "viewer"] })
     .default("member")
     .notNull(),
+  roleId: uuid("role_id").references(() => orgRoles.id, { onDelete: "set null" }),
   /**
    * Per-agent "available for live chat" toggle.
    * When false, this agent is excluded from the org availability check
@@ -141,6 +164,25 @@ export const customers = pgTable(
   ],
 )
 
+export const visitors = pgTable(
+  "visitors",
+  {
+    /**
+     * Persistent chat visitor identity.
+     * This UUID is generated/held by the embed script on the parent origin.
+     */
+    id: uuid("id").primaryKey(),
+    orgId: uuid("org_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    /** Public widget key used to scope visitor identity to a deployment. */
+    widgetKey: text("widget_key").notNull(),
+    firstSeenAt: timestamp("first_seen_at").defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+  },
+  (table) => [index("visitors_org_widget_idx").on(table.orgId, table.widgetKey)],
+)
+
 export const tickets = pgTable("tickets", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")
@@ -192,6 +234,16 @@ export const conversations = pgTable(
      * Set by the chat widget on first message; carried in the session JWT.
      */
     visitorSessionId: text("visitor_session_id"),
+    /**
+     * Persistent visitor identity for chat conversations.
+     * Nullable for non-chat channels and legacy rows.
+     */
+    visitorId: uuid("visitor_id").references(() => visitors.id, { onDelete: "set null" }),
+    /**
+     * Snapshot of visitor-facing name at session creation time.
+     * Backfilled for legacy rows where possible.
+     */
+    customerDisplayName: text("customer_display_name"),
     title: text("title"),
     pinnedAt: timestamp("pinned_at"),
     archivedAt: timestamp("archived_at"),
@@ -216,6 +268,7 @@ export const conversations = pgTable(
     index("conversations_org_archived_updated_idx").on(table.orgId, table.archivedAt, table.updatedAt),
     index("conversations_org_pinned_idx").on(table.orgId, table.pinnedAt),
     index("conversations_visitor_session_idx").on(table.visitorSessionId),
+    index("conversations_visitor_id_idx").on(table.visitorId),
   ],
 )
 
@@ -518,6 +571,22 @@ export const widgetConfigs = pgTable(
      */
     allowedOrigins: jsonb("allowed_origins").$type<string[]>().default([]).notNull(),
     preChatFormEnabled: boolean("pre_chat_form_enabled").default(true).notNull(),
+    /**
+     * Pre-chat intake questions shown before the first message.
+     * Each question: { id, text, type: "preset" | "custom", options?, required? }
+     */
+    preChatQuestions: jsonb("pre_chat_questions")
+      .$type<
+        Array<{
+          id: string
+          text: string
+          type: "preset" | "custom"
+          options?: string[]
+          required?: boolean
+        }>
+      >()
+      .default([])
+      .notNull(),
     /** Optional branding overrides (colors, logo URL, etc.) */
     brandingConfig: jsonb("branding_config").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

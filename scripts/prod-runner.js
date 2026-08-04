@@ -18,7 +18,18 @@ const path = require("path");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 
+if (!process.env.REDIS_URL) {
+  process.env.REDIS_URL = "redis://127.0.0.1:6379";
+}
+
 const SERVICES = [
+  {
+    name: "redis-server",
+    command: "redis-server",
+    args: ["--port", "6379", "--bind", "127.0.0.1", "--protected-mode", "no", "--save", "", "--appendonly", "no"],
+    enabled: process.env.SKIP_REDIS_SERVER !== "1",
+    critical: false,
+  },
   {
     name: "next-web",
     command: "node",
@@ -37,7 +48,7 @@ const SERVICES = [
     name: "queue-workers",
     command: "npx",
     args: ["tsx", "lib/queue/worker-entrypoint.ts"],
-    enabled: process.env.SKIP_QUEUES !== "1" && !!process.env.REDIS_URL,
+    enabled: process.env.SKIP_QUEUES !== "1",
     critical: false,
   },
   {
@@ -55,6 +66,7 @@ let isShuttingDown = false;
 // ANSI Terminal Colors for pretty logs
 const COLORS = {
   reset: "\x1b[0m",
+  "redis-server": "\x1b[31m",   // Red
   "next-web": "\x1b[36m",       // Cyan
   "socket-server": "\x1b[35m",  // Magenta
   "queue-workers": "\x1b[32m",  // Green

@@ -125,7 +125,7 @@ describe("Usage Metering, Seat Constraints and Reports", () => {
       }
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(mockStripeSubscription as any)
-      vi.mocked(stripe.subscriptionItems.createUsageRecord).mockResolvedValue(mockStripeUsageRecord as any)
+      vi.mocked((stripe.subscriptionItems as any).createUsageRecord).mockResolvedValue(mockStripeUsageRecord as any)
 
       // Seed 3 unreported usage events
       await db.insert(usageEvents).values([
@@ -144,7 +144,7 @@ describe("Usage Metering, Seat Constraints and Reports", () => {
 
       // Verify Stripe Client was called correctly
       expect(stripe.subscriptions.retrieve).toHaveBeenCalledWith("sub_metered_test_456")
-      expect(stripe.subscriptionItems.createUsageRecord).toHaveBeenCalledWith(
+      expect((stripe.subscriptionItems as any).createUsageRecord).toHaveBeenCalledWith(
         "item_metered_789",
         expect.objectContaining({
           quantity: 3,
@@ -171,7 +171,7 @@ describe("Usage Metering, Seat Constraints and Reports", () => {
       expect(run2Results[testOrgId]).toBeUndefined()
 
       // Verify Stripe Client was NOT called again for this organization
-      expect(stripe.subscriptionItems.createUsageRecord).not.toHaveBeenCalled()
+      expect((stripe.subscriptionItems as any).createUsageRecord).not.toHaveBeenCalled()
     })
   })
 })

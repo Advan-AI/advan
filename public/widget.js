@@ -49,6 +49,79 @@
 
   var FRAME_ORIGIN = baseUrl;
 
+  // ── Persistent visitor identity (parent origin storage) ──────────────────
+  // This intentionally lives in the embedding page's first-party storage,
+  // not inside the iframe origin, to avoid silent third-party storage churn.
+  var VISITOR_KEY = 'advan_widget_visitor_id';
+  var LAST_VIEWED_KEY = 'advan_widget_last_viewed';
+
+  function safeGet(k) {
+    try { return window.localStorage.getItem(k); } catch (_) { return null; }
+  }
+
+  function safeSet(k, v) {
+    try { window.localStorage.setItem(k, v); } catch (_) { /* ignore */ }
+  }
+
+  function isUuid(v) {
+    return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+  }
+
+  function mintUuid() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    if (!window.crypto || typeof window.crypto.getRandomValues !== 'function') {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0;
+        var v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+    // RFC4122 v4 fallback for older browsers.
+    var bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    var hex = [];
+    for (var i = 0; i < bytes.length; i++) hex.push((bytes[i] + 0x100).toString(16).slice(1));
+    return [
+      hex.slice(0, 4).join(''),
+      hex.slice(4, 6).join(''),
+      hex.slice(6, 8).join(''),
+      hex.slice(8, 10).join(''),
+      hex.slice(10, 16).join(''),
+    ].join('-');
+  }
+
+  var visitorId = safeGet(VISITOR_KEY);
+  if (!isUuid(visitorId)) {
+    visitorId = mintUuid();
+    safeSet(VISITOR_KEY, visitorId);
+  }
+
+  function readLastViewedMap() {
+    var raw = safeGet(LAST_VIEWED_KEY);
+    if (!raw) return {};
+    try {
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return {};
+      return parsed;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function writeLastViewed(conversationId, isoTimestamp) {
+    if (!conversationId || !isoTimestamp) return;
+    var map = readLastViewedMap();
+    map[conversationId] = isoTimestamp;
+    safeSet(LAST_VIEWED_KEY, JSON.stringify(map));
+  }
+
+  FRAME_URL += '&visitorId=' + encodeURIComponent(visitorId);
+  FRAME_URL += '&lastViewedMap=' + encodeURIComponent(JSON.stringify(readLastViewedMap()));
+
   // ── Dimensions ─────────────────────────────────────────────────────────────
   var PANEL_W   = 380;
   var PANEL_H   = 580;
@@ -196,11 +269,19 @@
   // Supported message types:
   //   { type: 'advan:close' }  — frame requests the panel to close
   //   { type: 'advan:ready' }  — frame signals it finished mounting
+  //   { type: 'advan:visitor_id', visitorId } — server reminted identity
   window.addEventListener('message', function (e) {
     if (e.origin !== FRAME_ORIGIN) return;
     var data = e.data;
     if (!data || typeof data !== 'object') return;
     if (data.type === 'advan:close') closePanel();
+    if (data.type === 'advan:last_viewed_update') {
+      writeLastViewed(data.conversationId, data.lastViewedAt);
+    }
+    if (data.type === 'advan:visitor_id' && isUuid(data.visitorId)) {
+      visitorId = data.visitorId;
+      safeSet(VISITOR_KEY, visitorId);
+    }
   });
 
   // ── Mount ──────────────────────────────────────────────────────────────────

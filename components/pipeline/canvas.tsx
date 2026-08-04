@@ -22,7 +22,7 @@ import { ReconnectableEdge } from "./reconnectable-edge"
 
 const NODE_DRAG_MIME = "application/advan-node-type"
 
-export function PipelineCanvas() {
+export function PipelineCanvas({ compactChrome = false }: { compactChrome?: boolean }) {
   const wrapper = useRef<HTMLDivElement>(null)
   const { screenToFlowPosition, setCenter } = useReactFlow()
 
@@ -171,8 +171,8 @@ export function PipelineCanvas() {
         defaultEdgeOptions={{ style: { stroke: "#6B5CD6", strokeWidth: 2 } }}
       >
         <Background color="#d9d2c2" gap={20} />
-        <Controls showInteractive={false} />
-        <MiniMap pannable zoomable className="!bg-white/70" />
+        <Controls showInteractive={false} position={compactChrome ? "top-left" : "bottom-left"} />
+        {!compactChrome && <MiniMap pannable zoomable className="!bg-white/70" />}
       </ReactFlow>
     </div>
   )

@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { eq, sql, and, gte, lte } from "drizzle-orm"
 import { TRPCError } from "@trpc/server"
-import { router, protectedProcedure } from "../trpc"
+import { permissionedProcedure, router, protectedProcedure } from "../trpc"
 import { db } from "@/lib/db"
 import { organizations, plans, usageEvents, users } from "@/lib/db/schema"
 import { stripe } from "@/lib/billing/stripe-client"
@@ -14,7 +14,7 @@ const OVERAGE_RATES_CENTS: Record<string, number> = {
 }
 
 export const billingRouter = router({
-  getBillingInfo: protectedProcedure.query(async ({ ctx }) => {
+  getBillingInfo: permissionedProcedure("billing.manage").query(async ({ ctx }) => {
     const orgId = ctx.user.orgId
 
     // 1. Fetch organization details
@@ -77,14 +77,14 @@ export const billingRouter = router({
     }
   }),
 
-  listPlans: protectedProcedure.query(async () => {
+  listPlans: permissionedProcedure("billing.manage").query(async () => {
     return await db.query.plans.findMany({
       where: eq(plans.active, true),
       orderBy: (plans, { asc }) => [asc(plans.monthlyPriceCents)],
     })
   }),
 
-  changeSubscriptionPlan: protectedProcedure
+  changeSubscriptionPlan: permissionedProcedure("billing.manage")
     .input(z.object({ planKey: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const orgId = ctx.user.orgId
@@ -204,7 +204,7 @@ export const billingRouter = router({
       }
     }),
 
-  getPortalSession: protectedProcedure.query(async ({ ctx }) => {
+  getPortalSession: permissionedProcedure("billing.manage").query(async ({ ctx }) => {
     const orgId = ctx.user.orgId
     const org = await db.query.organizations.findFirst({
       where: eq(organizations.id, orgId),
@@ -233,7 +233,7 @@ export const billingRouter = router({
     }
   }),
 
-  getInvoiceHistory: protectedProcedure.query(async ({ ctx }) => {
+  getInvoiceHistory: permissionedProcedure("billing.manage").query(async ({ ctx }) => {
     const orgId = ctx.user.orgId
     const org = await db.query.organizations.findFirst({
       where: eq(organizations.id, orgId),

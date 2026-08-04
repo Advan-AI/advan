@@ -1,585 +1,704 @@
 "use client"
 
-/**
- * /chat-widget-frame
- *
- * Standalone React page rendered inside a sandboxed <iframe> by the
- * widget embed loader (public/widget.js).
- *
- * URL params:
- *   key     — widgetKey (required); matches widget_configs.widgetKey
- *   origin  — the embedding page's origin forwarded to the session endpoint
- *             so allowedOrigins is checked against the actual embedding site
- *
- * Flow:
- *   1. GET /api/chat/availability → agentsOnline, preChatFormEnabled
- *   2. If preChatFormEnabled && !agentsOnline → show pre-chat form (name+email)
- *   3. POST /api/chat/session → { token, visitorSessionId }
- *   4. POST /api/chat/intake  → { conversationId }  (first message or form submit)
- *   5. Connect socket.io /chat-widget with { token, conversationId }
- *   6. Subsequent messages → socket emit visitor:message
- *
- * postMessage to parent:
- *   { type: 'advan:close' }  — close the panel
- *   { type: 'advan:ready' }  — widget mounted
- */
-
-import { useEffect, useRef, useState, useCallback, KeyboardEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import * as SocketIO from "socket.io-client"
-import {
-  AgentAvatar,
-  AgentPresenceStack,
-  VisitorAvatar,
-  presenceTitle,
-  type PresenceAgent,
-} from "./presence"
+import { AgentAvatar, AgentPresenceStack, VisitorAvatar, presenceTitle, type PresenceAgent } from "./presence"
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+type View = "loading" | "session-list" | "new-session" | "chat" | "error"
 
-type Phase =
-  | "loading"       // fetching availability
-  | "pre-chat"      // offline pre-chat form
-  | "chatting"      // live conversation
-  | "offline-sent"  // offline form submitted
-  | "error"
+type SessionSummary = {
+  conversationId: string
+  customerDisplayName: string | null
+  status: "active" | "waiting" | "resolved"
+  lastMessagePreview: string
+  lastActivityAt: string
+  hasUnreadAgentReply: boolean
+}
 
-interface Message {
+type ChatMessage = {
   id: string
   role: "user" | "agent"
   content: string
-  ts: Date
-  pending?: boolean
+  createdAt: string
 }
 
-interface SessionState {
+type PreChatQuestion = {
+  id: string
+  text: string
+  type: "preset" | "custom"
+  options?: string[]
+  required?: boolean
+}
+
+type SessionState = {
   token: string
-  visitorSessionId: string
-  orgId: string
+  visitorId: string
+  widgetConfig?: {
+    preChatFormEnabled: boolean
+    preChatQuestions: PreChatQuestion[]
+  }
 }
-
-// ── Constants ──────────────────────────────────────────────────────────────────
 
 const getSocketUrl = () => {
-  const envUrl = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SOCKET_URL : null;
+  const envUrl = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SOCKET_URL : null
   if (envUrl && !envUrl.includes("localhost:3002") && !envUrl.includes("127.0.0.1:3002")) {
-    return envUrl;
+    return envUrl
   }
-  if (typeof window === "undefined") return "http://localhost:3002";
-  const isLocal = window.location.hostname === "localhost" ||
-                  window.location.hostname === "127.0.0.1" ||
-                  window.location.hostname === "0.0.0.0";
+  if (typeof window === "undefined") return "http://localhost:3002"
+  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "0.0.0.0"
   return isLocal
     ? `${window.location.protocol}//${window.location.hostname}:3002`
-    : `${window.location.protocol}//${window.location.hostname}`;
-};
+    : `${window.location.protocol}//${window.location.hostname}`
+}
 
-const SOCKET_URL = getSocketUrl();
-
-const LS_SESSION = "advan_widget_vsid"
-const LS_CONV    = "advan_widget_cid"
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
+const SOCKET_URL = getSocketUrl()
 
 function postToParent(msg: Record<string, unknown>) {
-  try { window.parent.postMessage(msg, "*") } catch { /* sandboxed — best effort */ }
-}
-
-function lsGet(k: string): string | null {
-  try { return localStorage.getItem(k) } catch { return null }
-}
-function lsSet(k: string, v: string) {
-  try { localStorage.setItem(k, v) } catch { /* ignore */ }
-}
-
-function getValidSessionId(): string | undefined {
-  const id = lsGet(LS_SESSION)
-  if (!id) return undefined
-  const isValid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-  if (!isValid) {
-    try { localStorage.removeItem(LS_SESSION) } catch {}
-    return undefined
-  }
-  return id
-}
-
-function localId() {
-  return `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-/** Decode the public JWT payload (not secret — just org metadata). */
-function jwtPayload(jwt: string): Record<string, unknown> {
   try {
-    const [, b64] = jwt.split(".")
-    return JSON.parse(atob(b64.replace(/-/g, "+").replace(/_/g, "/")))
+    window.parent.postMessage(msg, "*")
+  } catch {
+    // best effort in sandboxed iframe
+  }
+}
+
+function parseLastViewedMap(raw: string | null): Record<string, string> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as Record<string, string>
+    if (!parsed || typeof parsed !== "object") return {}
+    return parsed
   } catch {
     return {}
   }
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+function relativeTime(d: string): string {
+  const ms = Date.now() - new Date(d).getTime()
+  if (ms < 60_000) return "just now"
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`
+  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`
+  if (ms < 604_800_000) return `${Math.floor(ms / 86_400_000)}d ago`
+  return new Date(d).toLocaleDateString("en", { month: "short", day: "numeric" })
+}
+
+function truncate(input: string, max = 44): string {
+  const value = input.trim()
+  if (value.length <= max) return value
+  return `${value.slice(0, max - 1)}...`
+}
+
+function nextId() {
+  return `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
 
 export default function ChatWidgetFrame() {
-  // URL params
-  const [widgetKey, setWidgetKey]           = useState<string | null>(null)
-  const [embeddingOrigin, setEmbeddingOrigin] = useState<string | null>(null)
+  const [view, setView] = useState<View>("loading")
+  const [errorText, setErrorText] = useState<string | null>(null)
 
-  // App state
-  const [phase, setPhase]     = useState<Phase>("loading")
-  const [errMsg, setErrMsg]   = useState<string | null>(null)
-  const [agentOnline, setAgentOnline]   = useState(false)
-  const [agentCount, setAgentCount]     = useState(0)
-  const [teamName, setTeamName]         = useState("Support")
-  const [agents, setAgents]             = useState<PresenceAgent[]>([])
-  const [preChatEnabled, setPreChatEnabled] = useState(false)
-  const [agentTyping, setAgentTyping]   = useState(false)
-  const [messages, setMessages]         = useState<Message[]>([])
+  const [widgetKey, setWidgetKey] = useState<string | null>(null)
+  const [origin, setOrigin] = useState<string | null>(null)
+  const [visitorIdFromParent, setVisitorIdFromParent] = useState<string | null>(null)
+  const [lastViewedMap, setLastViewedMap] = useState<Record<string, string>>({})
 
-  // Session
-  const sessionRef  = useRef<SessionState | null>(null)
-  const convIdRef   = useRef<string | null>(null)
+  const [session, setSession] = useState<SessionState | null>(null)
+  const [sessionList, setSessionList] = useState<SessionSummary[]>([])
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [activeDisplayName, setActiveDisplayName] = useState<string | null>(null)
+  const [activeStatus, setActiveStatus] = useState<SessionSummary["status"] | null>(null)
 
-  // Pre-chat form
-  const [formName, setFormName]   = useState("")
-  const [formEmail, setFormEmail] = useState("")
-
-  // Composer
-  const [input, setInput]     = useState("")
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
+  const [agentTyping, setAgentTyping] = useState(false)
 
-  // Refs
-  const socketRef      = useRef<ReturnType<typeof SocketIO.connect> | null>(null)
+  const [displayName, setDisplayName] = useState("")
+  const [initialMessage, setInitialMessage] = useState("")
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [preChatAnswers, setPreChatAnswers] = useState<Record<string, string>>({})
+
+  const [agentOnline, setAgentOnline] = useState(false)
+  const [agentCount, setAgentCount] = useState(0)
+  const [teamName, setTeamName] = useState("Support")
+  const [agents, setAgents] = useState<PresenceAgent[]>([])
+
+  const socketRef = useRef<ReturnType<typeof SocketIO.connect> | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const typingTimer    = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isTyping       = useRef(false)
-  const textareaRef    = useRef<HTMLTextAreaElement>(null)
+  const activeConversationIdRef = useRef<string | null>(null)
+  const lastViewedMapRef = useRef<Record<string, string>>({})
+  const visitorIdRef = useRef<string | null>(null)
 
-  // ── Init ───────────────────────────────────────────────────────────────────
+  const showBack = view === "chat" && sessionList.length > 1
+
+  const activeSessionSummary = useMemo(
+    () => sessionList.find((s) => s.conversationId === activeConversationId) ?? null,
+    [sessionList, activeConversationId],
+  )
+
   useEffect(() => {
-    const p      = new URLSearchParams(window.location.search)
-    const key    = p.get("key")?.trim() ?? null
-    const origin = p.get("origin")?.trim() ?? window.location.origin
-    setWidgetKey(key)
-    setEmbeddingOrigin(origin)
-    postToParent({ type: "advan:ready" })
+    activeConversationIdRef.current = activeConversationId
+  }, [activeConversationId])
+
+  useEffect(() => {
+    lastViewedMapRef.current = lastViewedMap
+  }, [lastViewedMap])
+
+  const markViewed = useCallback((conversationId: string) => {
+    const nowIso = new Date().toISOString()
+    setLastViewedMap((prev) => {
+      const next = { ...prev, [conversationId]: nowIso }
+      lastViewedMapRef.current = next
+      postToParent({ type: "advan:last_viewed_update", conversationId, lastViewedAt: nowIso })
+      return next
+    })
   }, [])
 
-  // ── Step 1: Availability ───────────────────────────────────────────────────
-  useEffect(() => {
-    if (!widgetKey) return
-    ;(async () => {
-      try {
-        const r = await fetch(`/api/chat/availability?widgetKey=${encodeURIComponent(widgetKey)}`)
-        if (r.status === 404) { fail("Widget not configured."); return }
-        if (!r.ok)            { fail("Unable to load chat."); return }
-        const data = await r.json() as {
-          agentsOnline: boolean
-          agentCount?: number
-          teamName?: string
-          agents?: PresenceAgent[]
-          preChatFormEnabled: boolean
-        }
-        setAgentOnline(data.agentsOnline)
-        setAgentCount(data.agentCount ?? (data.agentsOnline ? 1 : 0))
-        setTeamName(data.teamName?.trim() || "Support")
-        setAgents(Array.isArray(data.agents) ? data.agents : [])
-        setPreChatEnabled(data.preChatFormEnabled)
+  const loadSessionList = useCallback(async (token: string, viewedMap?: Record<string, string>) => {
+    const qp = new URLSearchParams()
+    qp.set("lastViewedAtByConversation", JSON.stringify(viewedMap ?? lastViewedMapRef.current))
 
-        if (data.preChatFormEnabled && !data.agentsOnline) {
-          const vsid = getValidSessionId()
-          if (vsid) {
-            const sess = await initSession()
-            if (sess && convIdRef.current) {
-              setPhase("chatting")
-            } else {
-              setPhase("pre-chat")
-            }
-          } else {
-            setPhase("pre-chat")
-          }
-        } else {
-          // Agents online (or no form required) — start session and connect.
-          await initSession()
-        }
-      } catch {
-        fail("Network error. Please try again.")
-      }
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widgetKey, embeddingOrigin])
+    const res = await fetch(`/api/chat/sessions?${qp.toString()}`, {
+      headers: { authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error("sessions_failed")
 
-  // ── Session init ───────────────────────────────────────────────────────────
-  const initSession = useCallback(async () => {
-    if (!widgetKey || !embeddingOrigin) return null
-    try {
-      const r = await fetch("/api/chat/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          widgetKey,
-          origin: embeddingOrigin,
-          visitorSessionId: getValidSessionId(),
-        }),
-      })
-      if (!r.ok) { fail("Session error. Please refresh."); return null }
-      const { token, visitorSessionId, conversationId, previousMessages } = await r.json()
-      const { orgId } = jwtPayload(token) as { orgId: string }
-      const sess: SessionState = { token, visitorSessionId, orgId }
-      sessionRef.current = sess
-      lsSet(LS_SESSION, visitorSessionId)
+    const body = await res.json() as { sessions: SessionSummary[] }
+    setSessionList(body.sessions)
+    return body.sessions
+  }, [])
 
-      // Reconnect: restore previous conversationId if available.
-      const activeCid = conversationId || lsGet(LS_CONV) || undefined
-      convIdRef.current = activeCid ?? null
-      if (activeCid) {
-        lsSet(LS_CONV, activeCid)
-      }
+  const loadConversationMessages = useCallback(async (token: string, conversationId: string) => {
+    const res = await fetch(`/api/chat/sessions/${conversationId}/messages?limit=100&page=0`, {
+      headers: { authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error("messages_failed")
 
-      if (Array.isArray(previousMessages) && previousMessages.length > 0) {
-        setMessages(
-          previousMessages.map((m: any) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            ts: new Date(m.ts),
-          }))
-        )
-      } else {
-        setMessages([])
-      }
-
-      connectSocket(token, activeCid)
-      setPhase("chatting")
-      return sess
-    } catch {
-      fail("Could not start session.")
-      return null
+    const body = await res.json() as {
+      messages: Array<{ id: string; role: "user" | "assistant" | "agent"; content: string; createdAt: string }>
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widgetKey, embeddingOrigin])
 
-  // ── Socket ─────────────────────────────────────────────────────────────────
-  const connectSocket = useCallback((token: string, convId?: string) => {
+    const mapped: ChatMessage[] = body.messages.map((m) => ({
+      id: m.id,
+      role: m.role === "user" ? "user" : "agent",
+      content: m.content,
+      createdAt: m.createdAt,
+    }))
+
+    setMessages(mapped)
+    markViewed(conversationId)
+    return mapped
+  }, [markViewed])
+
+  /**
+   * Socket delivery can miss auto-replies (race before join, brief disconnect).
+   * Poll briefly after send / open so the widget still shows agent messages.
+   */
+  const pollForAgentReply = useCallback((token: string, conversationId: string) => {
+    let cancelled = false
+    let attempts = 0
+    const maxAttempts = 12 // ~36s at 3s interval — covers slow local Ollama
+    const startedAt = Date.now()
+
+    const tick = async () => {
+      if (cancelled) return
+      attempts += 1
+      try {
+        const mapped = await loadConversationMessages(token, conversationId)
+        const hasNewAgent = mapped.some(
+          (m) => m.role === "agent" && new Date(m.createdAt).getTime() >= startedAt - 2000,
+        )
+        if (hasNewAgent || attempts >= maxAttempts) return
+      } catch {
+        if (attempts >= maxAttempts) return
+      }
+      if (!cancelled && attempts < maxAttempts) {
+        window.setTimeout(() => void tick(), 3000)
+      }
+    }
+
+    window.setTimeout(() => void tick(), 1500)
+    return () => {
+      cancelled = true
+    }
+  }, [loadConversationMessages])
+
+  const joinConversation = useCallback((conversationId: string) => {
+    socketRef.current?.emit("join:conversation", { conversationId })
+  }, [])
+
+  const leaveConversation = useCallback((conversationId: string) => {
+    socketRef.current?.emit("leave:conversation", { conversationId })
+  }, [])
+
+  const openConversation = useCallback(async (conversation: SessionSummary) => {
+    if (!session) return
+
+    const previousId = activeConversationIdRef.current
+    if (previousId && previousId !== conversation.conversationId) {
+      leaveConversation(previousId)
+    }
+
+    setActiveConversationId(conversation.conversationId)
+    setActiveDisplayName(conversation.customerDisplayName)
+    setActiveStatus(conversation.status)
+    setView("chat")
+
+    joinConversation(conversation.conversationId)
+    await loadConversationMessages(session.token, conversation.conversationId)
+    pollForAgentReply(session.token, conversation.conversationId)
+  }, [session, leaveConversation, joinConversation, loadConversationMessages, pollForAgentReply])
+
+  const connectSocket = useCallback((token: string) => {
     socketRef.current?.disconnect()
     socketRef.current = null
 
-    // Connect directly to the /chat-widget namespace.
-    // socket.io-client v4 accepts the full URL with namespace path.
-    const chatNs = SocketIO.connect(`${SOCKET_URL}/chat-widget`, {
-      auth: { token, conversationId: convId },
+    const socket = SocketIO.connect(`${SOCKET_URL}/chat-widget`, {
+      auth: { token },
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: 8,
     })
-    socketRef.current = chatNs
 
-    chatNs.on("session:ready", (d: { conversationId: string | null }) => {
-      if (d.conversationId) {
-        convIdRef.current = d.conversationId
-        lsSet(LS_CONV, d.conversationId)
+    socketRef.current = socket
+
+    socket.on("session:ready", () => {
+      const conversationId = activeConversationIdRef.current
+      if (conversationId) {
+        socket.emit("join:conversation", { conversationId })
       }
     })
 
-    chatNs.on("agent:message", (d: { messageId: string; content: string }) => {
+    socket.on("agent:message", (payload: { conversationId: string; messageId: string; content: string }) => {
+      if (payload.conversationId !== activeConversationIdRef.current) return
       setAgentTyping(false)
-      addMessage({ id: d.messageId, role: "agent", content: d.content, ts: new Date() })
+      setMessages((prev) => [...prev, { id: payload.messageId, role: "agent", content: payload.content, createdAt: new Date().toISOString() }])
+      markViewed(payload.conversationId)
     })
 
-    chatNs.on("triage:pending", () => {
-      addMessage({
-        id: "triage-pending",
-        role: "agent",
-        content: "Someone from the team will reply shortly.",
-        ts: new Date(),
-      })
+    socket.on("typing:start", (d: { role: string }) => {
+      if (d.role === "agent") setAgentTyping(true)
     })
 
-    chatNs.on("typing:start",  (d: { role: string }) => { if (d.role === "agent") setAgentTyping(true)  })
-    chatNs.on("typing:stop",   (d: { role: string }) => { if (d.role === "agent") setAgentTyping(false) })
-    chatNs.on("presence:agent-online", (d: { online: boolean; count?: number }) => {
+    socket.on("typing:stop", (d: { role: string }) => {
+      if (d.role === "agent") setAgentTyping(false)
+    })
+
+    socket.on("presence:agent-online", (d: { online: boolean; count?: number }) => {
       setAgentOnline(d.online)
-      if (typeof d.count === "number") setAgentCount(d.count)
-      else setAgentCount(d.online ? 1 : 0)
+      setAgentCount(typeof d.count === "number" ? d.count : d.online ? 1 : 0)
     })
 
-    return chatNs
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return socket
+  }, [markViewed])
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    const key = p.get("key")?.trim() ?? null
+    const incomingOrigin = p.get("origin")?.trim() ?? window.location.origin
+    const incomingVisitorId = p.get("visitorId")?.trim() ?? null
+    const incomingLastViewed = parseLastViewedMap(p.get("lastViewedMap"))
+
+    setWidgetKey(key)
+    setOrigin(incomingOrigin)
+    setVisitorIdFromParent(incomingVisitorId)
+    visitorIdRef.current = incomingVisitorId
+    setLastViewedMap(incomingLastViewed)
+    lastViewedMapRef.current = incomingLastViewed
+    postToParent({ type: "advan:ready" })
   }, [])
 
-  useEffect(() => () => { socketRef.current?.disconnect() }, [])
+  // Bootstrap once when widget key/origin are ready.
+  // Do NOT depend on lastViewedMap, connectSocket, or visitorId remints — those
+  // change after "Start conversation" and were resetting the view back to the form.
+  useEffect(() => {
+    if (!widgetKey || !origin) return
 
-  // ── Auto-scroll ────────────────────────────────────────────────────────────
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const availability = await fetch(`/api/chat/availability?widgetKey=${encodeURIComponent(widgetKey)}`)
+        if (!availability.ok) throw new Error("availability_failed")
+        const availabilityData = await availability.json() as {
+          agentsOnline: boolean
+          agentCount?: number
+          teamName?: string
+          agents?: PresenceAgent[]
+        }
+        if (cancelled) return
+
+        setAgentOnline(availabilityData.agentsOnline)
+        setAgentCount(availabilityData.agentCount ?? (availabilityData.agentsOnline ? 1 : 0))
+        setTeamName(availabilityData.teamName?.trim() || "Support")
+        setAgents(Array.isArray(availabilityData.agents) ? availabilityData.agents : [])
+
+        const sessionRes = await fetch("/api/chat/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            widgetKey,
+            origin,
+            visitorId: visitorIdRef.current ?? undefined,
+          }),
+        })
+        if (!sessionRes.ok) throw new Error("session_failed")
+
+        const sessionBody = await sessionRes.json() as {
+          token: string
+          visitorId: string
+          widgetConfig?: {
+            preChatFormEnabled: boolean
+            preChatQuestions: PreChatQuestion[]
+          }
+        }
+        if (cancelled) return
+
+        const nextSession = {
+          token: sessionBody.token,
+          visitorId: sessionBody.visitorId,
+          widgetConfig: sessionBody.widgetConfig,
+        }
+        setSession(nextSession)
+
+        if (sessionBody.visitorId && sessionBody.visitorId !== visitorIdRef.current) {
+          visitorIdRef.current = sessionBody.visitorId
+          setVisitorIdFromParent(sessionBody.visitorId)
+          postToParent({ type: "advan:visitor_id", visitorId: sessionBody.visitorId })
+        }
+
+        connectSocket(nextSession.token)
+
+        const sessions = await loadSessionList(nextSession.token, lastViewedMapRef.current)
+        if (cancelled) return
+        setView(sessions.length > 0 ? "session-list" : "new-session")
+      } catch {
+        if (cancelled) return
+        setErrorText("Unable to load chat right now.")
+        setView("error")
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable bootstrap; see comment above
+  }, [widgetKey, origin])
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, agentTyping])
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  function fail(msg: string) {
-    setErrMsg(msg)
-    setPhase("error")
-  }
-
-  function addMessage(m: Message) {
-    setMessages((prev) => {
-      if (prev.some((msg) => msg.id === m.id)) return prev
-      return [...prev, m]
-    })
-  }
-
-  function emitTypingStart() {
-    if (!isTyping.current) { socketRef.current?.emit("typing:start"); isTyping.current = true }
-    if (typingTimer.current) clearTimeout(typingTimer.current)
-    typingTimer.current = setTimeout(emitTypingStop, 800)
-  }
-
-  function emitTypingStop() {
-    if (isTyping.current) { socketRef.current?.emit("typing:stop"); isTyping.current = false }
-    if (typingTimer.current) { clearTimeout(typingTimer.current); typingTimer.current = null }
-  }
-
-  // ── Send message ───────────────────────────────────────────────────────────
-  const sendMessage = useCallback(async (content: string) => {
-    if (!content.trim() || sending) return
-    setSending(true)
-    emitTypingStop()
-
-    const tmpId = localId()
-    addMessage({ id: tmpId, role: "user", content: content.trim(), ts: new Date(), pending: true })
-
-    try {
-      const sess = sessionRef.current
-      if (!sess) { setSending(false); return }
-
-      const cid = convIdRef.current
-
-      if (cid && socketRef.current?.connected) {
-        // Conversation exists → route through socket so the server logs the
-        // message and the AI pipeline can reply in real-time.
-        socketRef.current.emit("visitor:message", { conversationId: cid, content: content.trim() })
-        setMessages((prev) => prev.map((m) => (m.id === tmpId ? { ...m, pending: false } : m)))
-      } else {
-        // No conversationId yet (first message) — call REST intake to create it.
-        const r = await fetch("/api/chat/intake", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            token: sess.token,
-            content: content.trim(),
-            // orgId is derived server-side from the verified JWT — do not send it.
-          }),
-        })
-        if (!r.ok) throw new Error("intake failed")
-        const { conversationId } = await r.json()
-        convIdRef.current = conversationId
-        lsSet(LS_CONV, conversationId)
-
-        // Reconnect socket with conversationId so replies reach this client.
-        connectSocket(sess.token, conversationId)
-        setMessages((prev) => prev.map((m) => (m.id === tmpId ? { ...m, pending: false } : m)))
-      }
-    } catch {
-      setMessages((prev) => prev.filter((m) => m.id !== tmpId))
-    } finally {
-      setSending(false)
+  useEffect(() => {
+    return () => {
+      socketRef.current?.disconnect()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sending, connectSocket])
+  }, [])
 
-  // ── Pre-chat form submit ────────────────────────────────────────────────────
-  const submitForm = useCallback(async (e: React.FormEvent) => {
+  const submitNewSession = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!widgetKey || !embeddingOrigin || !formEmail.trim()) return
-    setSending(true)
-    try {
-      // 1. Session
-      const sr = await fetch("/api/chat/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          widgetKey,
-          origin: embeddingOrigin,
-          visitorSessionId: getValidSessionId(),
-        }),
-      })
-      if (!sr.ok) { fail("Session failed."); return }
-      const { token, visitorSessionId } = await sr.json()
-      const { orgId } = jwtPayload(token) as { orgId: string }
-      sessionRef.current = { token, visitorSessionId, orgId }
-      lsSet(LS_SESSION, visitorSessionId)
+    if (!session) return
 
-      // 2. Intake with email (creates conversation + marks chatOfflineDelivery)
-      const ir = await fetch("/api/chat/intake", {
+    const cleanName = displayName.trim()
+    if (!cleanName) {
+      setNameError("Please enter your name.")
+      return
+    }
+
+    // Build subject from first pre-chat answer if available
+    const questions = session.widgetConfig?.preChatQuestions || []
+    const firstQuestion = questions[0]
+    const subject = firstQuestion ? preChatAnswers[firstQuestion.id]?.trim() : undefined
+
+    setNameError(null)
+    setCreating(true)
+
+    try {
+      const res = await fetch("/api/chat/sessions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${session.token}`,
+        },
         body: JSON.stringify({
-          token,
-          content: "Hi, I need some help.",
-          visitorEmail: formEmail.trim(),
-          visitorName:  formName.trim() || undefined,
-          // orgId and visitorSessionId are derived server-side from the JWT.
+          displayName: cleanName,
+          initialMessage: initialMessage.trim() || undefined,
+          subject,
         }),
       })
-      if (!ir.ok) { fail("Could not submit. Try again."); return }
-      const { conversationId } = await ir.json()
-      convIdRef.current = conversationId
-      if (conversationId) lsSet(LS_CONV, conversationId)
-      connectSocket(token, conversationId)
-      
-      setMessages([
-        {
-          id: `intake-${Date.now()}`,
-          role: "user",
-          content: "Hi, I need some help.",
-          ts: new Date(),
+
+      if (!res.ok) throw new Error("create_session_failed")
+      const body = await res.json() as { conversationId: string }
+
+      const sessions = await loadSessionList(session.token)
+      const created =
+        sessions.find((s) => s.conversationId === body.conversationId) ?? {
+          conversationId: body.conversationId,
+          customerDisplayName: cleanName,
+          status: "active" as const,
+          lastMessagePreview: initialMessage.trim(),
+          lastActivityAt: new Date().toISOString(),
+          hasUnreadAgentReply: false,
         }
-      ])
-      setPhase("chatting")
+
+      setDisplayName("")
+      setInitialMessage("")
+      await openConversation(created)
     } catch {
-      fail("Network error.")
+      setErrorText("Could not create conversation. Please try again.")
+      setView("error")
+    } finally {
+      setCreating(false)
+    }
+  }, [session, displayName, initialMessage, loadSessionList, openConversation])
+
+  const backToSessionList = useCallback(() => {
+    if (activeConversationId) {
+      markViewed(activeConversationId)
+      leaveConversation(activeConversationId)
+    }
+    setView("session-list")
+  }, [activeConversationId, markViewed, leaveConversation])
+
+  const sendMessage = useCallback(async () => {
+    if (!activeConversationId || !session || !input.trim() || sending) return
+
+    const text = input.trim()
+    const optimisticId = nextId()
+    setInput("")
+    setSending(true)
+
+    setMessages((prev) => [...prev, {
+      id: optimisticId,
+      role: "user",
+      content: text,
+      createdAt: new Date().toISOString(),
+    }])
+
+    try {
+      socketRef.current?.emit("visitor:message", {
+        conversationId: activeConversationId,
+        content: text,
+      })
+      // Fallback if Redis/socket fan-out misses the auto-reply.
+      pollForAgentReply(session.token, activeConversationId)
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
     } finally {
       setSending(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widgetKey, embeddingOrigin, formName, formEmail, connectSocket])
+  }, [activeConversationId, session, input, sending, pollForAgentReply])
 
-  // ── Composer ───────────────────────────────────────────────────────────────
-  const handleSend = useCallback(() => {
-    const v = input.trim()
-    if (!v) return
-    setInput("")
-    if (textareaRef.current) { textareaRef.current.style.height = "36px" }
-    sendMessage(v)
-  }, [input, sendMessage])
+  const activeHeaderLabel =
+    activeDisplayName?.trim() ||
+    truncate(activeSessionSummary?.lastMessagePreview || "Chat visitor")
 
-  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() }
-  }, [handleSend])
-
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-dvh bg-background text-foreground overflow-hidden select-none"
-         style={{ fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
-
-      {/* Header */}
+    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground select-none" style={{ fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
       <header className="flex items-center justify-between px-4 py-3 bg-primary text-primary-foreground flex-shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          {showBack && (
+            <button
+              type="button"
+              onClick={backToSessionList}
+              className="h-7 w-7 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors"
+              aria-label="Back to conversation list"
+            >
+              <IconBack className="w-4 h-4" />
+            </button>
+          )}
+
           <AgentPresenceStack
             online={agentOnline}
             agents={agents}
             agentCount={agentCount}
             teamName={teamName}
           />
+
           <div className="min-w-0">
             <p className="text-sm font-semibold leading-snug truncate">
-              {agentOnline ? presenceTitle(agents, teamName, agentCount) : teamName}
+              {view === "chat" ? activeHeaderLabel : (agentOnline ? presenceTitle(agents, teamName, agentCount) : teamName)}
             </p>
             <p className="text-[11px] leading-snug flex items-center gap-1.5 opacity-80">
-              <span
-                className={`w-1.5 h-1.5 rounded-full inline-block flex-shrink-0 ${
-                  agentOnline ? "bg-emerald-400 shadow-[0_0_0_2px_rgba(52,211,153,0.25)]" : "bg-amber-300"
-                }`}
-              />
+              <span className={`w-1.5 h-1.5 rounded-full inline-block ${agentOnline ? "bg-emerald-400" : "bg-amber-300"}`} />
               <span className="truncate">
-                {agentOnline
-                  ? agentCount > 1
-                    ? `${agentCount} teammates online`
-                    : "We're online"
-                  : "Offline — we'll email you"}
+                {agentOnline ? (agentCount > 1 ? `${agentCount} teammates online` : "We're online") : "Offline"}
               </span>
             </p>
           </div>
         </div>
+
         <button
           type="button"
           aria-label="Close chat"
           onClick={() => postToParent({ type: "advan:close" })}
-          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors flex-shrink-0"
+          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors"
         >
           <IconX className="w-4 h-4" />
         </button>
       </header>
 
-      {/* Body */}
-      <main className="flex-1 overflow-hidden flex flex-col min-h-0">
+      <main className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {view === "loading" && <div className="flex-1 flex items-center justify-center"><TypingDots /></div>}
 
-        {/* Loading */}
-        {phase === "loading" && (
-          <div className="flex-1 flex items-center justify-center">
-            <TypingDots />
-          </div>
-        )}
-
-        {/* Error */}
-        {phase === "error" && (
+        {view === "error" && (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-3">
             <IconAlert className="w-8 h-8 text-destructive" />
-            <p className="text-sm font-medium">{errMsg ?? "Something went wrong."}</p>
-            <p className="text-xs text-muted-foreground">Please refresh the page or try again later.</p>
+            <p className="text-sm font-medium">{errorText ?? "Something went wrong."}</p>
           </div>
         )}
 
-        {/* Pre-chat form */}
-        {phase === "pre-chat" && (
-          <div className="flex-1 overflow-y-auto px-4 py-5">
-            <p className="text-sm text-muted-foreground mb-5">
-              Our team is offline right now. Leave your details and we&apos;ll
-              reply by email as soon as possible.
-            </p>
-            <form onSubmit={submitForm} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Your name <span className="opacity-50">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="Jane Smith"
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Email address <span className="text-destructive">*</span>
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={formEmail}
-                  onChange={(e) => setFormEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
-              </div>
+        {view === "session-list" && (
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className="p-3 border-b border-border">
               <button
-                type="submit"
-                disabled={sending || !formEmail.trim()}
-                className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                type="button"
+                onClick={() => setView("new-session")}
+                className="w-full rounded-lg bg-primary text-primary-foreground py-2 text-sm font-medium hover:bg-primary/90"
               >
-                {sending ? "Submitting…" : "Start conversation"}
+                New conversation
               </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {sessionList.map((sessionRow) => {
+                const label = sessionRow.customerDisplayName?.trim() || truncate(sessionRow.lastMessagePreview || "Chat visitor")
+                return (
+                  <button
+                    key={sessionRow.conversationId}
+                    type="button"
+                    onClick={() => void openConversation(sessionRow)}
+                    className="w-full text-left rounded-xl border border-border bg-card px-3 py-2.5 hover:border-primary/40 transition"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold text-foreground truncate">{label}</p>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">{relativeTime(sessionRow.lastActivityAt)}</span>
+                    </div>
+
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className={[
+                        "text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize",
+                        sessionRow.status === "active" ? "bg-[#DCFCE7] text-[#166534]" :
+                        sessionRow.status === "waiting" ? "bg-[#FEF3C7] text-[#92400E]" :
+                        "bg-[var(--dash-bg-deep)] text-[var(--dash-ink-soft)]",
+                      ].join(" ")}>{sessionRow.status}</span>
+
+                      {sessionRow.hasUnreadAgentReply && (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-primary font-semibold">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                          New reply
+                        </span>
+                      )}
+                    </div>
+
+                    {sessionRow.lastMessagePreview && (
+                      <p className="mt-1.5 text-[11px] text-muted-foreground line-clamp-2">{sessionRow.lastMessagePreview}</p>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {view === "new-session" && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <form onSubmit={(e) => void submitNewSession(e)} className="flex flex-col h-full">
+              {/* Scrollable content area */}
+              <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-3">
+                {/* Name Field - Always visible */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Your name *</label>
+                  <input
+                    value={displayName}
+                    onChange={(e) => {
+                      setDisplayName(e.target.value)
+                      if (nameError) setNameError(null)
+                    }}
+                    placeholder="Jane Smith"
+                    className="w-full px-2.5 py-1.5 rounded-md border border-border bg-card text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  />
+                  {nameError && <p className="mt-0.5 text-[10px] text-destructive">{nameError}</p>}
+                </div>
+
+                {/* Pre-chat Questions */}
+                {session?.widgetConfig?.preChatFormEnabled &&
+                  session.widgetConfig.preChatQuestions.map((question) => (
+                    <div key={question.id}>
+                      <label className="block text-[11px] font-semibold text-foreground mb-1">
+                        {question.text}
+                        {question.required && <span className="text-destructive ml-0.5">*</span>}
+                      </label>
+                      {question.type === "preset" && question.options && question.options.length > 0 ? (
+                        <select
+                          value={preChatAnswers[question.id] || ""}
+                          onChange={(e) =>
+                            setPreChatAnswers((prev) => ({ ...prev, [question.id]: e.target.value }))
+                          }
+                          required={question.required}
+                          className="w-full px-2.5 py-1.5 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-1 focus:ring-primary/40"
+                        >
+                          <option value="">Select...</option>
+                          {question.options.map((opt, idx) => (
+                            <option key={idx} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                          <option value="__other__">Other</option>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={preChatAnswers[question.id] || ""}
+                          onChange={(e) =>
+                            setPreChatAnswers((prev) => ({ ...prev, [question.id]: e.target.value }))
+                          }
+                          required={question.required}
+                          placeholder="Type here..."
+                          className="w-full px-2.5 py-1.5 rounded-md border border-border bg-card text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                        />
+                      )}
+                    </div>
+                  ))}
+
+                {/* Additional Message - Compact */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">
+                    Additional details <span className="text-muted-foreground font-normal">(optional)</span>
+                  </label>
+                  <textarea
+                    value={initialMessage}
+                    onChange={(e) => setInitialMessage(e.target.value)}
+                    rows={2}
+                    placeholder="Describe your issue..."
+                    className="w-full px-2.5 py-1.5 rounded-md border border-border bg-card text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Fixed Submit Button */}
+              <div className="px-4 pb-4 pt-2 border-t border-border bg-background/80 backdrop-blur-sm">
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 shadow-sm transition-colors"
+                >
+                  {creating ? "Starting..." : "Start conversation"}
+                </button>
+              </div>
             </form>
           </div>
         )}
 
-        {/* Offline sent */}
-        {phase === "offline-sent" && (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-              <IconCheck className="w-6 h-6 text-green-600" />
-            </div>
-            <p className="text-sm font-semibold">Message sent!</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              We&apos;ll reply to <span className="font-medium">{formEmail}</span> as soon
-              as an agent is available.
-            </p>
-          </div>
-        )}
-
-        {/* Chatting */}
-        {phase === "chatting" && (
+        {view === "chat" && (
           <>
-            {/* Message list */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0">
+            {activeStatus === "resolved" && (
+              <div className="mx-3 mt-3 rounded-lg border border-border bg-card px-3 py-2 text-[11px] text-muted-foreground">
+                This was marked resolved — sending a message will reopen it.
+              </div>
+            )}
+
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
               {messages.length === 0 && (
                 <div className="flex items-start gap-2">
                   <AgentAvatar initials={agents[0]?.initials} name={agents[0]?.name} />
@@ -590,10 +709,7 @@ export default function ChatWidgetFrame() {
               )}
 
               {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex items-end gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
-                >
+                <div key={msg.id} className={`flex items-end gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
                   {msg.role === "agent" && (
                     <AgentAvatar initials={agents[0]?.initials} name={agents[0]?.name} />
                   )}
@@ -603,7 +719,6 @@ export default function ChatWidgetFrame() {
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground rounded-br-sm"
                         : "bg-card border border-border text-foreground rounded-bl-sm",
-                      msg.pending ? "opacity-60" : "",
                     ].join(" ")}
                   >
                     {msg.content}
@@ -624,7 +739,6 @@ export default function ChatWidgetFrame() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Composer */}
             <div className="flex-shrink-0 border-t border-border bg-background px-3 py-2.5">
               <div className="flex items-end gap-2">
                 <textarea
@@ -633,48 +747,45 @@ export default function ChatWidgetFrame() {
                   value={input}
                   onChange={(e) => {
                     setInput(e.target.value)
-                    emitTypingStart()
                     const el = e.target
                     el.style.height = "auto"
                     el.style.height = `${Math.min(el.scrollHeight, 100)}px`
                   }}
-                  onKeyDown={handleKeyDown}
-                  onBlur={emitTypingStop}
-                  placeholder="Type a message…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      void sendMessage()
+                    }
+                  }}
+                  placeholder="Type a message..."
                   disabled={sending}
                   className="flex-1 resize-none rounded-xl border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 overflow-y-auto"
                   style={{ minHeight: "36px", maxHeight: "100px" }}
                 />
                 <button
                   type="button"
-                  onClick={handleSend}
+                  onClick={() => void sendMessage()}
                   disabled={!input.trim() || sending}
+                  className="flex-shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40"
                   aria-label="Send message"
-                  className="flex-shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <IconSend className="w-4 h-4" />
                 </button>
               </div>
-              <p className="text-[10px] text-muted-foreground text-center mt-1.5 opacity-60">
-                Typically replies in a few minutes
-              </p>
             </div>
           </>
         )}
       </main>
 
-      {/* Typing animation keyframes — scoped inside the iframe */}
       <style>{`
         @keyframes advan-bounce {
           0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-          40%            { transform: translateY(-4px); opacity: 1; }
+          40% { transform: translateY(-4px); opacity: 1; }
         }
       `}</style>
     </div>
   )
 }
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
 
 function TypingDots() {
   return (
@@ -690,7 +801,6 @@ function TypingDots() {
   )
 }
 
-// Minimal inline icons — no external import needed.
 function IconX({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
@@ -698,6 +808,7 @@ function IconX({ className }: { className?: string }) {
     </svg>
   )
 }
+
 function IconSend({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -705,6 +816,7 @@ function IconSend({ className }: { className?: string }) {
     </svg>
   )
 }
+
 function IconAlert({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -712,10 +824,11 @@ function IconAlert({ className }: { className?: string }) {
     </svg>
   )
 }
-function IconCheck({ className }: { className?: string }) {
+
+function IconBack({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 18l-6-6 6-6" />
     </svg>
   )
 }

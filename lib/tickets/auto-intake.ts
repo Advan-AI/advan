@@ -7,6 +7,8 @@ import {
   type CustomerIdentifier,
 } from "@/lib/api/routers/customers"
 import { copilotTriageQueue } from "@/lib/queue/queues"
+import { publishCustomerMessage } from "@/lib/realtime/event-bus"
+import { buildChatTicketSubject } from "@/lib/chat/ticket-subject"
 import { buildReplyToAddress } from "@/lib/email/threading"
 
 /** Safe wrapper — returns undefined if email feature is not configured. */
@@ -26,6 +28,11 @@ export interface ResolveOrCreateIntakeInput {
   channel: Channel
   customerIdentifier: CustomerIdentifier
   content: string
+  /**
+   * Forces creation of a new ticket+conversation instead of reusing an
+   * existing open thread. Used by explicit widget session creation.
+   */
+  forceNew?: boolean
   /** Optional subject line (e.g. email subject). Falls back to first line of content. */
   subject?: string
   /**
@@ -59,6 +66,19 @@ export interface ResolveOrCreateIntakeResult {
   isNewTicket: boolean
 }
 
+export interface CreateChatSessionInput {
+  orgId: string
+  customerIdentifier: CustomerIdentifier
+  displayName: string
+  subject?: string
+  chatOfflineDelivery?: boolean
+}
+
+export interface CreateChatSessionResult {
+  ticketId: string
+  conversationId: string
+}
+
 function subjectFromContent(content: string): string {
   const firstLine = content.trim().split(/\r?\n/, 1)[0]?.trim()
   if (!firstLine) return "New customer message"
@@ -73,17 +93,20 @@ async function resolveOrCreateCustomer(input: {
   const existing = await findCustomerForIntake(input)
   if (existing) return existing
 
-  const visitorIdentifier = input.customerIdentifier.visitorSessionId
+  const visitorIdentifier = input.customerIdentifier.visitorId
   const emailIdentifier = input.customerIdentifier.email
 
   if (typeof visitorIdentifier === "string") {
-    const visitorSessionId = visitorIdentifier.trim()
-    if (!visitorSessionId) return null
+    const visitorId = visitorIdentifier.trim()
+    if (!visitorId) return null
 
-    // When both visitorSessionId AND email are provided (pre-chat form offline path),
+    // When both visitorId AND email are provided (pre-chat form offline path),
     // create a customer with both fields so email-based delivery can work.
     const email =
       typeof emailIdentifier === "string" ? normalizeCustomerEmail(emailIdentifier) : ""
+    const providedName = input.customerName?.trim() || null
+    const placeholderName = `Visitor ${visitorId.slice(0, 8)}`
+    const resolvedName = providedName ?? placeholderName
 
     // ON CONFLICT: the partial unique index on (org_id, visitor_session_id)
     // prevents duplicate visitor rows. When the conflict fires (race or returning
@@ -93,10 +116,9 @@ async function resolveOrCreateCustomer(input: {
       .values({
         orgId: input.orgId,
         email,
-        visitorSessionId,
-        name: email
-          ? input.customerName ?? `Visitor ${visitorSessionId.slice(0, 8)}`
-          : `Visitor ${visitorSessionId.slice(0, 8)}`,
+        // Compatibility: customers table still uses visitor_session_id.
+        visitorSessionId: visitorId,
+        name: resolvedName,
       })
       .onConflictDoNothing()
       .returning()
@@ -107,22 +129,33 @@ async function resolveOrCreateCustomer(input: {
     const existing = await db.query.customers.findFirst({
       where: and(
         eq(customers.orgId, input.orgId),
-        eq(customers.visitorSessionId, visitorSessionId),
+        eq(customers.visitorSessionId, visitorId),
       ),
     })
 
-    // Upgrade: visitor originally connected anonymously (email="") and then
-    // submitted the pre-chat form.  Update with the provided email + name.
-    if (existing && email && existing.email === "") {
+    if (!existing) return null
+
+    const shouldUpgradeEmail = Boolean(email && existing.email === "")
+    const existingName = existing.name?.trim() || ""
+    const shouldUpgradeName =
+      Boolean(providedName) &&
+      (existingName.length === 0 ||
+        existingName === placeholderName ||
+        existingName.startsWith("Visitor "))
+
+    if (shouldUpgradeEmail || shouldUpgradeName) {
       const [upgraded] = await db
         .update(customers)
-        .set({ email, name: input.customerName ?? existing.name ?? `Visitor ${visitorSessionId.slice(0, 8)}` })
+        .set({
+          ...(shouldUpgradeEmail ? { email } : {}),
+          ...(shouldUpgradeName ? { name: providedName! } : {}),
+        })
         .where(eq(customers.id, existing.id))
         .returning()
       return upgraded ?? existing
     }
 
-    return existing ?? null
+    return existing
   }
 
   if (typeof emailIdentifier !== "string") return null
@@ -162,13 +195,26 @@ export async function resolveOrCreateIntake(
         ),
       })
       if (target) {
+        const [ticketRow] = await tx
+          .select({ status: tickets.status })
+          .from(tickets)
+          .where(and(eq(tickets.id, target.ticketId), eq(tickets.orgId, input.orgId)))
+          .limit(1)
+
+        const shouldReopen =
+          input.channel === "chat" &&
+          (ticketRow?.status === "resolved" || ticketRow?.status === "closed")
+
         await tx
           .update(conversations)
           .set({ unreadCount: sql`${conversations.unreadCount} + 1`, updatedAt: new Date() })
           .where(eq(conversations.id, target.id))
         await tx
           .update(tickets)
-          .set({ updatedAt: new Date() })
+          .set({
+            updatedAt: new Date(),
+            ...(shouldReopen ? { status: "open" as const } : {}),
+          })
           .where(and(eq(tickets.id, target.ticketId), eq(tickets.orgId, input.orgId)))
         const [message] = await tx
           .insert(messages)
@@ -179,7 +225,11 @@ export async function resolveOrCreateIntake(
       // conversationId was invalid / wrong org — fall through to heuristic
     }
 
-    const existingRows = customer
+    // Chat sessions are explicit. Do not implicitly reuse an open chat
+    // conversation by visitor identity when conversationId is absent.
+    const shouldReuseOpenConversation = !input.forceNew && input.channel !== "chat"
+
+    const existingRows = customer && shouldReuseOpenConversation
       ? await tx
           .select({
             ticketId: tickets.id,
@@ -227,12 +277,19 @@ export async function resolveOrCreateIntake(
           title: ticket.subject,
           unreadCount: 1,
           updatedAt: new Date(),
-          // For chat: stamp the session id so the socket namespace can resolve
-          // the conversationId on reconnect via visitorSessionId lookup.
-          visitorSessionId:
-            input.channel === "chat" && input.customerIdentifier.visitorSessionId
-              ? input.customerIdentifier.visitorSessionId
+          // For chat: stamp persistent visitor identity on the conversation.
+          // visitor_session_id is kept for backward compatibility with legacy
+          // reconnect paths still reading that column.
+          visitorId:
+            input.channel === "chat" && input.customerIdentifier.visitorId
+              ? input.customerIdentifier.visitorId
               : undefined,
+          visitorSessionId:
+            input.channel === "chat" && input.customerIdentifier.visitorId
+              ? input.customerIdentifier.visitorId
+              : undefined,
+          customerDisplayName:
+            input.channel === "chat" ? (input.customerName ?? customer?.name ?? null) : null,
           // When true, insertAgentMessage will route replies through
           // notificationQueue (email) rather than the Socket.IO event bus.
           // Only meaningful for chat; no-op for other channels.
@@ -317,6 +374,90 @@ export async function resolveOrCreateIntake(
     // temporarily unavailable. The Tap Box "no triage decision" state is
     // surfaced in the UI and can be retried manually.
     console.warn("[auto-intake] Failed to enqueue triage job:", (err as Error).message)
+  }
+
+  // Notify dashboard agents (toast + conversations floating alert) via Redis →
+  // Socket.IO. Covers HTTP chat session create, socket visitor:message, and email.
+  try {
+    await publishCustomerMessage(input.orgId, {
+      conversationId: result.conversationId,
+      messageId: result.messageId,
+      channel: input.channel,
+      content: input.content,
+      customerName: input.customerName ?? customer?.name ?? null,
+      customerEmail: customer?.email && customer.email.length > 0 ? customer.email : null,
+    })
+  } catch (err) {
+    console.warn("[auto-intake] Failed to publish customer message:", (err as Error).message)
+  }
+
+  return result
+}
+
+export async function createChatSession(
+  input: CreateChatSessionInput,
+): Promise<CreateChatSessionResult> {
+  const customer = await resolveOrCreateCustomer({
+    orgId: input.orgId,
+    customerIdentifier: input.customerIdentifier,
+    customerName: input.displayName,
+  })
+
+  const subject = input.subject?.trim() || buildChatTicketSubject({ displayName: input.displayName })
+
+  const result = await db.transaction(async (tx) => {
+    const [ticket] = await tx
+      .insert(tickets)
+      .values({
+        orgId: input.orgId,
+        customerId: customer?.id,
+        subject,
+        channel: "chat",
+      })
+      .returning()
+
+    const visitorId = input.customerIdentifier.visitorId
+
+    const [conversation] = await tx
+      .insert(conversations)
+      .values({
+        orgId: input.orgId,
+        ticketId: ticket.id,
+        channel: "chat",
+        customerId: customer?.id,
+        title: subject,
+        unreadCount: 0,
+        updatedAt: new Date(),
+        visitorId,
+        // Compatibility with legacy reconnect code paths.
+        visitorSessionId: visitorId,
+        customerDisplayName: input.displayName,
+        chatOfflineDelivery: input.chatOfflineDelivery ?? false,
+      })
+      .returning()
+
+    if (customer) {
+      await tx
+        .update(customers)
+        .set({ totalTickets: sql`${customers.totalTickets} + 1` })
+        .where(eq(customers.id, customer.id))
+    }
+
+    return { ticketId: ticket.id, conversationId: conversation.id }
+  })
+
+  // Name-only chat start (no first message yet) — still alert the dashboard.
+  try {
+    await publishCustomerMessage(input.orgId, {
+      conversationId: result.conversationId,
+      messageId: result.conversationId, // synthetic id; no message row yet
+      channel: "chat",
+      content: `${input.displayName} started a chat`,
+      customerName: input.displayName,
+      customerEmail: customer?.email && customer.email.length > 0 ? customer.email : null,
+    })
+  } catch (err) {
+    console.warn("[createChatSession] Failed to publish new-chat alert:", (err as Error).message)
   }
 
   return result

@@ -1,0 +1,5 @@
+Advan AI Customer Support Policy & FAQ:
+1. Standard Support Uptime SLA is 99.9% with 15-minute critical incident response time.
+2. Enterprise customers receive dedicated technical account managers and 24/7 phone support.
+3. Data retention policy is 7 years for compliance, encrypted at rest using AES-256.
+4. Returns and refund requests are processed within 5-7 business days upon receipt.

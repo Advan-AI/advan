@@ -134,7 +134,7 @@ describe("Scenario A — no agents online: ticket created in offline mode, reply
       const intake = await resolveOrCreateIntake({
         orgId,
         channel: "chat",
-        customerIdentifier: { visitorSessionId: sessionId, email: visitorEmail },
+        customerIdentifier: { visitorId: sessionId, email: visitorEmail },
         content: "What are your business hours?",
         customerName: "Alex Smith",
         chatOfflineDelivery: true,
@@ -205,7 +205,7 @@ describe("Scenario B — agent comes online mid-conversation: clearOfflineDelive
       const intake = await resolveOrCreateIntake({
         orgId,
         channel: "chat",
-        customerIdentifier: { visitorSessionId: sessionId, email: visitorEmail },
+        customerIdentifier: { visitorId: sessionId, email: visitorEmail },
         content: "Hello, is anyone there?",
         chatOfflineDelivery: true,
       })
@@ -272,7 +272,7 @@ describe("Scenario C — online chat: chatOfflineDelivery=false (default), reply
     const intake = await resolveOrCreateIntake({
       orgId,
       channel: "chat",
-      customerIdentifier: { visitorSessionId: `online-session-${Date.now()}` },
+      customerIdentifier: { visitorId: `online-session-${Date.now()}` },
       content: "Quick question about shipping",
       chatOfflineDelivery: false,
     })
@@ -316,7 +316,7 @@ describe("isAnyAgentOnline mock — intake offline mode detection", () => {
     const intake = await resolveOrCreateIntake({
       orgId,
       channel: "chat",
-      customerIdentifier: { visitorSessionId: sessionId, email: visitorEmail },
+      customerIdentifier: { visitorId: sessionId, email: visitorEmail },
       content: "Test message from offline intake",
       chatOfflineDelivery: !agentsOnlineStatus && Boolean(visitorEmail),
     })

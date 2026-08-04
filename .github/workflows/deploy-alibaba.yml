@@ -1,0 +1,103 @@
+name: Alibaba Cloud CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - feature/alibaba
+      - main
+  pull_request:
+    branches:
+      - feature/alibaba
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/advan-web-app
+
+jobs:
+  # ── Stage 1: Build & Type Check ──────────────────────────────────────────────
+  build-and-test:
+    name: 🧪 Build & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Run TypeScript Verification
+        run: npx tsc --noEmit
+
+  # ── Stage 2: Deploy Serverless Function Compute 3.0 ─────────────────────────
+  deploy-function-compute:
+    name: ⚡ Deploy to Alibaba Function Compute 3.0
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Prepare FC Bundle
+        run: |
+          mkdir -p fc/lib
+          cp -r lib/alibaba fc/lib/
+          cd fc
+          npm install --production
+          zip -r fc-agent-deployment.zip index.js package.json s.yaml lib node_modules
+
+      - name: Deploy to Alibaba FC 3.0 via Serverless Devs
+        uses: Serverless-Devs/s-setup@v2
+        with:
+          s-version: 'v3'
+
+      - name: Deploy FC Service
+        env:
+          ALIBABA_CLOUD_ACCESS_KEY_ID: ${{ secrets.ALIBABA_ACCESS_KEY_ID }}
+          ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_ACCESS_KEY_SECRET }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          TABLESTORE_INSTANCE_NAME: ${{ secrets.TABLESTORE_INSTANCE_NAME }}
+          TABLESTORE_ENDPOINT: ${{ secrets.TABLESTORE_ENDPOINT }}
+          TABLESTORE_ACCESS_KEY_ID: ${{ secrets.TABLESTORE_ACCESS_KEY_ID }}
+          TABLESTORE_ACCESS_KEY_SECRET: ${{ secrets.TABLESTORE_ACCESS_KEY_SECRET }}
+        run: |
+          s config add --AccessKeyID $ALIBABA_CLOUD_ACCESS_KEY_ID --AccessKeySecret $ALIBABA_CLOUD_ACCESS_KEY_SECRET --access default -f
+          cd fc && s deploy --use-local -y
+
+  # ── Stage 3: Build & Push Docker App to Free GitHub Container Registry ────────
+  deploy-docker-container:
+    name: 🐳 Build Docker & Push to GitHub Container Registry (Free)
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/advan-web-app:latest
+            ghcr.io/${{ github.repository_owner }}/advan-web-app:${{ github.sha }}

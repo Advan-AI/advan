@@ -16,4 +16,8 @@ node_modules
 .next/
 lib/temporal/dist/
 .DS_Store
+# Lockfile is generated on CI/Vercel/Cloud Run — do not require it in git
+package-lock.json
 .package-lock.json
+yarn.lock
+pnpm-lock.yaml

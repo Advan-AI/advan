@@ -75,7 +75,7 @@ export async function reportUsageToStripe(): Promise<Record<string, number>> {
       }
 
       // 6. Submit usage record to Stripe (incrementing current period quantity)
-      const usageRecord = await stripe.subscriptionItems.createUsageRecord(
+      const usageRecord = await (stripe.subscriptionItems as any).createUsageRecord(
         meteredItem.id,
         {
           quantity: totalQuantity,

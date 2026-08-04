@@ -41,7 +41,7 @@ interface SessionResult {
   ok: boolean
   latencyMs: number
   token?: string
-  visitorSessionId?: string
+  visitorId?: string
   error?: string
 }
 
@@ -55,8 +55,8 @@ async function fetchSession(index: number): Promise<SessionResult> {
     })
     const latencyMs = Date.now() - t0
     if (res.ok) {
-      const { token, visitorSessionId } = await res.json() as { token: string; visitorSessionId: string }
-      return { status: res.status, ok: true, latencyMs, token, visitorSessionId }
+        const { token, visitorId } = await res.json() as { token: string; visitorId: string }
+        return { status: res.status, ok: true, latencyMs, token, visitorId }
     }
     return { status: res.status, ok: false, latencyMs, error: await res.text() }
   } catch (err) {

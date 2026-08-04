@@ -1,11 +1,14 @@
 import { z } from 'zod'
 import { and, desc, eq } from 'drizzle-orm'
+import { TRPCError } from '@trpc/server'
 import { router, protectedProcedure } from '../trpc'
 import { PIIMasker } from '@/lib/governance/pii-masker'
 import { PolicyClient } from '@/lib/governance/policy-client'
 import { db } from '@/lib/db'
-import { hitlQueue } from '@/lib/db/schema'
+import { conversations, hitlQueue, customers } from '@/lib/db/schema'
 import { CopilotDecisionService } from '@/lib/copilot/decision-service'
+import { isDbConnectivityFailure } from '@/lib/api/sanitize-trpc-error'
+import { resolveDashboardCustomerName } from '@/lib/chat/customer-display-name'
 // NOTE: insertAgentMessage is imported lazily inside each mutation because it
 // transitively imports notificationQueue from lib/queue/queues.ts which throws
 // at module-load time when REDIS_URL is not configured. Lazy import keeps
@@ -17,6 +20,22 @@ const PRIORITY_ORDER: Record<string, number> = {
   low_confidence: 1,
   policy_fail: 2,
   normal: 3,
+}
+
+function mapHitlDbError(err: unknown, fallback: string): never {
+  if (isDbConnectivityFailure(err as { message?: string; cause?: unknown })) {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Database temporarily unavailable. Check your network connection and try again.',
+      cause: err,
+    })
+  }
+  if (err instanceof TRPCError) throw err
+  throw new TRPCError({
+    code: 'INTERNAL_SERVER_ERROR',
+    message: fallback,
+    cause: err,
+  })
 }
 
 /**
@@ -50,23 +69,63 @@ export const governanceRouter = router({
       limit: z.number().min(1).max(100).default(40),
     }))
     .query(async ({ ctx, input }) => {
-      const rows = await db
-        .select()
-        .from(hitlQueue)
-        .where(
-          input.status === 'all'
-            ? eq(hitlQueue.orgId, ctx.user.orgId)
-            : and(eq(hitlQueue.orgId, ctx.user.orgId), eq(hitlQueue.status, input.status))
-        )
-        .orderBy(desc(hitlQueue.createdAt))
-        .limit(input.limit)
+      try {
+        const rows = await db
+          .select({
+            id: hitlQueue.id,
+            orgId: hitlQueue.orgId,
+            ticketId: hitlQueue.ticketId,
+            conversationId: hitlQueue.conversationId,
+            draftOutput: hitlQueue.draftOutput,
+            reason: hitlQueue.reason,
+            status: hitlQueue.status,
+            priority: hitlQueue.priority,
+            source: hitlQueue.source,
+            classificationMetadata: hitlQueue.classificationMetadata,
+            createdAt: hitlQueue.createdAt,
+            customerName: customers.name,
+            chatDisplayName: conversations.customerDisplayName,
+            channel: conversations.channel,
+          })
+          .from(hitlQueue)
+          .leftJoin(conversations, eq(hitlQueue.conversationId, conversations.id))
+          .leftJoin(customers, eq(conversations.customerId, customers.id))
+          .where(
+            input.status === 'all'
+              ? eq(hitlQueue.orgId, ctx.user.orgId)
+              : and(eq(hitlQueue.orgId, ctx.user.orgId), eq(hitlQueue.status, input.status))
+          )
+          .orderBy(desc(hitlQueue.createdAt))
+          .limit(input.limit)
 
-      // Sort: complaint before low_confidence before normal; within each
-      // bucket preserve the createdAt desc order from the DB.
-      return rows.sort(
-        (a, b) =>
-          (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9)
-      )
+        // Sort: complaint before low_confidence before normal; within each
+        // bucket preserve the createdAt desc order from the DB.
+        return rows
+          .map((row) => ({
+            id: row.id,
+            orgId: row.orgId,
+            ticketId: row.ticketId,
+            conversationId: row.conversationId,
+            draftOutput: row.draftOutput,
+            reason: row.reason,
+            status: row.status,
+            priority: row.priority,
+            source: row.source,
+            classificationMetadata: row.classificationMetadata,
+            createdAt: row.createdAt,
+            customerDisplayName: resolveDashboardCustomerName({
+              channel: row.channel,
+              customerDisplayName: row.chatDisplayName,
+              customerName: row.customerName,
+            }),
+          }))
+          .sort(
+            (a, b) =>
+              (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9)
+          )
+      } catch (err) {
+        mapHitlDbError(err, 'Could not load pending reviews.')
+      }
     }),
 
   /**
@@ -84,14 +143,52 @@ export const governanceRouter = router({
       finalText: z.string().max(20000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const item = await db.query.hitlQueue.findFirst({
-        where: and(eq(hitlQueue.id, input.hitlId), eq(hitlQueue.orgId, ctx.user.orgId)),
-      })
-      if (!item) throw new Error('HITL item not found')
-      if (item.status !== 'pending') throw new Error(`Item already ${item.status}`)
+      let item
+      try {
+        const [row] = await db
+          .select()
+          .from(hitlQueue)
+          .where(and(eq(hitlQueue.id, input.hitlId), eq(hitlQueue.orgId, ctx.user.orgId)))
+          .limit(1)
+        item = row
+      } catch (err) {
+        mapHitlDbError(err, 'Could not load HITL item.')
+      }
+
+      if (!item) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'HITL item not found' })
+      }
+      if (item.status !== 'pending') {
+        throw new TRPCError({ code: 'CONFLICT', message: `Item already ${item.status}` })
+      }
 
       const content = (input.finalText?.trim() || item.draftOutput).trim()
-      if (!content) throw new Error('Draft content is empty')
+      if (!content) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Draft content is empty' })
+      }
+
+      // Resolve conversation: prefer the stored FK, else look up by ticket.
+      let conversationId = item.conversationId
+      if (!conversationId && item.ticketId) {
+        try {
+          const [conv] = await db
+            .select({ id: conversations.id })
+            .from(conversations)
+            .where(and(eq(conversations.ticketId, item.ticketId), eq(conversations.orgId, ctx.user.orgId)))
+            .limit(1)
+          conversationId = conv?.id ?? null
+        } catch (err) {
+          mapHitlDbError(err, 'Could not resolve conversation for this review.')
+        }
+      }
+
+      if (!conversationId) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message:
+            'This review has no linked conversation, so the reply cannot be sent. Open the ticket thread or reject the draft.',
+        })
+      }
 
       // 1. Record decision on the audit log if an auditLogId is available.
       const auditLogId = item.classificationMetadata?.auditLogId
@@ -111,26 +208,36 @@ export const governanceRouter = router({
       }
 
       // 2. Send the reply via the shared agent message insertion path.
-      if (item.conversationId) {
+      try {
         const { insertAgentMessage } = await import('@/lib/conversations/insert-agent-message')
         await insertAgentMessage({
           orgId: ctx.user.orgId,
-          conversationId: item.conversationId,
+          conversationId,
           content,
           metadata: {
             model: 'advan-copilot-v1',
             confidence: item.classificationMetadata?.draftConfidence,
           },
         })
+      } catch (err) {
+        mapHitlDbError(err, 'Could not send the approved reply.')
       }
 
       // 3. Mark the HITL item resolved (skip if already done by CopilotDecisionService).
-      const fresh = await db.query.hitlQueue.findFirst({ where: eq(hitlQueue.id, item.id) })
-      if (fresh?.status === 'pending') {
-        await db
-          .update(hitlQueue)
-          .set({ status: 'approved', reviewedBy: ctx.user.id, reviewNote: content, resolvedAt: new Date() })
+      try {
+        const [fresh] = await db
+          .select({ status: hitlQueue.status })
+          .from(hitlQueue)
           .where(eq(hitlQueue.id, item.id))
+          .limit(1)
+        if (fresh?.status === 'pending') {
+          await db
+            .update(hitlQueue)
+            .set({ status: 'approved', reviewedBy: ctx.user.id, reviewNote: content, resolvedAt: new Date() })
+            .where(eq(hitlQueue.id, item.id))
+        }
+      } catch (err) {
+        mapHitlDbError(err, 'Reply may have sent, but the review status could not be updated.')
       }
 
       // Signal Temporal workflow if this HITL item was created by a custom visual orchestration pipeline
@@ -168,11 +275,24 @@ export const governanceRouter = router({
       reviewNote: z.string().max(2000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const item = await db.query.hitlQueue.findFirst({
-        where: and(eq(hitlQueue.id, input.hitlId), eq(hitlQueue.orgId, ctx.user.orgId)),
-      })
-      if (!item) throw new Error('HITL item not found')
-      if (item.status !== 'pending') throw new Error(`Item already ${item.status}`)
+      let item
+      try {
+        const [row] = await db
+          .select()
+          .from(hitlQueue)
+          .where(and(eq(hitlQueue.id, input.hitlId), eq(hitlQueue.orgId, ctx.user.orgId)))
+          .limit(1)
+        item = row
+      } catch (err) {
+        mapHitlDbError(err, 'Could not load HITL item.')
+      }
+
+      if (!item) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'HITL item not found' })
+      }
+      if (item.status !== 'pending') {
+        throw new TRPCError({ code: 'CONFLICT', message: `Item already ${item.status}` })
+      }
 
       const auditLogId = item.classificationMetadata?.auditLogId
       if (auditLogId) {
@@ -189,12 +309,20 @@ export const governanceRouter = router({
         }
       }
 
-      const fresh = await db.query.hitlQueue.findFirst({ where: eq(hitlQueue.id, item.id) })
-      if (fresh?.status === 'pending') {
-        await db
-          .update(hitlQueue)
-          .set({ status: 'rejected', reviewedBy: ctx.user.id, reviewNote: input.reviewNote, resolvedAt: new Date() })
+      try {
+        const [fresh] = await db
+          .select({ status: hitlQueue.status })
+          .from(hitlQueue)
           .where(eq(hitlQueue.id, item.id))
+          .limit(1)
+        if (fresh?.status === 'pending') {
+          await db
+            .update(hitlQueue)
+            .set({ status: 'rejected', reviewedBy: ctx.user.id, reviewNote: input.reviewNote, resolvedAt: new Date() })
+            .where(eq(hitlQueue.id, item.id))
+        }
+      } catch (err) {
+        mapHitlDbError(err, 'Could not update review status.')
       }
 
       // Signal Temporal workflow if this HITL item was created by a custom visual orchestration pipeline

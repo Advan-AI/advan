@@ -39,6 +39,7 @@ import {
   BookOpen,
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
 } from "lucide-react"
 import * as SocketIO from "socket.io-client"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
@@ -46,6 +47,9 @@ import { api } from "@/lib/api/trpc-client"
 import { useCopilot } from "@/lib/copilot/store"
 import { useCopilotStream } from "@/lib/copilot/use-copilot-stream"
 import { useNotifications } from "@/lib/realtime/notifications-store"
+import { getCustomerSessionStatus } from "@/lib/tickets/status-labels"
+import { UNNAMED_VISITOR_LABEL } from "@/lib/chat/customer-display-name"
+import { formatTicketSubjectForDisplay } from "@/lib/chat/ticket-subject"
 
 // ─── Socket URL (mirrors use-pipeline-realtime.ts) ────────────────────────────
 const getDashSocketUrl = () => {
@@ -123,6 +127,7 @@ type ThreadData = {
   createdAt: string
   ticketSubject: string | null
   ticketStatus: "open" | "pending" | "resolved" | "closed" | null
+  awaitingHumanReview: boolean
   ticketPriority: "low" | "medium" | "high" | "urgent" | null
   customerName: string | null
   customerEmail: string | null
@@ -149,11 +154,10 @@ const PRIORITY_STYLES: Record<string, string> = {
   urgent: "text-[#991B1B] bg-[#FEE2E2]",
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  open: "text-[#166534] bg-[#DCFCE7]",
-  pending: "text-[#92400E] bg-[#FEF3C7]",
+const STATUS_STYLES: Record<"active" | "waiting" | "resolved", string> = {
+  active: "text-[#166534] bg-[#DCFCE7]",
+  waiting: "text-[#92400E] bg-[#FEF3C7]",
   resolved: "text-[var(--dash-ink-soft)] bg-[var(--dash-bg-deep)]",
-  closed: "text-[var(--dash-ink-faint)] bg-[var(--dash-bg-deep)]",
 }
 
 const TIER_STYLES: Record<string, string> = {
@@ -201,6 +205,7 @@ function threadToConvItem(thread: ThreadData): ConvItem {
         : new Date(thread.createdAt).toISOString(),
     ticketSubject: thread.ticketSubject,
     ticketStatus: thread.ticketStatus,
+    awaitingHumanReview: thread.awaitingHumanReview,
     ticketPriority: thread.ticketPriority,
     customerName: thread.customerName,
     customerEmail: thread.customerEmail,
@@ -229,6 +234,8 @@ export default function ConversationsPage() {
 
   const [tab, setTab] = useState<Tab>("All")
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  /** Mobile/tablet: show inbox list OR thread (desktop keeps 3-pane). */
+  const [mobilePane, setMobilePane] = useState<"list" | "thread">("list")
   const [search, setSearch] = useState("")
   const [composeMode, setComposeMode] = useState<ComposeMode>("reply")
   const [text, setText] = useState("")
@@ -492,12 +499,20 @@ export default function ConversationsPage() {
     })
 
     // Listen to real-time incoming visitor messages for Amazon Connect style alerts
-    sock.on("visitor:message", (d: { conversationId: string; content: string }) => {
+    const handleIncomingChat = (d: {
+      conversationId: string
+      content: string
+      customerName?: string | null
+      customerEmail?: string | null
+    }) => {
       void utils.conversations.list.invalidate()
-      
-      const match = convListRef.current.find(c => c.id === d.conversationId)
-      const customerName = match?.customerName || "Web Visitor"
-      const customerEmail = match?.customerEmail || null
+
+      const match = convListRef.current.find((c) => c.id === d.conversationId)
+      const customerName =
+        d.customerName?.trim() ||
+        match?.customerName ||
+        UNNAMED_VISITOR_LABEL
+      const customerEmail = d.customerEmail ?? match?.customerEmail ?? null
 
       setSelectedId((currSelected) => {
         if (currSelected !== d.conversationId) {
@@ -551,7 +566,10 @@ export default function ConversationsPage() {
         }
         return currSelected
       })
-    })
+    }
+
+    sock.on("visitor:message", handleIncomingChat)
+    sock.on("customer:message", handleIncomingChat)
 
     return () => {
       sock.disconnect()
@@ -567,6 +585,7 @@ export default function ConversationsPage() {
 
     if (convId) {
       setSelectedId(convId)
+      setMobilePane("thread")
       setDeepLinkResolved(true)
     } else {
       setTicketIdFromUrl(ticketId)
@@ -609,6 +628,7 @@ export default function ConversationsPage() {
   const ensureConversation = api.conversations.create.useMutation({
     onSuccess: (conv) => {
       setSelectedId(conv.id)
+      setMobilePane("thread")
       setDeepLinkResolved(true)
       void utils.conversations.list.invalidate()
       void utils.analytics.overview.invalidate()
@@ -626,6 +646,7 @@ export default function ConversationsPage() {
 
     if (ticketConversation?.conversation) {
       setSelectedId(ticketConversation.conversation.id)
+      setMobilePane("thread")
       setDeepLinkResolved(true)
       router.replace("/dashboard/conversations", { scroll: false })
       return
@@ -668,15 +689,18 @@ export default function ConversationsPage() {
     router,
   ])
 
-  // Auto-select first conversation when not arriving from a ticket deep-link.
+  // Auto-select first conversation on desktop workbench only (mobile starts on list).
   useEffect(() => {
     if (!deepLinkResolved) return
-    if (convList[0]?.id && !selectedId) {
+    const desktop =
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 1280px)").matches
+    if (desktop && convList[0]?.id && !selectedId) {
       setSelectedId(convList[0].id)
     }
   }, [convList, selectedId, deepLinkResolved])
 
-  const activeId = selectedId ?? convList[0]?.id ?? null
+  const activeId = selectedId
 
   const { data: threadRaw, isLoading: threadLoading } = api.conversations.getById.useQuery(
     { id: activeId! },
@@ -981,7 +1005,7 @@ export default function ConversationsPage() {
                   <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-ping" />
                 </div>
                 <h4 className="mt-0.5 text-sm font-bold text-slate-950 truncate">
-                  {activeAlert.customerName || "Web Visitor"}
+                  {activeAlert.customerName || UNNAMED_VISITOR_LABEL}
                 </h4>
                 {activeAlert.customerEmail && (
                   <p className="text-[11px] text-slate-500 truncate -mt-0.5">{activeAlert.customerEmail}</p>
@@ -1011,6 +1035,7 @@ export default function ConversationsPage() {
               <button
                 onClick={() => {
                   setSelectedId(activeAlert.conversationId)
+                  setMobilePane("thread")
                   setActiveAlert(null)
                   // Highlight input field
                   setTimeout(() => {
@@ -1048,6 +1073,7 @@ export default function ConversationsPage() {
                 }}
                 onSelect={() => {
                   setSelectedId(tab.conversationId)
+                  setMobilePane("thread")
                   setChatTabs((prev) => prev.filter((t) => t.conversationId !== tab.conversationId))
                   setTimeout(() => {
                     textareaRef.current?.focus()
@@ -1095,7 +1121,7 @@ export default function ConversationsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[300px_1fr_290px] gap-4 xl:h-[calc(100vh-210px)] min-h-[550px] items-stretch">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(16rem,19rem)_minmax(0,1fr)_minmax(15rem,18rem)] 3xl:grid-cols-[20rem_minmax(0,1fr)_20rem] 4xl:grid-cols-[22rem_minmax(0,1fr)_22rem] gap-3 sm:gap-4 dash-workbench items-stretch">
         {/* ── Left: Conversation list ── */}
         <ConversationList
           convs={filteredConvs}
@@ -1105,19 +1131,37 @@ export default function ConversationsPage() {
           onSearch={setSearch}
           onSelect={(id) => {
             setSelectedId(id)
+            setMobilePane("thread")
             setTab("All")
           }}
-          className="xl:h-full flex flex-col"
+          className={`${mobilePane === "thread" ? "hidden" : "flex"} xl:flex xl:h-full flex-col min-h-[min(60dvh,28rem)] xl:min-h-0`}
         />
 
         {/* ── Center: Message thread ── */}
         <DashCard
           title={
-            thread?.customerName ??
-            thread?.ticketSubject?.slice(0, 40) ??
-            "Conversation"
+            <span className="flex items-center gap-1.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => setMobilePane("list")}
+                className="xl:hidden inline-flex items-center justify-center w-8 h-8 -ml-1 rounded-lg text-[var(--dash-ink-soft)] hover:bg-[var(--dash-bg-deep)] shrink-0"
+                aria-label="Back to conversations"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="truncate">
+                {thread?.customerName ??
+                  (thread
+                    ? formatTicketSubjectForDisplay({
+                        channel: thread.channel,
+                        subject: thread.ticketSubject,
+                      })
+                    : null) ??
+                  "Conversation"}
+              </span>
+            </span>
           }
-          icon={<MessageSquare className="w-[18px] h-[18px]" />}
+          icon={<MessageSquare className="w-[18px] h-[18px] hidden sm:block" />}
           right={
             <div className="flex items-center gap-2">
               {/* Visitor online badge — only shown for chat conversations */}
@@ -1132,16 +1176,19 @@ export default function ConversationsPage() {
                   ].join(" ")}
                 >
                   <Radio className="w-2.5 h-2.5" />
-                  {visitorOnline.has(activeId) ? "Visitor online" : "Visitor offline"}
+                  <span className="hidden sm:inline">
+                    {visitorOnline.has(activeId) ? "Visitor online" : "Visitor offline"}
+                  </span>
+                  <span className="sm:hidden">{visitorOnline.has(activeId) ? "Online" : "Away"}</span>
                 </span>
               )}
-              <span className="font-mono text-[11px] text-[var(--dash-ink-faint)]">
+              <span className="font-mono text-[11px] text-[var(--dash-ink-faint)] hidden sm:inline">
                 #{activeId?.slice(0, 8) ?? "—"}
               </span>
             </div>
           }
           padded={false}
-          className="xl:h-full flex flex-col"
+          className={`${mobilePane === "list" ? "hidden" : "flex"} xl:flex xl:h-full flex-col min-h-[min(70dvh,32rem)] xl:min-h-0`}
         >
           {!activeId ? (
             <EmptySelect />
@@ -1437,7 +1484,11 @@ export default function ConversationsPage() {
         </DashCard>
 
         {/* ── Right: Details ── */}
-        <DetailsPanel thread={thread ?? null} loading={!!activeId && threadLoading} className="xl:h-full flex flex-col" />
+        <DetailsPanel
+          thread={thread ?? null}
+          loading={!!activeId && threadLoading}
+          className="hidden xl:flex xl:h-full flex-col"
+        />
       </div>
     </div>
   )
@@ -1454,6 +1505,7 @@ type ConvItem = {
   createdAt: string
   ticketSubject: string | null
   ticketStatus: "open" | "pending" | "resolved" | "closed" | null
+  awaitingHumanReview: boolean
   ticketPriority: "low" | "medium" | "high" | "urgent" | null
   customerName: string | null
   customerEmail: string | null
@@ -1603,11 +1655,21 @@ function ConversationList({
                       </span>
                     )}
                   </div>
-                  {conv.ticketSubject && (
-                    <div className="text-[11.5px] text-[var(--dash-ink-soft)] truncate mb-0.5">
-                      {conv.ticketSubject}
-                    </div>
-                  )}
+                  {(() => {
+                    const topic = formatTicketSubjectForDisplay({
+                      channel: conv.channel,
+                      subject: conv.ticketSubject,
+                      customerName: conv.customerName,
+                      lastMessagePreview: conv.lastMessage?.content,
+                    })
+                    // Skip subtitle when it only repeats the primary name line.
+                    if (!topic || topic === name || topic === `Chat with ${name}`) return null
+                    return (
+                      <div className="text-[11.5px] text-[var(--dash-ink-soft)] truncate mb-0.5">
+                        {topic}
+                      </div>
+                    )
+                  })()}
                   {conv.lastMessage && (
                     <div className="text-[11px] text-[var(--dash-ink-faint)] truncate mb-1.5">
                       {previewPrefix}
@@ -1634,13 +1696,19 @@ function ConversationList({
                           {conv.ticketPriority}
                         </span>
                       )}
-                    {conv.ticketStatus && (
-                      <span
-                        className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md capitalize ${STATUS_STYLES[conv.ticketStatus]}`}
-                      >
-                        {conv.ticketStatus}
-                      </span>
-                    )}
+                    {conv.ticketStatus && (() => {
+                      const customerStatus = getCustomerSessionStatus({
+                        ticketStatus: conv.ticketStatus,
+                        awaitingHumanReview: conv.awaitingHumanReview,
+                      })
+                      return (
+                        <span
+                          className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md capitalize ${STATUS_STYLES[customerStatus]}`}
+                        >
+                          {customerStatus}
+                        </span>
+                      )
+                    })()}
                     {(() => {
                       const lm = conv.lastMessage
                       if (!lm) return null
@@ -2237,18 +2305,32 @@ function DetailsPanel({
             <SectionLabel>Ticket</SectionLabel>
             {thread.ticketSubject && (
               <p className="text-[12.5px] font-semibold text-[var(--dash-ink)] mb-3 leading-snug">
-                {thread.ticketSubject}
+                {formatTicketSubjectForDisplay({
+                  channel: thread.channel,
+                  subject: thread.ticketSubject,
+                  customerName: thread.customerName,
+                  lastMessagePreview: thread.messages.find((m) => m.role === "user")?.content
+                    ?? thread.messages.at(-1)?.content,
+                })}
               </p>
             )}
             <div className="space-y-2">
               {thread.ticketStatus && (
                 <div className="flex items-center justify-between text-[12px]">
                   <span className="text-[var(--dash-ink-faint)]">Status</span>
-                  <span
-                    className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[thread.ticketStatus] ?? ""}`}
-                  >
-                    {thread.ticketStatus}
-                  </span>
+                  {(() => {
+                    const customerStatus = getCustomerSessionStatus({
+                      ticketStatus: thread.ticketStatus,
+                      awaitingHumanReview: thread.awaitingHumanReview,
+                    })
+                    return (
+                      <span
+                        className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[customerStatus]}`}
+                      >
+                        {customerStatus}
+                      </span>
+                    )
+                  })()}
                 </div>
               )}
               {thread.ticketPriority && (
@@ -2477,6 +2559,13 @@ function TypingDot({ delay }: { delay: string }) {
 }
 
 // ─── Facebook Messenger-Style Floating Chat Tab Window ───────────────────────
+
+interface ChatTabState {
+  conversationId: string
+  customerName: string
+  isMinimized: boolean
+  unreadCount: number
+}
 
 interface FloatingChatTabProps {
   tab: ChatTabState

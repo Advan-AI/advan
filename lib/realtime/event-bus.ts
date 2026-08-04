@@ -40,9 +40,15 @@ function getPublisher(): Redis | null {
   const g = globalThis as GlobalBus
   if (g.__ADVAN_REDIS_PUB__ !== undefined) return g.__ADVAN_REDIS_PUB__
   const url = process.env.REDIS_URL
-  g.__ADVAN_REDIS_PUB__ = url
-    ? new Redis(url, { maxRetriesPerRequest: null, lazyConnect: false, family: 0 })
-    : null
+  if (!url) {
+    g.__ADVAN_REDIS_PUB__ = null
+    return null
+  }
+  const client = new Redis(url, { maxRetriesPerRequest: null, lazyConnect: false, family: 0 })
+  client.on("error", (err) => {
+    console.warn("[EventBus] Redis pub client warning:", err.message)
+  })
+  g.__ADVAN_REDIS_PUB__ = client
   return g.__ADVAN_REDIS_PUB__
 }
 
@@ -129,7 +135,12 @@ export function publishCustomerMessage(
 /** Create a dedicated subscriber connection (caller owns its lifecycle). */
 export function createSubscriber(): Redis | null {
   const url = process.env.REDIS_URL
-  return url ? new Redis(url, { maxRetriesPerRequest: null, family: 0 }) : null
+  if (!url) return null
+  const client = new Redis(url, { maxRetriesPerRequest: null, family: 0 })
+  client.on("error", (err) => {
+    console.warn("[EventBus] Redis sub client warning:", err.message)
+  })
+  return client
 }
 
 // ─── Agent presence (chat availability) ──────────────────────────────────────

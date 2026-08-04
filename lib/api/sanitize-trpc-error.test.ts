@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server"
 import { ZodError, z } from "zod"
 import {
   SAFE_INTERNAL_MESSAGE,
+  DB_UNAVAILABLE_MESSAGE,
   sanitizeTrpcErrorShape,
   type TrpcErrorShape,
 } from "./sanitize-trpc-error"
@@ -26,7 +27,7 @@ describe("sanitizeTrpcErrorShape", () => {
     const error = new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
       message: 'Failed query: select "id" from "organizations" where "slug" = $1',
-      cause: new Error("connection refused"),
+      cause: new Error("permission denied for table organizations"),
     })
 
     const result = sanitizeTrpcErrorShape(baseShape(error.message), error)
@@ -34,6 +35,23 @@ describe("sanitizeTrpcErrorShape", () => {
     expect(result.message).toBe(SAFE_INTERNAL_MESSAGE)
     expect(result.data.stack).toBeUndefined()
     expect(JSON.stringify(result)).not.toMatch(/organizations|Failed query|stack/i)
+  })
+
+  it("maps DNS and connection failures to a retryable database message", () => {
+    const dns = new Error("getaddrinfo EAI_AGAIN aws-1-us-east-2.pooler.supabase.com") as Error & {
+      code?: string
+    }
+    dns.code = "EAI_AGAIN"
+
+    const error = new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: 'Failed query: select "id" from "hitl_queue"',
+      cause: dns,
+    })
+
+    const result = sanitizeTrpcErrorShape(baseShape(error.message), error)
+    expect(result.message).toBe(DB_UNAVAILABLE_MESSAGE)
+    expect(JSON.stringify(result)).not.toMatch(/hitl_queue|EAI_AGAIN|supabase/i)
   })
 
   it("humanizes Zod validation errors instead of dumping issue JSON", () => {

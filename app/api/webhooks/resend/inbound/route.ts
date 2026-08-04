@@ -15,7 +15,6 @@ import { requireEmailConfig, type EmailConfig } from "@/lib/email/config"
 import { parseInboundEmail, type ParsedInboundEmail } from "@/lib/email/parse-inbound"
 import { getResendClient } from "@/lib/email/resend-client"
 import { PIIMasker } from "@/lib/governance/pii-masker"
-import { publishCustomerMessage } from "@/lib/realtime/event-bus"
 import { resolveOrCreateIntake } from "@/lib/tickets/auto-intake"
 
 export const runtime = "nodejs"
@@ -488,13 +487,7 @@ export async function handleInboundRequest(
   }
 
   const intake = await deps.resolveOrCreateIntake({ orgId, parsed })
-  await publishCustomerMessage(orgId, {
-    conversationId: intake.conversationId,
-    messageId: intake.messageId,
-    channel: "email",
-    content: parsed.text,
-    customerEmail: extractEmailAddress(parsed.from),
-  })
+  // customer:message is published inside resolveOrCreateIntake (Redis → socket).
   await deps.logEmailEvent({
     orgId,
     conversationId: intake.conversationId,

@@ -1,16 +1,40 @@
 "use client"
 
-import { useState, FormEvent } from "react"
+import { useState, FormEvent, Suspense } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
 import { motion } from "framer-motion"
-import { ArrowRight, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react"
+import { ArrowRight, Eye, EyeOff, Loader2, ShieldCheck, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TrustPanel } from "@/components/auth/trust-panel"
 
 const BOOKING_URL = "https://cal.com/day-nguyen"
+
+function AuthErrorBanner() {
+  const searchParams = useSearchParams()
+  const errorParam = searchParams.get("error")
+
+  if (!errorParam) return null
+
+  let message = "An error occurred during sign in. Please try again."
+  if (errorParam === "AccessDenied") {
+    message =
+      "Google sign-in was denied or canceled. If your Google OAuth status is 'Testing' in GCP Console, make sure your account is added under 'Test Users', or check database connectivity."
+  } else if (errorParam === "Configuration") {
+    message = "Server configuration error. Please verify GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and AUTH_SECRET on your deployment."
+  } else if (errorParam === "OAuthCallbackError" || errorParam === "OAuthSignin") {
+    message = "Could not complete sign-in with Google. Please check your authorized redirect URIs in Google Cloud Console."
+  }
+
+  return (
+    <div className="mb-5 p-3.5 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs flex items-start gap-2.5">
+      <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+      <span>{message}</span>
+    </div>
+  )
+}
 
 export default function SignInPage() {
   const router = useRouter()
@@ -113,9 +137,13 @@ export default function SignInPage() {
             <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight text-foreground">
               Welcome back
             </h1>
-            <p className="mt-2 text-sm text-foreground/60">
+            <p className="mt-2 text-sm text-foreground/60 mb-4">
               Sign in to your Advan support workspace.
             </p>
+
+            <Suspense fallback={null}>
+              <AuthErrorBanner />
+            </Suspense>
 
             {/* Google */}
             <button

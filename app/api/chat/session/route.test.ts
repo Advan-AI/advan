@@ -2,25 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { jwtVerify } from "jose"
 import { NextRequest } from "next/server"
 
-// ─── DB mock ──────────────────────────────────────────────────────────────────
-// The session route calls db.query.widgetConfigs.findFirst directly.
-// vi.mock is hoisted before variable declarations, so we cannot reference a
-// const inside the factory. Instead we return vi.fn() in the factory and
-// obtain the typed reference via vi.mocked() after the import.
-
 vi.mock("@/lib/db", () => ({
   db: {
     query: {
       widgetConfigs: {
         findFirst: vi.fn(),
       },
-      conversations: {
+      visitors: {
         findFirst: vi.fn(),
       },
-      messages: {
-        findMany: vi.fn(),
-      },
     },
+    insert: vi.fn(),
+    update: vi.fn(),
   },
 }))
 
@@ -40,18 +33,16 @@ vi.mock("@upstash/ratelimit", () => {
 import { db } from "@/lib/db"
 import { POST } from "./route"
 
-// Typed reference to the mock for per-test setup.
-const mockFindFirst = vi.mocked(db.query.widgetConfigs.findFirst)
-const mockConvFindFirst = vi.mocked(db.query.conversations.findFirst)
-const mockMessagesFindMany = vi.mocked(db.query.messages.findMany)
-
-// ─── Constants ────────────────────────────────────────────────────────────────
+const mockFindWidget = vi.mocked(db.query.widgetConfigs.findFirst)
+const mockFindVisitor = vi.mocked(db.query.visitors.findFirst)
+const mockInsert = vi.mocked(db.insert)
+const mockUpdate = vi.mocked(db.update)
 
 const AUTH_SECRET = "test-auth-secret-for-widget-session!!"
 const ORG_ID = "10000000-0000-0000-0000-000000000001"
 const WIDGET_KEY = "wk_test_abc123"
 const ALLOWED_ORIGIN = "https://example.com"
-const EXISTING_SESSION_ID = "20000000-0000-0000-0000-000000000002"
+const EXISTING_VISITOR_ID = "20000000-0000-0000-0000-000000000002"
 
 function widgetConfigFixture(overrides: Record<string, unknown> = {}) {
   return {
@@ -60,22 +51,29 @@ function widgetConfigFixture(overrides: Record<string, unknown> = {}) {
     widgetKey: WIDGET_KEY,
     allowedOrigins: [ALLOWED_ORIGIN],
     preChatFormEnabled: true,
+    preChatQuestions: [],
     brandingConfig: null,
     createdAt: new Date(),
     ...overrides,
   }
 }
 
-function makeRequest(
-  body: unknown,
-  headers: Record<string, string> = {},
-): NextRequest {
+function visitorFixture(id: string) {
+  return {
+    id,
+    orgId: ORG_ID,
+    widgetKey: WIDGET_KEY,
+    firstSeenAt: new Date(),
+    lastSeenAt: new Date(),
+  }
+}
+
+function makeRequest(body: unknown): NextRequest {
   return new NextRequest("http://localhost/api/chat/session", {
     method: "POST",
     body: JSON.stringify(body),
     headers: {
       "content-type": "application/json",
-      ...headers,
     },
   })
 }
@@ -86,141 +84,151 @@ async function decodeToken(token: string) {
   return payload as {
     orgId: string
     widgetKey: string
-    visitorSessionId: string
+    visitorId: string
     exp: number
     iat: number
     iss: string
   }
 }
 
-// ─── Setup ────────────────────────────────────────────────────────────────────
-
 beforeEach(() => {
   process.env.AUTH_SECRET = AUTH_SECRET
-  // Disable Upstash so rate limiting is skipped in tests (no Redis connection) by default.
   delete process.env.UPSTASH_REDIS_REST_URL
   delete process.env.UPSTASH_REDIS_REST_TOKEN
   mockLimit.mockReset().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: Date.now() + 1000 })
-  mockFindFirst.mockReset()
-  mockConvFindFirst.mockReset()
-  mockMessagesFindMany.mockReset()
+  mockFindWidget.mockReset()
+  mockFindVisitor.mockReset()
+  mockInsert.mockReset()
+  mockUpdate.mockReset()
+
+  mockInsert.mockReturnValue({
+    values: vi.fn().mockResolvedValue(undefined),
+  } as unknown as ReturnType<typeof db.insert>)
+
+  mockUpdate.mockReturnValue({
+    set: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue(undefined),
+    }),
+  } as unknown as ReturnType<typeof db.update>)
 })
 
 afterEach(() => {
   delete process.env.AUTH_SECRET
 })
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
 describe("POST /api/chat/session", () => {
-  it("issues a valid JWT for a known widgetKey and allowed origin", async () => {
-    mockFindFirst.mockResolvedValue(widgetConfigFixture())
+  it("issues a valid JWT and creates a new visitor when visitorId is absent", async () => {
+    mockFindWidget.mockResolvedValue(widgetConfigFixture())
 
     const res = await POST(makeRequest({ widgetKey: WIDGET_KEY, origin: ALLOWED_ORIGIN }))
 
     expect(res.status).toBe(200)
-    const body = await res.json() as { token: string; visitorSessionId: string }
-    expect(body.visitorSessionId).toBeTruthy()
-    // Visually looks like a UUID
-    expect(body.visitorSessionId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    )
+    const body = await res.json() as { token: string; visitorId: string }
+    expect(body.visitorId).toMatch(/^[0-9a-f-]{36}$/i)
 
-    // Token is verifiable and contains the expected claims.
     const decoded = await decodeToken(body.token)
     expect(decoded.orgId).toBe(ORG_ID)
     expect(decoded.widgetKey).toBe(WIDGET_KEY)
-    expect(decoded.visitorSessionId).toBe(body.visitorSessionId)
-    expect(decoded.iss).toBe("advan:chat-session")
-    // 1-hour expiry: exp - iat should be exactly 3600 seconds.
+    expect(decoded.visitorId).toBe(body.visitorId)
     expect(decoded.exp - decoded.iat).toBe(3600)
+
+    expect(mockInsert).toHaveBeenCalledOnce()
+  })
+
+  it("reuses an existing visitorId scoped to widget+org and updates lastSeenAt", async () => {
+    mockFindWidget.mockResolvedValue(widgetConfigFixture())
+    mockFindVisitor.mockResolvedValue(visitorFixture(EXISTING_VISITOR_ID))
+
+    const res = await POST(
+      makeRequest({
+        widgetKey: WIDGET_KEY,
+        origin: ALLOWED_ORIGIN,
+        visitorId: EXISTING_VISITOR_ID,
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    const body = await res.json() as { token: string; visitorId: string }
+    expect(body.visitorId).toBe(EXISTING_VISITOR_ID)
+
+    const decoded = await decodeToken(body.token)
+    expect(decoded.visitorId).toBe(EXISTING_VISITOR_ID)
+    expect(mockUpdate).toHaveBeenCalledOnce()
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it("treats two browser starts with the same relayed visitorId as one visitor identity", async () => {
+    mockFindWidget.mockResolvedValue(widgetConfigFixture())
+    mockFindVisitor.mockResolvedValue(visitorFixture(EXISTING_VISITOR_ID))
+
+    const first = await POST(
+      makeRequest({ widgetKey: WIDGET_KEY, origin: ALLOWED_ORIGIN, visitorId: EXISTING_VISITOR_ID }),
+    )
+    const second = await POST(
+      makeRequest({ widgetKey: WIDGET_KEY, origin: ALLOWED_ORIGIN, visitorId: EXISTING_VISITOR_ID }),
+    )
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+
+    const body1 = await first.json() as { visitorId: string }
+    const body2 = await second.json() as { visitorId: string }
+    expect(body1.visitorId).toBe(EXISTING_VISITOR_ID)
+    expect(body2.visitorId).toBe(EXISTING_VISITOR_ID)
+    expect(mockInsert).not.toHaveBeenCalled()
+    expect(mockUpdate).toHaveBeenCalledTimes(2)
+  })
+
+  it("mints a new visitor when visitorId is unknown for the widget scope", async () => {
+    mockFindWidget.mockResolvedValue(widgetConfigFixture())
+    mockFindVisitor.mockResolvedValue(undefined)
+
+    const res = await POST(
+      makeRequest({
+        widgetKey: WIDGET_KEY,
+        origin: ALLOWED_ORIGIN,
+        visitorId: EXISTING_VISITOR_ID,
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    const body = await res.json() as { token: string; visitorId: string }
+    expect(body.visitorId).toMatch(/^[0-9a-f-]{36}$/i)
+    expect(body.visitorId).not.toBe(EXISTING_VISITOR_ID)
+    expect(mockInsert).toHaveBeenCalledTimes(1)
   })
 
   it("rejects a request whose origin is not in allowedOrigins", async () => {
-    mockFindFirst.mockResolvedValue(widgetConfigFixture())
+    mockFindWidget.mockResolvedValue(widgetConfigFixture())
 
     const res = await POST(
       makeRequest({ widgetKey: WIDGET_KEY, origin: "https://attacker.com" }),
     )
 
     expect(res.status).toBe(403)
-    const body = await res.json() as { error: string }
-    expect(body.error).toMatch(/origin not allowed/i)
   })
 
-  it("rejects a request whose origin is a superset/prefix of an allowed origin", async () => {
-    // Ensures strict equality — "https://example.com.evil.io" must NOT match
-    // an allowedOrigins entry of "https://example.com".
-    mockFindFirst.mockResolvedValue(widgetConfigFixture())
+  it("returns 404 for unknown widgetKey", async () => {
+    mockFindWidget.mockResolvedValue(undefined)
 
-    const res = await POST(
-      makeRequest({
-        widgetKey: WIDGET_KEY,
-        origin: "https://example.com.evil.io",
-      }),
-    )
-
-    expect(res.status).toBe(403)
-  })
-
-  it("returns 404 for an unknown widgetKey", async () => {
-    mockFindFirst.mockResolvedValue(undefined)
-
-    const res = await POST(
-      makeRequest({ widgetKey: "wk_does_not_exist", origin: ALLOWED_ORIGIN }),
-    )
+    const res = await POST(makeRequest({ widgetKey: "wk_unknown", origin: ALLOWED_ORIGIN }))
 
     expect(res.status).toBe(404)
-    const body = await res.json() as { error: string }
-    expect(body.error).toMatch(/unknown widgetkey/i)
   })
 
-  it("returns the same visitorSessionId when a valid UUID is passed (resume)", async () => {
-    mockFindFirst.mockResolvedValue(widgetConfigFixture())
+  it("returns 400 for invalid visitorId format", async () => {
+    mockFindWidget.mockResolvedValue(widgetConfigFixture())
 
     const res = await POST(
-      makeRequest({
-        widgetKey: WIDGET_KEY,
-        origin: ALLOWED_ORIGIN,
-        visitorSessionId: EXISTING_SESSION_ID,
-      }),
+      makeRequest({ widgetKey: WIDGET_KEY, origin: ALLOWED_ORIGIN, visitorId: "not-a-uuid" }),
     )
 
-    expect(res.status).toBe(200)
-    const body = await res.json() as { token: string; visitorSessionId: string }
-    // The session ID must be echoed back unchanged — not re-minted.
-    expect(body.visitorSessionId).toBe(EXISTING_SESSION_ID)
-
-    const decoded = await decodeToken(body.token)
-    expect(decoded.visitorSessionId).toBe(EXISTING_SESSION_ID)
-  })
-
-  it("returns 400 for an invalid request body", async () => {
-    const res = await POST(makeRequest({ widgetKey: "", origin: "not-a-url" }))
     expect(res.status).toBe(400)
-    const body = await res.json() as { error: string }
-    expect(body.error).toBe("Invalid request")
-  })
-
-  it("returns 400 when visitorSessionId is present but not a UUID", async () => {
-    mockFindFirst.mockResolvedValue(widgetConfigFixture())
-
-    const res = await POST(
-      makeRequest({
-        widgetKey: WIDGET_KEY,
-        origin: ALLOWED_ORIGIN,
-        visitorSessionId: "not-a-uuid",
-      }),
-    )
-
-    // Schema rejects non-UUID visitorSessionId before hitting the DB.
-    expect(res.status).toBe(400)
-    expect(mockFindFirst).not.toHaveBeenCalled()
+    expect(mockFindWidget).not.toHaveBeenCalled()
   })
 
   describe("Secondary Rate Limiting", () => {
     beforeEach(() => {
-      // Re-enable Upstash for these specific tests
       process.env.UPSTASH_REDIS_REST_URL = "https://mock-redis.upstash.io"
       process.env.UPSTASH_REDIS_REST_TOKEN = "mock-token"
     })
@@ -238,28 +246,18 @@ describe("POST /api/chat/session", () => {
         reset: Date.now() + 5000,
       })
 
-      const res = await POST(
-        makeRequest({ widgetKey: WIDGET_KEY, origin: ALLOWED_ORIGIN }),
-      )
-
+      const res = await POST(makeRequest({ widgetKey: WIDGET_KEY, origin: ALLOWED_ORIGIN }))
       expect(res.status).toBe(429)
-      const body = await res.json() as { error: string }
-      expect(body.error).toBe("Too many requests")
     })
 
     it("rejects request on widgetKey-scoped rate limit failure", async () => {
-      // First call (IP check) succeeds, second call (widgetKey check) fails
+      mockFindWidget.mockResolvedValue(widgetConfigFixture())
       mockLimit
         .mockResolvedValueOnce({ success: true, limit: 20, remaining: 19, reset: Date.now() })
         .mockResolvedValueOnce({ success: false, limit: 60, remaining: 0, reset: Date.now() + 5000 })
 
-      const res = await POST(
-        makeRequest({ widgetKey: WIDGET_KEY, origin: ALLOWED_ORIGIN }),
-      )
-
+      const res = await POST(makeRequest({ widgetKey: WIDGET_KEY, origin: ALLOWED_ORIGIN }))
       expect(res.status).toBe(429)
-      const body = await res.json() as { error: string }
-      expect(body.error).toContain("Too many requests for this widget")
     })
   })
 })

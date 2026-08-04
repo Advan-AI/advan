@@ -265,9 +265,15 @@ export async function processTriageJob(
   }
 
   // ── 2.5. Active Orchestration Workflow Check ───────────────────────────────
-  const activeWorkflow = await db.query.workflows.findFirst({
-    where: and(eq(workflows.orgId, orgId), eq(workflows.isActive, true)),
-  })
+  // Chat keeps the default auto-triage path so visitors get real-time replies
+  // via insertAgentMessage → Socket.IO. Orchestration pipelines are for email /
+  // durable ops and currently do not emit chat-widget agent:message events.
+  const activeWorkflow =
+    conv.channel === "chat"
+      ? null
+      : await db.query.workflows.findFirst({
+          where: and(eq(workflows.orgId, orgId), eq(workflows.isActive, true)),
+        })
 
   if (activeWorkflow) {
     console.log(
