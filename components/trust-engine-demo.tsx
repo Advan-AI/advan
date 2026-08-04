@@ -22,15 +22,15 @@ interface Gate {
 }
 
 const GATES: Gate[] = [
-  { label: "Retrieve approved sources", runsAt: 1, passedLabel: "3 SOURCES" },
+  { label: "Retrieve order & shipping data", runsAt: 1, passedLabel: "3 SOURCES" },
   { label: "Confidence threshold", runsAt: 2, passedLabel: `${TARGET_CONFIDENCE}%` },
   { label: "Policy validation", runsAt: 3, passedLabel: "PASSED" },
   { label: "Approve & send", runsAt: 4, passedLabel: "SENT" },
 ]
 
 const CITATION_CHIPS = [
-  { label: "¹ Webhooks v2 docs", tone: "violet" },
-  { label: "² Ticket #4821", tone: "violet" },
+  { label: "¹ Order #48213", tone: "violet" },
+  { label: "² Shipping status", tone: "violet" },
   { label: `${TARGET_CONFIDENCE}% confident`, tone: "sage" },
 ] as const
 
@@ -101,7 +101,7 @@ export function TrustEngineDemo() {
           <span className="w-2.5 h-2.5 rounded-full bg-[#98C379]" />
         </div>
         <span className="font-mono text-[11px] text-foreground/50">
-          advan / trust-engine / live
+          Live · Support ticket #48213
         </span>
         <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#2f5d3f] bg-[#E3EFE5] rounded-full px-2 py-0.5">
           <span className="w-1.5 h-1.5 rounded-full bg-[#5C9A70] dash-pulse-dot" />
@@ -118,8 +118,7 @@ export function TrustEngineDemo() {
               ML
             </span>
             <div className="rounded-2xl rounded-tl-md bg-black/[0.045] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-foreground/80">
-              Our webhooks started timing out after yesterday&apos;s deploy — did
-              something change on your side?
+              Hi — where is my order? It was supposed to arrive yesterday.
               <div className="mt-1 text-[10px] text-foreground/40">Maria L. · just now</div>
             </div>
           </div>
@@ -145,9 +144,9 @@ export function TrustEngineDemo() {
                     />
                   ))}
                 </span>
-                {phase === 1 && "Retrieving approved knowledge…"}
+                {phase === 1 && "Looking up order & shipping status…"}
                 {phase === 2 && "Scoring confidence against threshold…"}
-                {phase === 3 && "Running policy validation…"}
+                {phase === 3 && "Checking against shipping policy…"}
                 {phase === 4 && "Preparing approved reply…"}
               </motion.div>
             )}
@@ -169,11 +168,11 @@ export function TrustEngineDemo() {
                 </span>
                 <div className="flex-1">
                   <div className="rounded-2xl rounded-tl-md border border-[#6B5CD6]/15 bg-white px-3.5 py-2.5 text-[12.5px] leading-relaxed text-foreground/85 shadow-[0_10px_28px_-18px_rgba(107,92,214,0.4)]">
-                    Check <strong>webhook_timeout_ms</strong> in your delivery
-                    settings — the v2 deploy resets it to 3000ms. Raising it to
-                    10000ms resolves this for 90% of cases<sup>1</sup>. If timeouts
-                    persist, verify your endpoint responds within the window
-                    <sup>2</sup>.
+                    Good news — your order shipped yesterday and is on track
+                    for delivery tomorrow<sup>1</sup>. Here&apos;s your live
+                    tracking link, and since it&apos;s running a day behind
+                    our estimate, you qualify for free expedited re-shipping
+                    if it doesn&apos;t arrive by then<sup>2</sup>.
                   </div>
                   <div data-testid="source-badges" className="mt-2 flex flex-wrap gap-1.5">
                     {CITATION_CHIPS.map((chip, i) => (

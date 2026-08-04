@@ -21,27 +21,27 @@ interface Source {
 const SOURCES: Source[] = [
   {
     id: 1,
-    chip: "¹ Webhooks v2 — Delivery settings",
-    title: "Webhooks v2 — Delivery settings",
-    meta: "docs v2.4 · §3.2",
+    chip: "¹ Order #48213 — Order history",
+    title: "Order #48213 — Order history",
+    meta: "order history · placed 3 days ago",
     quote:
-      "webhook_timeout_ms defaults to 3000 on new deployments. For high-latency endpoints we recommend raising this to 10000.",
+      "Order #48213 shipped via FedEx on Tuesday and is currently in transit, with delivery estimated tomorrow.",
   },
   {
     id: 2,
-    chip: "² Resolved ticket #3977",
-    title: "Resolved ticket #3977",
-    meta: "resolved 2026-05-12 · CSAT 5★",
+    chip: "² Carrier tracking",
+    title: "Carrier tracking — Shipping status",
+    meta: "shipping status · live",
     quote:
-      "Customer reported identical timeout behaviour after the v2 rollout; raising webhook_timeout_ms to 10000ms resolved it.",
+      "Package last scanned at the regional facility; on schedule to arrive within the next-day delivery window.",
   },
   {
     id: 3,
-    chip: "³ Runbook — Timeouts",
-    title: "Runbook — Timeouts",
-    meta: "runbook · rev 8",
+    chip: "³ Return & refund policy",
+    title: "Return & refund policy",
+    meta: "company policy · v3",
     quote:
-      "If timeouts persist after raising the window, verify the receiving endpoint responds within the configured limit.",
+      "Orders that arrive later than the estimated delivery window qualify for free expedited re-shipping or a full refund.",
   },
 ]
 
@@ -124,7 +124,7 @@ export function ReceiptsSection() {
             {/* Header */}
             <div className="flex flex-wrap items-center gap-2 px-5 py-3.5 border-b border-black/[0.06] bg-white/50">
               <span className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/55 whitespace-nowrap">
-                Answer · Ticket #4821
+                Answer · Ticket #48213
               </span>
               <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-[#E3EFE5] px-2.5 py-1 text-[10.5px] font-bold text-[#2f5d3f] whitespace-nowrap">
                 <CheckCircle2 className="w-3 h-3" />
@@ -134,11 +134,11 @@ export function ReceiptsSection() {
 
             <div className="p-5">
               <p className="text-[14px] leading-relaxed text-foreground/85">
-                Check <strong>webhook_timeout_ms</strong> in your delivery settings —
-                the v2 deploy resets it to 3000ms. Raising it to 10000ms resolves
-                this for 90% of cases<sup>1</sup>. We&apos;ve seen the same pattern
-                on similar accounts<sup>2</sup>. If timeouts persist, verify your
-                endpoint responds within the window<sup>3</sup>.
+                Good news — your order shipped and is on track for delivery
+                tomorrow<sup>1</sup>. Tracking shows it&apos;s moving through
+                the network on schedule<sup>2</sup>. Since it&apos;s running a
+                day behind our estimate, you qualify for free expedited
+                re-shipping if it doesn&apos;t arrive by then<sup>3</sup>.
               </p>
 
               {/* Citation chips */}

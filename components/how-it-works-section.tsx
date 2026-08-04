@@ -1,66 +1,47 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { CheckCircle2, Flag, Copy } from "lucide-react"
+import {
+  MessageCircleQuestion,
+  BookOpen,
+  ShieldCheck,
+  Gauge,
+  UserCheck,
+  CheckCircle2,
+  ArrowRight,
+} from "lucide-react"
 import { SectionHeader } from "@/components/section-primitives"
 
-const CARDS = [
+const STEPS = [
   {
-    index: "01",
-    title: "Retrieve — approved knowledge only",
-    body: "Only versioned docs, KB articles, and resolved tickets are eligible sources. Stale or unapproved content never reaches a customer.",
-    footer: (
-      <div className="flex flex-wrap gap-1.5">
-        {["Docs v2.4", "KB · 1,204 articles", "Resolved tickets"].map((chip) => (
-          <span
-            key={chip}
-            className="inline-flex items-center rounded-full bg-[#ECE9FB] px-2.5 py-1 text-[10.5px] font-semibold text-[#4E3FB6] whitespace-nowrap"
-          >
-            {chip}
-          </span>
-        ))}
-      </div>
-    ),
+    icon: MessageCircleQuestion,
+    title: "Customer question",
+    body: "A customer asks something in chat, email, or your helpdesk.",
   },
   {
-    index: "02",
-    title: "Draft — cited and scored",
-    body: "Every claim links back to its source. The reply gets a confidence score checked against your threshold — hallucination detection runs on every draft.",
-    footer: (
-      <div>
-        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.14em] text-foreground/50">
-          <span>Confidence</span>
-          <span className="font-mono text-foreground/80">94%</span>
-        </div>
-        <div className="mt-1.5 h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
-          <div
-            className="h-full rounded-full"
-            style={{
-              width: "94%",
-              background: "linear-gradient(90deg, #C5883C, #5C9A70)",
-            }}
-          />
-        </div>
-      </div>
-    ),
+    icon: BookOpen,
+    title: "Knowledge base",
+    body: "Advan searches your docs, policies, and past tickets for the answer.",
   },
   {
-    index: "03",
-    title: "Gate — policy, people, proof",
-    body: "Policy validation runs before send. Low-confidence replies route to a human reviewer. Everything lands in an immutable audit trail.",
-    footer: (
-      <div className="flex flex-wrap gap-1.5">
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#E3EFE5] px-2.5 py-1 text-[10.5px] font-semibold text-[#2f5d3f] whitespace-nowrap">
-          <CheckCircle2 className="w-3 h-3" /> Policy passed
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#F4E8D3] px-2.5 py-1 text-[10.5px] font-semibold text-[#8a5a1e] whitespace-nowrap">
-          <Flag className="w-3 h-3" /> Human review
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2.5 py-1 text-[10.5px] font-semibold text-foreground/60 whitespace-nowrap">
-          <Copy className="w-3 h-3" /> Audit #A-2214
-        </span>
-      </div>
-    ),
+    icon: ShieldCheck,
+    title: "Policy validation",
+    body: "The draft is checked against your company's rules before it ever goes out.",
+  },
+  {
+    icon: Gauge,
+    title: "Confidence score",
+    body: "Every answer is scored on how certain Advan is that it's correct.",
+  },
+  {
+    icon: UserCheck,
+    title: "Human review",
+    body: "Below your threshold, a support agent reviews it first. Above it, nothing to do.",
+  },
+  {
+    icon: CheckCircle2,
+    title: "Verified response",
+    body: "The customer gets an accurate, source-backed answer — in seconds.",
   },
 ]
 
@@ -70,35 +51,48 @@ export function HowItWorksSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
           eyebrow="How it works"
-          title={
-            <>
-              Every answer runs the same{" "}
-              <span className="text-gradient-brand">governed pipeline</span>
-            </>
-          }
-          lede="Three gates between a customer question and a sent reply. No answer skips a step."
+          title={<>From question to verified answer, automatically</>}
+          lede="Every ticket runs through the same six steps — so nothing reaches a customer without being checked."
         />
 
-        <div className="mt-12 grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
-          {CARDS.map((card, i) => (
-            <motion.article
-              key={card.index}
-              initial={{ opacity: 0, y: 34 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.8, delay: i * 0.08, ease: [0.22, 1, 0.36, 1] }}
-              className="glass rounded-2xl p-6 lift flex flex-col gap-4"
-            >
-              <div className="font-mono text-[12px] font-bold tracking-[0.18em] text-[#4E3FB6]">
-                {card.index}
-              </div>
-              <h3 className="text-lg font-semibold tracking-tight text-foreground leading-snug">
-                {card.title}
-              </h3>
-              <p className="text-sm leading-relaxed text-foreground/60 flex-1">{card.body}</p>
-              {card.footer}
-            </motion.article>
-          ))}
+        <div className="mt-14 flex flex-col lg:flex-row lg:items-start gap-5 lg:gap-0">
+          {STEPS.map((step, i) => {
+            const Icon = step.icon
+            const isLast = i === STEPS.length - 1
+            return (
+              <motion.div
+                key={step.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.6, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
+                className="flex lg:flex-1 items-start lg:items-stretch gap-4 lg:gap-0"
+              >
+                <div className="flex flex-col items-center lg:text-center lg:px-2 flex-1">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-black/[0.08] bg-white/70 text-[#4E3FB6]">
+                    <Icon className="h-5 w-5" aria-hidden />
+                  </span>
+                  <div className="mt-0 lg:mt-4">
+                    <div className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-foreground/40">
+                      Step {i + 1}
+                    </div>
+                    <h3 className="mt-1 text-[15px] font-semibold text-foreground leading-snug">
+                      {step.title}
+                    </h3>
+                    <p className="mt-1.5 text-[13px] leading-relaxed text-foreground/58 lg:max-w-[180px] lg:mx-auto">
+                      {step.body}
+                    </p>
+                  </div>
+                </div>
+                {!isLast && (
+                  <ArrowRight
+                    className="hidden lg:block h-4 w-4 text-foreground/25 shrink-0 mt-[22px]"
+                    aria-hidden
+                  />
+                )}
+              </motion.div>
+            )
+          })}
         </div>
       </div>
     </section>

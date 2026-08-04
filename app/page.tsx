@@ -5,7 +5,7 @@ import { HeroSection } from "@/components/hero-section"
 import { SocialProofSection } from "@/components/social-proof-section"
 import { HowItWorksSection } from "@/components/how-it-works-section"
 import { ReceiptsSection } from "@/components/receipts-section"
-import { ComparisonSection } from "@/components/comparison-section"
+import { WhyAdvanSection } from "@/components/why-advan-section"
 import { FAQSection } from "@/components/faq-section"
 import { FinalCTA } from "@/components/final-cta"
 import { faqs } from "@/lib/faq-data"
@@ -67,7 +67,7 @@ export default function HomePage() {
         <SocialProofSection />
         <HowItWorksSection />
         <ReceiptsSection />
-        <ComparisonSection />
+        <WhyAdvanSection />
         <FAQSection />
         <FinalCTA />
       </main>
