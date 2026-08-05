@@ -111,10 +111,8 @@ function HeroCopy() {
         transition={{ duration: 0.6, delay: 0.12 }}
         className="mt-6 max-w-xl text-base leading-8 text-foreground/68 sm:text-lg"
       >
-        Advan resolves customer questions in seconds — not hours. Every answer
-        is backed by a confidence score, cited sources, and a policy check, so
-        your team can trust what it sends. When the AI isn&apos;t sure, a
-        human agent reviews before anything goes out.
+        Advan helps teams automate customer support with transparent AI that
+        delivers faster, trusted responses at lower cost.
       </motion.p>
 
       <motion.div

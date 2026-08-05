@@ -8,7 +8,6 @@ import { ReceiptsSection } from "@/components/receipts-section"
 import { WhyAdvanSection } from "@/components/why-advan-section"
 import { FAQSection } from "@/components/faq-section"
 import { FinalCTA } from "@/components/final-cta"
-import { AlibabaRAGDemo } from "@/components/alibaba-rag-demo"
 import { faqs } from "@/lib/faq-data"
 
 const SITE_URL = "https://advan.ai"
@@ -66,9 +65,6 @@ export default function HomePage() {
       <main className="relative">
         <HeroSection />
         <SocialProofSection />
-        <section className="mx-auto max-w-6xl px-4 py-8">
-          <AlibabaRAGDemo />
-        </section>
         <HowItWorksSection />
         <ReceiptsSection />
         <WhyAdvanSection />
