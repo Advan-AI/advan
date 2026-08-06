@@ -600,3 +600,34 @@ export const stripeEvents = pgTable("stripe_events", {
   type: text("type").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
+
+// ─── FC Sandbox — HITL hibernate/wake/resume sessions ─────────────────────────
+// One row per Temporal HITL pause. Persists sandbox identity + a structured
+// event log so the /demo/fc-sandbox page (and any observer) can reconstruct
+// the full execute -> hibernate -> wait -> wake -> resume -> finish timeline
+// even after a server restart, independent of the Temporal UI.
+
+export const sandboxSessions = pgTable(
+  "sandbox_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workflowId: text("workflow_id").notNull(),
+    ticketId: text("ticket_id").notNull(),
+    traceId: text("trace_id").notNull(),
+    sandboxId: text("sandbox_id").notNull(),
+    sessionId: text("session_id").notNull(),
+    /** created | executing | hibernated | waking | resumed | completed | escalated */
+    state: text("state").notNull().default("created"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    executedAt: timestamp("executed_at"),
+    hibernatedAt: timestamp("hibernated_at"),
+    wokenAt: timestamp("woken_at"),
+    resumedAt: timestamp("resumed_at"),
+    completedAt: timestamp("completed_at"),
+    computeMsEstimate: integer("compute_ms_estimate").default(0).notNull(),
+    computeSavedMsEstimate: integer("compute_saved_ms_estimate").default(0).notNull(),
+    /** Append-only structured log: { ts, type, traceId, sandboxId, sessionId, workflowId, ... } */
+    events: jsonb("events").$type<Array<Record<string, unknown>>>().default([]).notNull(),
+  },
+  (table) => [index("sandbox_sessions_workflow_idx").on(table.workflowId)],
+)
