@@ -47,7 +47,7 @@ async function seed() {
   // NOTE ON STRIPE PRICE CONFIGURATION:
   // These placeholder Stripe Price IDs must be replaced with real Stripe Dashboard-created Product/Price IDs before going live.
   // In a production environment, the flat monthly subscription price and the metered overage price are represented as TWO SEPARATE Stripe Price objects per plan:
-  // - Flat price (licensed recurring: e.g. price_starter_flat_placeholder) - e.g. $49.00/mo flat
+  // - Flat price (licensed recurring: e.g. price_starter_flat_placeholder) - e.g. $29.00/mo flat
   // - Metered overage price (recurring metered: e.g. price_starter_metered_placeholder) - e.g. $0.05 per conversation or message over the included limit.
   // Both are attached as separate subscription items on the exact same customer subscription.
   console.log("🌱 Seeding subscription plans...")
@@ -59,7 +59,7 @@ async function seed() {
         name: "Starter",
         seatLimit: 2,
         includedMessages: 500,
-        monthlyPriceCents: 4900,
+        monthlyPriceCents: 2900,
         stripePriceId: process.env.STRIPE_PRICE_STARTER_FLAT ?? "price_starter_flat_placeholder",
         stripeMeteredPriceId: process.env.STRIPE_PRICE_STARTER_METERED ?? "price_starter_metered_placeholder",
         active: true,
@@ -69,7 +69,7 @@ async function seed() {
         name: "Pro",
         seatLimit: 5,
         includedMessages: 2000,
-        monthlyPriceCents: 14900,
+        monthlyPriceCents: 5900,
         stripePriceId: process.env.STRIPE_PRICE_PRO_FLAT ?? "price_pro_flat_placeholder",
         stripeMeteredPriceId: process.env.STRIPE_PRICE_PRO_METERED ?? "price_pro_metered_placeholder",
         active: true,
@@ -79,6 +79,10 @@ async function seed() {
         name: "Enterprise",
         seatLimit: 100,
         includedMessages: 10000,
+        // Enterprise is negotiated/custom pricing — this value is never shown
+        // directly to users (the UI renders "Custom" for plan.key === "enterprise").
+        // Kept non-zero only so downstream sums/reports don't divide-by-zero or
+        // treat Enterprise as free; it is not a real monthly figure.
         monthlyPriceCents: 49900,
         stripePriceId: process.env.STRIPE_PRICE_ENTERPRISE_FLAT ?? "price_enterprise_flat_placeholder",
         stripeMeteredPriceId: process.env.STRIPE_PRICE_ENTERPRISE_METERED ?? "price_enterprise_metered_placeholder",

@@ -159,7 +159,7 @@ export const billingRouter = router({
             mode: "subscription",
             line_items: lineItems,
             success_url: returnUrl,
-            cancel_url: `${process.env.NEXT_URL || "http://localhost:3000"}/dashboard/billing`,
+            cancel_url: `${process.env.NEXT_URL || "http://localhost:3000"}/dashboard/billing?checkout=cancelled`,
             metadata: {
               orgId,
               planKey: input.planKey,

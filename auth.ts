@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm"
 import { z } from "zod"
 import crypto from "crypto"
 import { db } from "@/lib/db"
-import { users, organizations, plans, widgetConfigs } from "@/lib/db/schema"
+import { users, organizations, widgetConfigs } from "@/lib/db/schema"
 import { authConfig } from "./auth.config"
 
 /** Trailing slash on NEXTAUTH_URL/AUTH_URL breaks OAuth redirect_uri vs Google Console. */
@@ -107,21 +107,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           let finalUser = existing
 
           if (!finalUser) {
-            // Auto-provision a new user with a pending organization!
-            const activePlan = await db.query.plans.findFirst({
-              where: eq(plans.active, true),
-            })
-            const planId = activePlan?.id ?? null
-
+            // Auto-provision a new user with a pending organization on a
+            // free trial — no plan/payment is assigned until they upgrade.
             const randomSuffix = crypto.randomBytes(4).toString("hex")
             const pendingSlug = `pending-${randomSuffix}`
+            const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
 
             const result = await db.transaction(async (tx) => {
               const [newOrg] = await tx.insert(organizations).values({
                 name: "Pending Onboarding",
                 slug: pendingSlug,
                 inboundEmailAlias: `support+${pendingSlug}`,
-                planId,
+                subscriptionStatus: "trialing",
+                trialEndsAt,
               }).returning()
 
               const [newUser] = await tx.insert(users).values({

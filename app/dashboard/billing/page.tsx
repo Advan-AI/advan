@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useSyncExternalStore } from "react"
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   CreditCard,
   Crown,
@@ -13,11 +14,55 @@ import {
   Sparkles,
   Info,
   X,
+  ArrowUpCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 import { DashPageHeader, DashCard } from "@/components/dashboard/page-header"
 import { api } from "@/lib/api/trpc-client"
 import { cn } from "@/lib/utils"
+
+/** Enterprise pricing is negotiated, never a flat monthly figure. */
+function formatPlanPrice(plan: Pick<Plan, "key" | "monthlyPriceCents">): string {
+  if (plan.key === "enterprise") return "Custom"
+  return `$${(plan.monthlyPriceCents / 100).toFixed(0)}`
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  trialing: "Free Trial",
+  active: "Active",
+  past_due: "Past Due",
+  canceling: "Canceling",
+  canceled: "Canceled",
+  incomplete: "Incomplete",
+  incomplete_expired: "Incomplete",
+  unpaid: "Unpaid",
+}
+
+function statusLabel(status: string | null): string {
+  if (!status) return "Free Trial"
+  return STATUS_LABELS[status] ?? status
+}
+
+/** Reads one-off `?checkout=cancelled` / `?upgraded=1` redirects and toasts them. */
+function BillingRedirectToasts() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const checkout = searchParams.get("checkout")
+    const upgraded = searchParams.get("upgraded")
+    if (checkout === "cancelled") {
+      toast.info("Checkout cancelled — no changes were made to your plan.")
+      router.replace("/dashboard/billing")
+    } else if (upgraded === "1") {
+      toast.success("Payment received! Your plan will update shortly.")
+      router.replace("/dashboard/billing")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return null
+}
 
 interface Plan {
   id: string
@@ -140,6 +185,9 @@ export default function BillingPage() {
 
   const isTrialing = org.subscriptionStatus === "trialing"
   const isPastDue = org.subscriptionStatus === "past_due"
+  // Pre-Stripe free trial: every new workspace starts here (no plan yet).
+  const isFreeTrial = !currentPlan && !isPastDue
+  const starterPlan = plansList?.find((p) => p.key === "starter") ?? null
   let trialDaysRemaining = 0
   if (org.trialEndsAt) {
     const end = new Date(org.trialEndsAt).getTime()
@@ -156,6 +204,9 @@ export default function BillingPage() {
 
   return (
     <div className="billing-page min-w-0 w-full max-w-full space-y-4 sm:space-y-6">
+      <Suspense fallback={null}>
+        <BillingRedirectToasts />
+      </Suspense>
       <DashPageHeader
         eyebrow="Billing & Plan"
         title="Workspace billing"
@@ -184,6 +235,15 @@ export default function BillingPage() {
           <div className="text-[13px] leading-relaxed min-w-0">
             <span className="font-bold">Trial Account:</span> You are currently in a 14-day free trial. There are{" "}
             <span className="font-semibold underline">{trialDaysRemaining} days remaining</span> before your card will be charged. You can add a payment method or change tiers anytime in the Customer Portal.
+          </div>
+        </div>
+      )}
+
+      {isFreeTrial && (
+        <div className="p-3.5 sm:p-4 rounded-xl border border-amber-200/60 bg-amber-50/70 text-amber-900 flex items-start sm:items-center gap-3 shadow-sm">
+          <Info className="w-5 h-5 shrink-0 text-amber-600 mt-0.5 sm:mt-0" />
+          <div className="text-[13px] leading-relaxed min-w-0">
+            <span className="font-bold">Free Trial:</span> You&apos;re exploring Advan on a free trial — no card required. Upgrade to Starter anytime to unlock full seat and message limits.
           </div>
         </div>
       )}
@@ -217,7 +277,7 @@ export default function BillingPage() {
               <div className="min-w-0">
                 <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--dash-ink-faint)]">Plan Tier</div>
                 <div className="text-[17px] font-black text-[var(--dash-ink)] tracking-tight capitalize mt-0.5 flex flex-wrap items-center gap-1.5 leading-tight">
-                  {currentPlan?.name ?? "No Plan active"}
+                  {currentPlan?.name ?? "Free Trial"}
                   {currentPlan?.key === "pro" && (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-100 text-indigo-700 border border-indigo-200/50">
                       <Sparkles className="w-2.5 h-2.5" /> Popular
@@ -229,23 +289,49 @@ export default function BillingPage() {
                 "px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 shrink-0",
                 org.subscriptionStatus === "active"
                   ? "bg-[var(--dash-sage-wash)] text-[#2f5d3f] border border-[rgba(47,93,63,0.15)]"
-                  : org.subscriptionStatus === "trialing"
-                    ? "bg-amber-100 text-amber-800 border border-amber-200"
-                    : "bg-rose-100 text-rose-700 border border-rose-200",
+                  : isPastDue
+                    ? "bg-rose-100 text-rose-700 border border-rose-200"
+                    : org.subscriptionStatus === "trialing" || isFreeTrial
+                      ? "bg-amber-100 text-amber-800 border border-amber-200"
+                      : "bg-black/[0.05] text-[var(--dash-ink-soft)] border border-black/10",
               )}>
                 {org.subscriptionStatus === "active" && <span className="w-1.5 h-1.5 rounded-full bg-[#2f5d3f] animate-pulse" />}
-                {org.subscriptionStatus === "trialing" && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
-                {org.subscriptionStatus}
+                {(org.subscriptionStatus === "trialing" || isFreeTrial) && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
+                {statusLabel(org.subscriptionStatus)}
               </span>
             </div>
 
             <div>
               <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--dash-ink-faint)]">Pricing</div>
-              <div className="text-[clamp(1.35rem,2vw+0.8rem,1.75rem)] font-black text-[var(--dash-ink)] tracking-tight mt-0.5">
-                ${currentPlan ? (currentPlan.monthlyPriceCents / 100).toFixed(2) : "0.00"}
-                <span className="text-[12px] font-medium text-[var(--dash-ink-soft)]">/month</span>
-              </div>
+              {currentPlan ? (
+                <div className="text-[clamp(1.35rem,2vw+0.8rem,1.75rem)] font-black text-[var(--dash-ink)] tracking-tight mt-0.5">
+                  {formatPlanPrice(currentPlan)}
+                  {currentPlan.key !== "enterprise" && (
+                    <span className="text-[12px] font-medium text-[var(--dash-ink-soft)]">/month</span>
+                  )}
+                </div>
+              ) : (
+                <div className="text-[clamp(1.35rem,2vw+0.8rem,1.75rem)] font-black text-[var(--dash-ink)] tracking-tight mt-0.5">
+                  $0 <span className="text-[12px] font-medium text-[var(--dash-ink-soft)]">— 14 days free</span>
+                </div>
+              )}
             </div>
+
+            {isFreeTrial && starterPlan && (
+              <button
+                type="button"
+                onClick={() => handleSelectPlan(starterPlan)}
+                disabled={changePlanMutation.isPending}
+                className="w-full inline-flex min-h-11 h-11 items-center justify-center gap-2 rounded-lg text-[13.5px] font-bold text-white bg-gradient-to-br from-[#6B5CD6] to-[#4E3FB6] shadow-[0_10px_28px_-12px_rgba(107,92,214,0.65)] hover:-translate-y-px transition disabled:opacity-60 disabled:pointer-events-none"
+              >
+                {changePlanMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ArrowUpCircle className="w-4 h-4" />
+                )}
+                Upgrade to Starter
+              </button>
+            )}
 
             <div>
               <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--dash-ink-faint)]">Billing Cycle</div>
@@ -381,9 +467,11 @@ export default function BillingPage() {
                 <div className="text-[15px] font-extrabold capitalize text-[var(--dash-ink)]">{plan.name}</div>
                 <div className="flex items-baseline mt-2">
                   <span className="text-[clamp(1.75rem,2vw+1rem,1.875rem)] font-black text-[var(--dash-ink)] tracking-tight">
-                    ${(plan.monthlyPriceCents / 100).toFixed(0)}
+                    {formatPlanPrice(plan)}
                   </span>
-                  <span className="text-[12px] font-semibold text-[var(--dash-ink-soft)] ml-1">/month</span>
+                  {plan.key !== "enterprise" && (
+                    <span className="text-[12px] font-semibold text-[var(--dash-ink-soft)] ml-1">/month</span>
+                  )}
                 </div>
 
                 <ul className="space-y-2 mt-4 sm:mt-5 mb-5 sm:mb-6 text-[12.5px] font-medium text-[var(--dash-ink-soft)] flex-1">
@@ -401,19 +489,28 @@ export default function BillingPage() {
                   </li>
                 </ul>
 
-                <button
-                  type="button"
-                  onClick={() => handleSelectPlan(plan)}
-                  disabled={isCurrent}
-                  className={cn(
-                    "w-full min-h-11 h-11 sm:h-9 rounded-lg text-[13px] font-bold transition-all",
-                    isCurrent
-                      ? "bg-black/[0.05] text-[var(--dash-ink-soft)] cursor-default"
-                      : "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)] hover:bg-[var(--dash-accent)] hover:text-white",
-                  )}
-                >
-                  {isCurrent ? "Active Tier" : `Switch to ${plan.name}`}
-                </button>
+                {plan.key === "enterprise" && !isCurrent ? (
+                  <a
+                    href="mailto:sales@advan.ai?subject=Enterprise%20plan%20inquiry"
+                    className="w-full inline-flex min-h-11 h-11 sm:h-9 items-center justify-center rounded-lg text-[13px] font-bold transition-all bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)] hover:bg-[var(--dash-accent)] hover:text-white"
+                  >
+                    Contact Sales
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPlan(plan)}
+                    disabled={isCurrent || changePlanMutation.isPending}
+                    className={cn(
+                      "w-full min-h-11 h-11 sm:h-9 rounded-lg text-[13px] font-bold transition-all",
+                      isCurrent
+                        ? "bg-black/[0.05] text-[var(--dash-ink-soft)] cursor-default"
+                        : "bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)] hover:bg-[var(--dash-accent)] hover:text-white disabled:opacity-60",
+                    )}
+                  >
+                    {isCurrent ? "Active Tier" : `Switch to ${plan.name}`}
+                  </button>
+                )}
               </div>
             )
           })}
@@ -544,7 +641,7 @@ export default function BillingPage() {
 
             <div className="text-[13.5px] text-[var(--dash-ink-soft)] leading-relaxed space-y-3">
               <p>
-                You are switching your workspace plan from <strong className="font-bold text-[var(--dash-ink)] capitalize">{currentPlan?.name}</strong> to{" "}
+                You are switching your workspace plan from <strong className="font-bold text-[var(--dash-ink)] capitalize">{currentPlan?.name ?? "Free Trial"}</strong> to{" "}
                 <strong className="font-bold text-[var(--dash-ink)] capitalize">{selectedPlan.name}</strong>.
               </p>
               <div className="p-3 bg-[var(--dash-accent-wash)] rounded-lg text-[12.5px] font-semibold text-[var(--dash-accent-deep)] space-y-2">

@@ -4,6 +4,7 @@ import { useState, FormEvent, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { motion } from "framer-motion"
 import { ArrowRight, Eye, EyeOff, Loader2, ShieldCheck, CheckCircle2, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -126,17 +127,30 @@ export default function SignUpPage() {
 
     setVerifying(true)
     try {
-      const result = await verifyOtpMut.mutateAsync({ email: adminEmail, otp })
+      await verifyOtpMut.mutateAsync({ email: adminEmail, otp })
+
+      // Automatically sign the user in now that their email + workspace are
+      // verified, so they land straight in the dashboard on a free trial.
+      const signInResult = await signIn("credentials", {
+        redirect: false,
+        email: adminEmail,
+        password,
+      })
+
       clearSessionStorage()
-      if (result.checkoutUrl) {
-        toast.success("Email verified! Redirecting to payment...")
-        window.location.href = result.checkoutUrl
-      } else {
-        setSuccess(true)
-        toast.success("Email verified! Redirecting to dashboard...")
-        router.push("/dashboard")
-        router.refresh()
+
+      if (signInResult?.error) {
+        // Extremely unlikely (password just worked for signup) — fall back
+        // to sending them to sign in manually rather than stranding them.
+        toast.success("Email verified! Please sign in to continue.")
+        router.push("/signin")
+        return
       }
+
+      setSuccess(true)
+      toast.success("Workspace ready! Redirecting to dashboard...")
+      router.push("/dashboard")
+      router.refresh()
     } catch (err: unknown) {
       const msg = getSafeClientErrorMessage(err, "Invalid or expired code.")
       if (msg === "Email already verified.") {
@@ -311,7 +325,7 @@ export default function SignUpPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="orgSlug" className="block text-xs font-medium text-foreground/70 mb-1.5">Workspace Domain Slug</label>
+                    <label htmlFor="orgSlug" className="block text-xs font-medium text-foreground/70 mb-1.5">Workspace Domain</label>
                     <div className="relative flex items-center">
                       <input id="orgSlug" type="text" required value={orgSlug} onChange={(e) => handleSlugChange(e.target.value)} placeholder="acme" className="w-full h-11 rounded-xl border border-black/10 bg-white/80 pl-3.5 pr-28 text-sm text-foreground placeholder:text-foreground/40 outline-none focus:border-[#6B5CD6] focus:ring-2 focus:ring-[#ECE9FB] transition font-mono text-[13px]" />
                       <span className="absolute right-3.5 text-xs text-foreground/40 font-mono pointer-events-none select-none">.advan.ai</span>
@@ -336,13 +350,14 @@ export default function SignUpPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="password" className="block text-xs font-medium text-foreground/70 mb-1.5">Password (min. 6 characters)</label>
+                    <label htmlFor="password" className="block text-xs font-medium text-foreground/70 mb-1.5">Password</label>
                     <div className="relative">
-                      <input id="password" type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full h-11 rounded-xl border border-black/10 bg-white/80 px-3.5 pr-11 text-sm text-foreground placeholder:text-foreground/40 outline-none focus:border-[#6B5CD6] focus:ring-2 focus:ring-[#ECE9FB] transition" />
+                      <input id="password" type={showPassword ? "text" : "password"} required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full h-11 rounded-xl border border-black/10 bg-white/80 px-3.5 pr-11 text-sm text-foreground placeholder:text-foreground/40 outline-none focus:border-[#6B5CD6] focus:ring-2 focus:ring-[#ECE9FB] transition" />
                       <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute inset-y-0 right-0 px-3 flex items-center text-foreground/40 hover:text-foreground transition" aria-label={showPassword ? "Hide password" : "Show password"}>
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                    <p className="mt-1.5 text-[10.5px] text-foreground/40 leading-normal">Minimum 6 characters.</p>
                   </div>
 
                   {error && (
