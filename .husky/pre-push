@@ -19,8 +19,12 @@ if [ -z "$GITGUARDIAN_API_KEY" ]; then
   exit 1
 fi
 
-if command -v ggshield >/dev/null 2>&1; then
+if [ -x "./env/bin/ggshield" ]; then
+  ./env/bin/ggshield secret scan pre-push
+elif command -v ggshield >/dev/null 2>&1; then
   ggshield secret scan pre-push
+elif [ -x "./env/bin/python" ]; then
+  ./env/bin/python -m ggshield secret scan pre-push
 elif command -v python3 >/dev/null 2>&1; then
   python3 -m ggshield secret scan pre-push
 else
