@@ -12,6 +12,7 @@ import {
   conversations,
   messages,
 } from "./schema"
+import { requireEnv } from "../env/required"
 
 /**
  * Per-tenant seed script.
@@ -51,6 +52,13 @@ async function seed() {
   // - Metered overage price (recurring metered: e.g. price_starter_metered_placeholder) - e.g. $0.05 per conversation or message over the included limit.
   // Both are attached as separate subscription items on the exact same customer subscription.
   console.log("🌱 Seeding subscription plans...")
+  const stripeStarterFlat = requireEnv("STRIPE_PRICE_STARTER_FLAT")
+  const stripeStarterMetered = requireEnv("STRIPE_PRICE_STARTER_METERED")
+  const stripeProFlat = requireEnv("STRIPE_PRICE_PRO_FLAT")
+  const stripeProMetered = requireEnv("STRIPE_PRICE_PRO_METERED")
+  const stripeEnterpriseFlat = requireEnv("STRIPE_PRICE_ENTERPRISE_FLAT")
+  const stripeEnterpriseMetered = requireEnv("STRIPE_PRICE_ENTERPRISE_METERED")
+
   const seededPlans = await db
     .insert(plans)
     .values([
@@ -60,8 +68,8 @@ async function seed() {
         seatLimit: 2,
         includedMessages: 500,
         monthlyPriceCents: 4900,
-        stripePriceId: process.env.STRIPE_PRICE_STARTER_FLAT ?? "price_starter_flat_placeholder",
-        stripeMeteredPriceId: process.env.STRIPE_PRICE_STARTER_METERED ?? "price_starter_metered_placeholder",
+        stripePriceId: stripeStarterFlat,
+        stripeMeteredPriceId: stripeStarterMetered,
         active: true,
       },
       {
@@ -70,8 +78,8 @@ async function seed() {
         seatLimit: 5,
         includedMessages: 2000,
         monthlyPriceCents: 14900,
-        stripePriceId: process.env.STRIPE_PRICE_PRO_FLAT ?? "price_pro_flat_placeholder",
-        stripeMeteredPriceId: process.env.STRIPE_PRICE_PRO_METERED ?? "price_pro_metered_placeholder",
+        stripePriceId: stripeProFlat,
+        stripeMeteredPriceId: stripeProMetered,
         active: true,
       },
       {
@@ -80,8 +88,8 @@ async function seed() {
         seatLimit: 100,
         includedMessages: 10000,
         monthlyPriceCents: 49900,
-        stripePriceId: process.env.STRIPE_PRICE_ENTERPRISE_FLAT ?? "price_enterprise_flat_placeholder",
-        stripeMeteredPriceId: process.env.STRIPE_PRICE_ENTERPRISE_METERED ?? "price_enterprise_metered_placeholder",
+        stripePriceId: stripeEnterpriseFlat,
+        stripeMeteredPriceId: stripeEnterpriseMetered,
         active: true,
       },
     ])

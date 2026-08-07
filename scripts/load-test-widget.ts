@@ -28,9 +28,11 @@
  *   - P99 latency should be under a few hundred milliseconds on localhost.
  */
 
-const BASE_URL      = process.env.LOAD_TEST_URL         ?? "http://localhost:3000"
-const WIDGET_KEY    = process.env.LOAD_TEST_WIDGET_KEY  ?? "wk_test_local"
-const CONCURRENCY   = parseInt(process.env.LOAD_TEST_CONCURRENCY ?? "100", 10)
+import { requireEnv, requireIntEnv } from "../lib/env/required"
+
+const BASE_URL = requireEnv("LOAD_TEST_URL")
+const WIDGET_KEY = requireEnv("LOAD_TEST_WIDGET_KEY")
+const CONCURRENCY = requireIntEnv("LOAD_TEST_CONCURRENCY", process.env, { min: 1 })
 const TEST_SOCKETS  = process.env.LOAD_TEST_SOCKET === "1"
 const ORIGIN        = BASE_URL // widget is served from the same origin in dev
 
@@ -90,7 +92,7 @@ async function testSocketConnection(token: string, conversationId?: string): Pro
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { connect } = require("socket.io-client") as typeof import("socket.io-client")
-    const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? `${BASE_URL.replace("3000", "3002")}`
+    const SOCKET_URL = requireEnv("NEXT_PUBLIC_SOCKET_URL")
     const t0 = Date.now()
     return await new Promise((resolve) => {
       const timeout = setTimeout(() => {

@@ -2,6 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js"
 import http from "http"
+import { requireEnv, requireIntEnv } from "@/lib/env/required"
 
 /**
  * Advan AI MCP HTTP+SSE Server
@@ -21,7 +22,8 @@ import http from "http"
 // thin. The real handler logic lives in lib/mcp/server.ts — we just swap the
 // transport layer here.
 
-const PORT = parseInt(process.env.MCP_PORT ?? "3001", 10)
+const PORT = requireIntEnv("MCP_PORT", process.env, { min: 1 })
+const MCP_ALLOWED_ORIGIN = requireEnv("MCP_ALLOWED_ORIGIN")
 
 async function main() {
   // Lazy-import the configured server from the stdio module. Since both share
@@ -35,7 +37,7 @@ async function main() {
 
   httpServer.on("request", async (req, res) => {
     // CORS — allow any origin in dev; lock down in production via env
-    res.setHeader("Access-Control-Allow-Origin", process.env.MCP_ALLOWED_ORIGIN ?? "*")
+    res.setHeader("Access-Control-Allow-Origin", MCP_ALLOWED_ORIGIN)
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
 

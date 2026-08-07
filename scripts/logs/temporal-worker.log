@@ -1983,3 +1983,15 @@ webpack 5.107.2 compiled successfully in 3053 ms { sdkComponent: 'worker', taskQ
 [TemporalWorker] Polling task queue "advan-agents" (dev workflowsPath)
 2026-08-02T05:45:47.764Z [INFO] Worker state changed { sdkComponent: 'worker', taskQueue: 'advan-agents', state: 'RUNNING' }
 2026-08-02T05:45:47.768Z [INFO] No Nexus services registered, not polling for Nexus tasks { sdkComponent: 'worker', taskQueue: 'advan-agents' }
+2026-08-02T07:10:30.576Z [INFO] Worker state changed {
+  sdkComponent: 'worker',
+  taskQueue: 'advan-agents',
+  state: 'STOPPING'
+}
+2026-08-02T07:10:30.592Z [INFO] Worker state changed {
+  sdkComponent: 'worker',
+  taskQueue: 'advan-agents',
+  state: 'DRAINING'
+}
+2026-08-02T07:10:30.603Z [INFO] Worker state changed { sdkComponent: 'worker', taskQueue: 'advan-agents', state: 'DRAINED' }
+2026-08-02T07:10:30.604Z [INFO] Worker state changed { sdkComponent: 'worker', taskQueue: 'advan-agents', state: 'STOPPED' }

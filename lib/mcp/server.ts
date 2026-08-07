@@ -11,6 +11,7 @@ import { tickets, customers, knowledgeSources, auditLogs } from "@/lib/db/schema
 import { eq, and, desc, count, ilike } from "drizzle-orm"
 import { queryEmbeddings } from "@/lib/vector/store"
 import { embedWithOllama } from "@/lib/vector/ollama-embeddings"
+import { requireEnv } from "@/lib/env/required"
 
 /**
  * Advan AI MCP Server
@@ -38,7 +39,7 @@ import { embedWithOllama } from "@/lib/vector/ollama-embeddings"
  * lib/mcp/http-server.ts for the HTTP+SSE transport variant).
  */
 
-const ORG_ID = process.env.MCP_ORG_ID ?? ""
+const ORG_ID = requireEnv("MCP_ORG_ID")
 
 const server = new Server(
   { name: "advan-ai", version: "1.0.0" },

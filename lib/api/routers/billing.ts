@@ -6,11 +6,16 @@ import { db } from "@/lib/db"
 import { organizations, plans, usageEvents, users } from "@/lib/db/schema"
 import { stripe } from "@/lib/billing/stripe-client"
 import { changePlan, startSubscription, createCustomerForOrg } from "@/lib/billing/subscription-service"
+import { requireOneOfEnv } from "@/lib/env/required"
 
 const OVERAGE_RATES_CENTS: Record<string, number> = {
   starter: 10,       // 10 cents per message overage
   pro: 5,            // 5 cents per message overage
   enterprise: 2,     // 2 cents per message overage
+}
+
+function getAppBaseUrl(): string {
+  return requireOneOfEnv(["NEXT_URL", "AUTH_URL", "NEXTAUTH_URL"])
 }
 
 export const billingRouter = router({
@@ -132,7 +137,8 @@ export const billingRouter = router({
       // to securely collect their card details and subscribe them to this plan
       if (!hasPaymentMethod) {
         try {
-          const returnUrl = `${process.env.NEXT_URL || "http://localhost:3000"}/billing/success?session_id={CHECKOUT_SESSION_ID}`
+          const appBaseUrl = getAppBaseUrl()
+          const returnUrl = `${appBaseUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`
           const flatPriceId = targetPlan.stripePriceId?.trim()
           const meteredPriceId = targetPlan.stripeMeteredPriceId?.trim()
 
@@ -159,7 +165,7 @@ export const billingRouter = router({
             mode: "subscription",
             line_items: lineItems,
             success_url: returnUrl,
-            cancel_url: `${process.env.NEXT_URL || "http://localhost:3000"}/dashboard/billing`,
+            cancel_url: `${appBaseUrl}/dashboard/billing`,
             metadata: {
               orgId,
               planKey: input.planKey,
@@ -217,7 +223,7 @@ export const billingRouter = router({
       })
     }
 
-    const returnUrl = `${process.env.NEXT_URL || process.env.NEXTAUTH_URL || "http://localhost:3000"}/dashboard/billing`
+    const returnUrl = `${getAppBaseUrl()}/dashboard/billing`
 
     try {
       const session = await stripe.billingPortal.sessions.create({

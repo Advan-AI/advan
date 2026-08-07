@@ -23,6 +23,7 @@ import {
   widgetOrgRoom,
   CHAT_WIDGET_NAMESPACE,
 } from "@/lib/realtime/chat-widget-namespace"
+import { requireIntEnv } from "@/lib/env/required"
 
 /**
  * Socket.IO server for real-time HITL queue updates and chat visitor events.
@@ -53,7 +54,22 @@ import {
  * Or attach to the same HTTP server as Next.js in custom server mode.
  */
 
-const PORT = parseInt(process.env.SOCKET_PORT ?? "3002", 10)
+const PORT = requireIntEnv("SOCKET_PORT", process.env, { min: 1 })
+
+const socketOrigins = (
+  process.env.SOCKET_CORS_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? []
+)
+
+if (socketOrigins.length === 0) {
+  const authUrl = process.env.AUTH_URL?.trim()
+  const nextAuthUrl = process.env.NEXTAUTH_URL?.trim()
+  if (authUrl) socketOrigins.push(authUrl)
+  if (nextAuthUrl) socketOrigins.push(nextAuthUrl)
+}
+
+if (socketOrigins.length === 0) {
+  throw new Error("Missing socket CORS configuration. Set SOCKET_CORS_ORIGINS or AUTH_URL/NEXTAUTH_URL.")
+}
 
 const httpServer = createServer()
 const io = new SocketIOServer(httpServer, {
@@ -61,15 +77,7 @@ const io = new SocketIOServer(httpServer, {
     // Agents load from the Next app origin. Allow common local variants so
     // dashboard alerts work whether the user opens localhost or 127.0.0.1.
     // /chat-widget namespace still enforces per-widgetKey origin allowlists.
-    origin: (
-      process.env.SOCKET_CORS_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ??
-      [
-        process.env.NEXTAUTH_URL,
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://0.0.0.0:3000",
-      ].filter(Boolean) as string[]
-    ),
+    origin: socketOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },

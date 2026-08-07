@@ -22,13 +22,14 @@ import { drizzle } from "drizzle-orm/node-postgres"
 import pg from "pg"
 import { eq, and, desc } from "drizzle-orm"
 import * as schema from "../lib/db/schema"
+import { requireEnv } from "../lib/env/required"
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { connect: ioConnect } = require("socket.io-client") as typeof import("socket.io-client")
 
-const BASE_URL = process.env.VERIFY_URL ?? "http://localhost:3000"
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://localhost:3002"
-const WIDGET_KEY = process.env.VERIFY_WIDGET_KEY ?? "wk_test_local"
+const BASE_URL = requireEnv("VERIFY_URL")
+const SOCKET_URL = requireEnv("NEXT_PUBLIC_SOCKET_URL")
+const WIDGET_KEY = requireEnv("VERIFY_WIDGET_KEY")
 const ORIGIN = BASE_URL
 const LATENCY_TARGET_MS = 5_000
 const LLM_WAIT_MS = 30_000 // Ollama/Groq triage can take 6–15s in dev

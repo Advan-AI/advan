@@ -1,0 +1,29 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+if [ -f .env.local ]; then
+  set -a
+  . ./.env.local
+  set +a
+fi
+
+if [ -z "$GITGUARDIAN_API_KEY" ]; then
+  echo "[GitGuardian] Missing GITGUARDIAN_API_KEY. Push blocked."
+  echo "[GitGuardian] Set it in .env/.env.local or export it in your shell."
+  exit 1
+fi
+
+if command -v ggshield >/dev/null 2>&1; then
+  ggshield secret scan pre-push
+elif command -v python3 >/dev/null 2>&1; then
+  python3 -m ggshield secret scan pre-push
+else
+  echo "[GitGuardian] ggshield is not installed. Push blocked."
+  exit 1
+fi
