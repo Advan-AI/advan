@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Loader2, PlayCircle, ShieldCheck, Terminal } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,9 @@ import { SandboxTimeline, type SandboxSessionView } from "@/components/demo/sand
  * mapComposerSuccess in agent-activities.ts) — this guarantees the workflow
  * always reaches the FC Sandbox hibernate/wake path for the demo.
  *
+ * Live updates arrive over SSE (/api/demo/fc-sandbox/stream), pushed on
+ * every sandbox lifecycle write — no client-side polling loop.
+ *
  * No auth: this route is outside the /dashboard proxy matcher.
  */
 
@@ -28,7 +31,7 @@ interface StatusResponse {
 
 const DEMO_ORG_ID = "demo-org-fc-sandbox"
 const DEMO_INPUT = "My last invoice total looks higher than expected — can someone check the charge?"
-const POLL_MS = 1500
+const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELED", "TERMINATED", "TIMED_OUT"])
 
 function formatMs(ms: number): string {
   if (ms < 1000) return `${ms}ms`
@@ -42,33 +45,36 @@ export default function FcSandboxDemoPage() {
   const [approving, setApproving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nowTick, setNowTick] = useState(Date.now())
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sourceRef = useRef<EventSource | null>(null)
 
-  // Live clock for the "time spent waiting" metric while hibernated.
+  // Live clock for the "time spent waiting" metric while hibernated (display
+  // tick only — it does not fetch anything, the stream pushes real data).
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 500)
     return () => clearInterval(t)
   }, [])
 
-  const poll = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/demo/fc-sandbox/status?workflowId=${encodeURIComponent(id)}`)
-      const data = (await res.json()) as StatusResponse
-      if (!res.ok) throw new Error((data as unknown as { error?: string }).error ?? "Status fetch failed")
-      setStatus(data)
-      if (data.workflowStatus === "COMPLETED" || data.workflowStatus === "FAILED") {
-        if (pollRef.current) clearInterval(pollRef.current)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch status")
-    }
+  useEffect(() => {
+    return () => sourceRef.current?.close()
   }, [])
 
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
+  function openStream(id: string) {
+    sourceRef.current?.close()
+    const es = new EventSource(`/api/demo/fc-sandbox/stream?workflowId=${encodeURIComponent(id)}`)
+    es.onmessage = (evt) => {
+      const data = JSON.parse(evt.data) as StatusResponse
+      setStatus(data)
+      if (TERMINAL.has(data.workflowStatus)) es.close()
     }
-  }, [])
+    es.onerror = () => {
+      // Server closes the stream itself on terminal status; a residual
+      // error after that is expected (connection just ended), not a bug.
+      if (!status || !TERMINAL.has(status.workflowStatus)) {
+        setError((prev) => prev ?? "Live updates disconnected. The run may still be in progress on the server.")
+      }
+    }
+    sourceRef.current = es
+  }
 
   async function handleStart() {
     setStarting(true)
@@ -88,9 +94,7 @@ export default function FcSandboxDemoPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Failed to start workflow")
       setWorkflowId(data.workflowId)
-      if (pollRef.current) clearInterval(pollRef.current)
-      pollRef.current = setInterval(() => void poll(data.workflowId), POLL_MS)
-      void poll(data.workflowId)
+      openStream(data.workflowId)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start workflow")
     } finally {
@@ -121,7 +125,7 @@ export default function FcSandboxDemoPage() {
   const canApprove = sandbox?.state === "hibernated"
   const isDone = status?.workflowStatus === "COMPLETED"
 
-  // Cost metrics — simple estimates, computed client-side.
+  // Cost metrics — simple estimates, computed client-side from pushed data.
   const waitMs =
     sandbox?.hibernatedAt && !sandbox.wokenAt
       ? nowTick - new Date(sandbox.hibernatedAt).getTime()
@@ -149,7 +153,8 @@ export default function FcSandboxDemoPage() {
         <p className="mt-2 text-sm text-foreground/60 leading-relaxed max-w-xl">
           Starts a real Temporal <code className="font-mono text-xs">ticketResolutionWorkflow</code>{" "}
           run. When it reaches the human-approval gate, an FC Sandbox session is created, the agent
-          executes inside it, then it hibernates while waiting for you to click Approve below.
+          executes inside it, then it hibernates while waiting for you to click Approve below. Updates
+          below are pushed live over SSE — nothing here is polled.
         </p>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -164,7 +169,7 @@ export default function FcSandboxDemoPage() {
             className="rounded-full border-[#5C9A70]/40 text-[#2f5d3f] hover:bg-[#E3EFE5]"
           >
             {approving ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <ShieldCheck className="w-4 h-4 mr-1.5" />}
-            Approve
+            Approve (high-risk action confirmation)
           </Button>
           {workflowId && (
             <span className="text-[11px] font-mono text-foreground/40 truncate">wf: {workflowId}</span>
@@ -184,12 +189,17 @@ export default function FcSandboxDemoPage() {
                 Timeline
               </div>
               <SandboxTimeline sandbox={sandbox} workflowStatus={status.workflowStatus} />
+              {sandbox && (
+                <p className="mt-2 text-[11px] text-foreground/40">
+                  Hibernation policy: auto-escalate after {sandbox.hitlTimeoutMinutes} min with no decision.
+                </p>
+              )}
             </div>
 
             <div className="space-y-5">
               <div className="rounded-2xl border border-black/[0.08] bg-white/60 p-5">
                 <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-foreground/40 mb-3">
-                  Cost metrics (estimated)
+                  Cost &amp; latency (estimated)
                 </div>
                 <dl className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -200,6 +210,12 @@ export default function FcSandboxDemoPage() {
                     <dt className="text-foreground/60">Compute time (execute)</dt>
                     <dd className="font-mono font-semibold text-foreground">{formatMs(computeMsEstimate)}</dd>
                   </div>
+                  {sandbox?.wakeLatencyMs != null && (
+                    <div className="flex justify-between">
+                      <dt className="text-foreground/60">Wake latency</dt>
+                      <dd className="font-mono font-semibold text-foreground">{formatMs(sandbox.wakeLatencyMs)}</dd>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <dt className="text-foreground/60">Compute saved by hibernation</dt>
                     <dd className="font-mono font-semibold text-[#2f5d3f]">
@@ -209,14 +225,14 @@ export default function FcSandboxDemoPage() {
                 </dl>
                 <p className="mt-3 text-[11px] text-foreground/40 leading-relaxed">
                   Estimate: no sandbox compute is billed while hibernated, so compute saved ≈ wait
-                  duration.
+                  duration. Wake latency is the wake-call alone, separate from total wait.
                 </p>
               </div>
 
               {sandbox && (
                 <div className="rounded-2xl border border-black/[0.08] bg-white/60 p-5">
                   <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-foreground/40 mb-3">
-                    Identifiers
+                    Identifiers &amp; session affinity
                   </div>
                   <dl className="space-y-1.5 text-xs font-mono">
                     <div className="flex justify-between gap-2">
@@ -232,6 +248,10 @@ export default function FcSandboxDemoPage() {
                       <dd className="truncate text-foreground/80">{sandbox.sessionId}</dd>
                     </div>
                   </dl>
+                  <p className="mt-2 text-[11px] text-foreground/40 leading-relaxed">
+                    Same sandbox_id/session_id from creation through resume — wake never allocates a
+                    new sandbox.
+                  </p>
                 </div>
               )}
             </div>
@@ -251,7 +271,7 @@ export default function FcSandboxDemoPage() {
           <div className="mt-6 rounded-2xl border border-black/[0.08] bg-[#171a17] p-5">
             <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-white/50 mb-3">
               <Terminal className="w-3.5 h-3.5" />
-              Structured logs
+              Structured logs / checkpoints
             </div>
             <pre className="text-[11px] font-mono text-[#a6e3a1] leading-relaxed overflow-x-auto whitespace-pre-wrap break-all">
               {sandbox.events.map((e) => JSON.stringify(e)).join("\n")}

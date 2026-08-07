@@ -15,6 +15,8 @@ export async function POST(req: Request): Promise<NextResponse> {
       customerInput?: string
       workflowId?: string
       taskQueue?: string
+      /** FC Sandbox hibernation policy override, in minutes (default 10). */
+      hitlTimeoutMinutes?: number
     }
 
     const orgId = body.orgId?.trim()
@@ -42,7 +44,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const handle = await client.workflow.start("ticketResolutionWorkflow", {
       taskQueue,
       workflowId,
-      args: [{ orgId, ticketId, customerInput }],
+      args: [{ orgId, ticketId, customerInput, hitlTimeoutMinutes: body.hitlTimeoutMinutes }],
     })
 
     return NextResponse.json({

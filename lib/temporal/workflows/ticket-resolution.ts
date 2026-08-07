@@ -35,6 +35,10 @@ export interface TicketResolutionInput {
   orgId: string
   ticketId: string
   customerInput: string
+  /** Hibernation policy: minutes to wait for a human decision before
+   *  auto-escalating (default 10). Resolved once at workflow start — read
+   *  from input, never from `process.env`, so replay stays deterministic. */
+  hitlTimeoutMinutes?: number
 }
 
 export interface TicketResolutionResult {
@@ -86,8 +90,14 @@ export async function ticketResolutionWorkflow(
   const needsHITL = composed.confidence < 85 || composed.policyViolation
 
   if (needsHITL) {
+    const hitlTimeoutMinutes = input.hitlTimeoutMinutes ?? 10
+
     // 4a. Sandbox created + agent executed inside it, then hibernated for the wait.
-    const sandbox = await createSandboxSessionActivity({ workflowId, ticketId: input.ticketId })
+    const sandbox = await createSandboxSessionActivity({
+      workflowId,
+      ticketId: input.ticketId,
+      hitlTimeoutMinutes,
+    })
     await executeAgentInSandboxActivity({ workflowId, ...sandbox, payload: composed.output })
     await hibernateSandboxActivity({ workflowId, ...sandbox })
 
@@ -97,9 +107,11 @@ export async function ticketResolutionWorkflow(
       hitlDecision = decision
     })
 
-    // Wait up to 10 minutes for an agent decision — the sandbox stays
-    // hibernated for this entire span, this is the "Waiting for Approval" phase.
-    const resolved = await condition(() => hitlDecision !== null, "10 minutes")
+    // Wait up to the configured hibernation policy window for a human
+    // decision — the sandbox stays hibernated for this entire span, this is
+    // the "Waiting for Approval" phase. Signal-driven (Temporal `condition`),
+    // not a polling loop.
+    const resolved = await condition(() => hitlDecision !== null, `${hitlTimeoutMinutes} minutes`)
 
     if (!resolved || !(hitlDecision as unknown as { approved: boolean } | null)?.approved) {
       await completeSandboxSessionActivity({ workflowId, ...sandbox, status: "escalated" })

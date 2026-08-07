@@ -1,13 +1,22 @@
-import { eq, desc } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { sandboxSessions } from "@/lib/db/schema"
 import type { SandboxHandle } from "./fc-sandbox-client"
+import { publishSandboxUpdate } from "./sandbox-events-bus"
 
 /**
- * Persistence for FC Sandbox sessions. This is the "session persistence"
- * layer: every lifecycle transition is written here so the workflow state
- * survives process/server restarts and can be displayed by the demo page
- * (or any other observer) without talking to Temporal directly.
+ * Persistence for FC Sandbox sessions ("AgentRun" records — one row per
+ * agent execution that paused for HITL). Every lifecycle transition is
+ * written here so the session survives process/server restarts and can be
+ * displayed by the demo page (or any other observer) without talking to
+ * Temporal directly.
+ *
+ * Fault tolerance: `workflowId` is UNIQUE (migration 0022). Temporal retries
+ * `createSandboxSessionActivity` per its configured retry policy on
+ * transient failure; `insertSandboxSession` upserts on that key instead of
+ * inserting a duplicate row, so a retried activity — or a workflow replay
+ * after a worker crash — converges on the same session record rather than
+ * fragmenting state.
  */
 
 export async function insertSandboxSession(input: {
@@ -15,6 +24,7 @@ export async function insertSandboxSession(input: {
   ticketId: string
   handle: SandboxHandle
   event: Record<string, unknown>
+  hitlTimeoutMinutes: number
 }) {
   const [row] = await db
     .insert(sandboxSessions)
@@ -25,16 +35,23 @@ export async function insertSandboxSession(input: {
       sandboxId: input.handle.sandboxId,
       sessionId: input.handle.sessionId,
       state: "created",
+      hitlTimeoutMinutes: input.hitlTimeoutMinutes,
       events: [input.event],
     })
+    .onConflictDoUpdate({
+      target: sandboxSessions.workflowId,
+      // Retry of the same activity invocation: identity fields are already
+      // correct, just re-affirm state/event rather than erroring or duplicating.
+      set: { state: "created", events: [input.event] },
+    })
     .returning()
+  publishSandboxUpdate(input.workflowId)
   return row
 }
 
 async function appendEvent(workflowId: string, event: Record<string, unknown>) {
   const existing = await db.query.sandboxSessions.findFirst({
     where: eq(sandboxSessions.workflowId, workflowId),
-    orderBy: desc(sandboxSessions.createdAt),
   })
   return [...(existing?.events ?? []), event]
 }
@@ -45,6 +62,7 @@ export async function markExecuting(workflowId: string, computeMs: number, event
     .update(sandboxSessions)
     .set({ state: "executing", executedAt: new Date(), computeMsEstimate: computeMs, events })
     .where(eq(sandboxSessions.workflowId, workflowId))
+  publishSandboxUpdate(workflowId)
 }
 
 export async function markHibernated(workflowId: string, event: Record<string, unknown>) {
@@ -53,16 +71,17 @@ export async function markHibernated(workflowId: string, event: Record<string, u
     .update(sandboxSessions)
     .set({ state: "hibernated", hibernatedAt: new Date(), events })
     .where(eq(sandboxSessions.workflowId, workflowId))
+  publishSandboxUpdate(workflowId)
 }
 
 export async function markWokenAndResumed(
   workflowId: string,
+  wakeLatencyMs: number,
   wakeEvent: Record<string, unknown>,
   resumeEvent: Record<string, unknown>
 ) {
   const existing = await db.query.sandboxSessions.findFirst({
     where: eq(sandboxSessions.workflowId, workflowId),
-    orderBy: desc(sandboxSessions.createdAt),
   })
   const wokenAt = new Date()
   const resumedAt = new Date()
@@ -78,10 +97,12 @@ export async function markWokenAndResumed(
       state: "resumed",
       wokenAt,
       resumedAt,
+      wakeLatencyMs,
       computeSavedMsEstimate,
       events: [...(existing?.events ?? []), wakeEvent, resumeEvent],
     })
     .where(eq(sandboxSessions.workflowId, workflowId))
+  publishSandboxUpdate(workflowId)
 
   return { waitMs, computeSavedMsEstimate }
 }
@@ -96,11 +117,11 @@ export async function markCompleted(
     .update(sandboxSessions)
     .set({ state, completedAt: new Date(), events })
     .where(eq(sandboxSessions.workflowId, workflowId))
+  publishSandboxUpdate(workflowId)
 }
 
 export async function getSandboxSessionByWorkflowId(workflowId: string) {
   return db.query.sandboxSessions.findFirst({
     where: eq(sandboxSessions.workflowId, workflowId),
-    orderBy: desc(sandboxSessions.createdAt),
   })
 }

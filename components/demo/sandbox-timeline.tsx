@@ -15,6 +15,8 @@ export interface SandboxSessionView {
   completedAt: string | null
   computeMsEstimate: number
   computeSavedMsEstimate: number
+  wakeLatencyMs: number | null
+  hitlTimeoutMinutes: number
   events: Array<Record<string, unknown>>
 }
 

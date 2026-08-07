@@ -626,8 +626,21 @@ export const sandboxSessions = pgTable(
     completedAt: timestamp("completed_at"),
     computeMsEstimate: integer("compute_ms_estimate").default(0).notNull(),
     computeSavedMsEstimate: integer("compute_saved_ms_estimate").default(0).notNull(),
-    /** Append-only structured log: { ts, type, traceId, sandboxId, sessionId, workflowId, ... } */
+    /** wakeSandbox() call latency alone — distinct from total hibernation wait. */
+    wakeLatencyMs: integer("wake_latency_ms"),
+    /** Human-configurable hibernation policy for this run (minutes before auto-escalation). */
+    hitlTimeoutMinutes: integer("hitl_timeout_minutes").default(10).notNull(),
+    /** Append-only structured log: { ts, seq, type, traceId, sandboxId, sessionId, workflowId, ... }.
+     *  Doubles as the checkpoint log — each entry is a durable state transition
+     *  a replay/resume can be reconstructed from. */
     events: jsonb("events").$type<Array<Record<string, unknown>>>().default([]).notNull(),
   },
-  (table) => [index("sandbox_sessions_workflow_idx").on(table.workflowId)],
+  (table) => [
+    // One sandbox session per workflow run — enforces idempotent creation:
+    // an activity retry on createSandboxSessionActivity (Temporal retries
+    // per its own retry policy) upserts instead of inserting a duplicate row.
+    // (Also serves as the workflow_id lookup index — see migration 0022,
+    // which drops 0021's separate plain index as redundant with this one.)
+    unique("sandbox_sessions_workflow_unique").on(table.workflowId),
+  ],
 )
