@@ -1217,3 +1217,6 @@ npm warn Unknown env config "devdir". This will stop working in the next major v
 [Socket] Agent disconnected (nV5_qEcvWLyw1EepAAAK)
 [Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (mMyKnlPaId2sbrgtAAAQ)
 [Socket] Agent connected to org:8dc0c68c-7f57-421b-93ff-4b1b36c06b32 (CF-Sxpv9N1mKu7zSAAAR)
+[Socket] /chat-widget namespace registered
+[Socket] HITL Socket.IO server running on port 3002
+[Socket] Subscribed to realtime event bus
