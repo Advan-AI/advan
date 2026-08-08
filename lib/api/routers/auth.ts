@@ -7,8 +7,6 @@ import crypto from "crypto"
 import { router, publicProcedure, protectedProcedure } from "../trpc"
 import { db } from "@/lib/db"
 import { organizations, users, widgetConfigs, emailVerifications } from "@/lib/db/schema"
-import { createCustomerForOrg } from "@/lib/billing/subscription-service"
-import { stripe } from "@/lib/billing/stripe-client"
 import { getResendClient } from "@/lib/email/resend-client"
 import { renderOtpEmail } from "@/lib/email/templates/otp"
 
@@ -136,57 +134,29 @@ export const authRouter = router({
         .set({ emailVerified: true })
         .where(eq(users.email, emailLower))
 
-      // Now create Stripe checkout session
       const user = await db.query.users.findFirst({
         where: eq(users.email, emailLower),
         columns: { orgId: true },
       })
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." })
 
-      if (!process.env.STRIPE_SECRET_KEY) {
-        return { checkoutUrl: null }
+      // Every new workspace starts on a 14-day free trial — no card, no
+      // Stripe checkout required. Upgrading to a paid plan happens later
+      // from the Billing page ("Upgrade to Starter").
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, user.orgId),
+        columns: { subscriptionStatus: true },
+      })
+      if (!org?.subscriptionStatus) {
+        await db.update(organizations)
+          .set({
+            subscriptionStatus: "trialing",
+            trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          })
+          .where(eq(organizations.id, user.orgId))
       }
 
-      const stripeCustomerId = await createCustomerForOrg(user.orgId)
-      const starterPlan = await db.query.plans.findFirst({
-        where: (plans, { eq }) => eq(plans.key, "starter"),
-        columns: { stripePriceId: true, stripeMeteredPriceId: true },
-      })
-      if (!starterPlan) throw new Error("Starter plan not found")
-
-      const flatPriceId = starterPlan.stripePriceId?.trim()
-      const meteredPriceId = starterPlan.stripeMeteredPriceId?.trim()
-
-      const lineItems = []
-      if (flatPriceId) {
-        lineItems.push({
-          price: flatPriceId,
-          quantity: 1,
-        })
-      }
-      if (meteredPriceId) {
-        lineItems.push({
-          price: meteredPriceId,
-        })
-      }
-
-      console.log(`[Stripe Signup Checkout] Creating session for org=${user.orgId}:`, {
-        customer: stripeCustomerId,
-        lineItems,
-      })
-
-      const session = await stripe.checkout.sessions.create({
-        customer: stripeCustomerId,
-        mode: "subscription",
-        payment_method_collection: "always",
-        line_items: lineItems,
-        subscription_data: { trial_period_days: 14 },
-        success_url: `${process.env.NEXTAUTH_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.NEXTAUTH_URL}/signup`,
-        metadata: { orgId: user.orgId },
-      })
-
-      return { checkoutUrl: session.url }
+      return { success: true }
     }),
 
   resendOtp: publicProcedure

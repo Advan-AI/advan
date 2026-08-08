@@ -1,8 +1,7 @@
-# Advan AI (v0-advan)
+# Advan 
 
 Customer-support oriented **Next.js** app with **tRPC**, **Drizzle ORM**, **NextAuth**, **LangGraph** orchestration, **Temporal** durable workflows, **BullMQ** embedding jobs, **pgvector** retrieval, and optional **Socket.IO** HITL. UI includes a marketing site and a **dashboard** (`/dashboard/*`).
 
-Originally bootstrapped with [v0](https://v0.app); this repo is the full application codebase.
 
 
 ## Stack
@@ -278,13 +277,9 @@ FROM organizations WHERE slug = 'acme'
 ON CONFLICT (email) DO NOTHING;
 ```
 
-## v0
-
-[Continue working on v0 →](https://v0.app/chat/projects/prj_kRYjsXfTMn91nI78Qq4WYgQ08uZd)
-
 ## Learn more
 
 - [Next.js Documentation](https://nextjs.org/docs)
-- [v0 Documentation](https://v0.app/docs)
+
 
 [![Open in Kiro](https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true)](https://v0.app/chat/api/kiro/clone/nduy1234/v0-advan)

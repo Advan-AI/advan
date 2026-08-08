@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button"
 const BOOKING_URL = "https://cal.com/day-nguyen"
 
 const PROOF = [
-  "Live demo on your real tickets",
-  "Source-cited answers from day one",
-  "SOC 2 + GDPR · EU residency available",
+  "Fast implementation",
+  "Easy integration with your helpdesk",
+  "Reduced support workload from day one",
 ]
 
 export function FinalCTA() {

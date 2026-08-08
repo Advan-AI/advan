@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, FormEvent, Suspense } from "react"
+import { useState, FormEvent, Suspense, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
-import { signIn } from "next-auth/react"
+import { signIn, useSession } from "next-auth/react"
 import { motion } from "framer-motion"
 import { ArrowRight, Eye, EyeOff, Loader2, ShieldCheck, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -38,11 +38,19 @@ function AuthErrorBanner() {
 
 export default function SignInPage() {
   const router = useRouter()
+  const { status } = useSession()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState<"email" | "google" | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Already signed in? Skip the form and go straight to the dashboard.
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace("/dashboard")
+    }
+  }, [status, router])
 
   async function handleEmailSubmit(e: FormEvent) {
     e.preventDefault()

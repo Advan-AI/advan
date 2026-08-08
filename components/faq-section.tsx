@@ -14,16 +14,7 @@ export function FAQSection() {
   return (
     <section id="faq" className="relative py-14 lg:py-[88px] border-t border-black/[0.05]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SectionHeader
-          eyebrow="FAQ"
-          title={
-            <>
-              Questions teams ask before{" "}
-              <span className="text-gradient-brand">they ship</span>
-            </>
-          }
-          lede="The short version of every conversation we have with VP Support, CISOs, and CX leaders."
-        />
+        <SectionHeader eyebrow="FAQ" title={<>Frequently asked questions</>} />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}

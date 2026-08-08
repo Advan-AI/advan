@@ -1,20 +1,12 @@
 "use client"
 
 import { motion } from "framer-motion"
-import {
-  FileLock2,
-  Globe2,
-  History,
-  KeyRound,
-  ScanEye,
-  ShieldCheck,
-} from "lucide-react"
 
 /**
- * Compact credibility band under the hero: connector marquee + compliance
- * chips. Rather than fabricate customer logos (off-brand for a transparency
- * product), we lead with the two proof points buyers actually evaluate —
- * adoption friction and enterprise posture.
+ * Minimal credibility band under the hero: a connector marquee.
+ * Rather than fabricate customer logos (off-brand for a transparency
+ * product), we lead with the proof point buyers evaluate first — how
+ * easily Advan drops into the stack they already run.
  */
 
 const CONNECTORS = [
@@ -28,21 +20,12 @@ const CONNECTORS = [
   "Zapier",
 ]
 
-const COMPLIANCE = [
-  { icon: ShieldCheck, label: "SOC 2 Type II" },
-  { icon: Globe2, label: "GDPR · EU residency" },
-  { icon: KeyRound, label: "SSO / SAML" },
-  { icon: ScanEye, label: "PII redaction" },
-  { icon: History, label: "Immutable audit log" },
-  { icon: FileLock2, label: "Tenant isolation" },
-]
-
 export function SocialProofSection() {
   return (
     <section
       id="proof"
-      aria-label="Integrations and enterprise trust"
-      className="relative py-10 lg:py-14 border-t border-black/[0.05]"
+      aria-label="Integrations"
+      className="relative py-12 lg:py-16 border-t border-black/[0.05]"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.p
@@ -56,7 +39,7 @@ export function SocialProofSection() {
         </motion.p>
 
         {/* Connector marquee */}
-        <div className="mt-6 overflow-hidden marquee-mask" aria-hidden>
+        <div className="mt-7 overflow-hidden marquee-mask" aria-hidden>
           <div className="marquee-track items-center gap-x-12">
             {[...CONNECTORS, ...CONNECTORS].map((name, i) => (
               <span key={`${name}-${i}`} className="group flex items-center gap-2.5 shrink-0">
@@ -70,25 +53,6 @@ export function SocialProofSection() {
         </div>
         {/* Screen-reader fallback for the animated marquee */}
         <p className="sr-only">Integrates with {CONNECTORS.join(", ")}.</p>
-
-        {/* Compliance chips */}
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.55 }}
-          className="mt-8 flex flex-wrap items-center justify-center gap-2.5"
-        >
-          {COMPLIANCE.map(({ icon: Icon, label }) => (
-            <span
-              key={label}
-              className="inline-flex items-center gap-2 rounded-full border border-black/[0.07] bg-white/70 px-3.5 py-2 text-[12.5px] font-semibold text-foreground/72 shadow-[0_10px_30px_-26px_rgba(34,31,25,0.5)] backdrop-blur transition-colors hover:border-[#197869]/30 hover:text-foreground whitespace-nowrap"
-            >
-              <Icon className="h-4 w-4 text-[#197869]" aria-hidden />
-              {label}
-            </span>
-          ))}
-        </motion.div>
       </div>
     </section>
   )
