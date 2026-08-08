@@ -5,6 +5,7 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { requireEnv } from "@/lib/env/required"
 
 /**
  * AWS S3 client for:
@@ -16,14 +17,14 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
  *   advan-kb-documents/{orgId}/audit/{logId}.json ← Audit exports
  */
 const s3 = new S3Client({
-  region: process.env.AWS_REGION ?? "us-east-1",
+  region: requireEnv("AWS_REGION"),
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    accessKeyId: requireEnv("AWS_ACCESS_KEY_ID"),
+    secretAccessKey: requireEnv("AWS_SECRET_ACCESS_KEY"),
   },
 })
 
-const BUCKET = process.env.AWS_S3_BUCKET ?? "advan-kb-documents"
+const BUCKET = requireEnv("AWS_S3_BUCKET")
 
 /**
  * Upload a Knowledge Base document to S3.

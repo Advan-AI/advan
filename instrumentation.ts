@@ -16,8 +16,12 @@ export async function register() {
 
     // LangSmith tracing for LangGraph workflows
     if (process.env.LANGSMITH_API_KEY) {
+      const langsmithProject = process.env.LANGSMITH_PROJECT?.trim()
+      if (!langsmithProject) {
+        throw new Error("Missing LANGSMITH_PROJECT while LANGSMITH_API_KEY is set")
+      }
       process.env.LANGCHAIN_TRACING_V2 = "true"
-      process.env.LANGCHAIN_PROJECT = process.env.LANGSMITH_PROJECT ?? "advan-ai"
+      process.env.LANGCHAIN_PROJECT = langsmithProject
       console.log("[LangSmith] Tracing enabled for project:", process.env.LANGCHAIN_PROJECT)
     }
   }

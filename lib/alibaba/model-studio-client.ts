@@ -1,20 +1,15 @@
 import "dotenv/config";
 import OpenAI from "openai";
+import { requireEnv } from "@/lib/env/required";
 
 /**
  * Model Studio Configuration
  */
-const DEFAULT_CHAT_BASE_URL =
-  process.env.DASHSCOPE_CHAT_BASE_URL ||
-  "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+const CHAT_BASE_URL = requireEnv("DASHSCOPE_CHAT_BASE_URL");
+const EMBEDDING_ENDPOINT = requireEnv("DASHSCOPE_EMBEDDING_ENDPOINT");
 
-const DEFAULT_EMBEDDING_ENDPOINT =
-  process.env.DASHSCOPE_EMBEDDING_ENDPOINT ||
-  "https://dashscope-intl.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding";
-
-export const CHAT_MODEL = process.env.DASHSCOPE_CHAT_MODEL || "qwen-plus";
-export const EMBEDDING_MODEL =
-  process.env.DASHSCOPE_EMBEDDING_MODEL || "text-embedding-v4";
+export const CHAT_MODEL = requireEnv("DASHSCOPE_CHAT_MODEL");
+export const EMBEDDING_MODEL = requireEnv("DASHSCOPE_EMBEDDING_MODEL");
 
 function getApiKey(): string {
   const apiKey = process.env.DASHSCOPE_API_KEY;
@@ -62,7 +57,7 @@ export async function getChatCompletion(
   const apiKey = getApiKey();
   const openai = new OpenAI({
     apiKey,
-    baseURL: DEFAULT_CHAT_BASE_URL,
+    baseURL: CHAT_BASE_URL,
     defaultHeaders: getExtraHeaders(),
   });
 
@@ -104,9 +99,7 @@ export async function getChatCompletion(
  */
 export async function getEmbedding(text: string): Promise<number[]> {
   const apiKey = getApiKey();
-  const globalEndpoint =
-    process.env.DASHSCOPE_GLOBAL_EMBEDDING_ENDPOINT ||
-    "https://dashscope-intl.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding";
+  const globalEndpoint = requireEnv("DASHSCOPE_GLOBAL_EMBEDDING_ENDPOINT");
 
   // Attempt 1: Call Native Global DashScope REST Endpoint
   try {
@@ -139,7 +132,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
   }
 
   // Attempt 2: Fallback to Workspace DashScope REST Endpoint
-  const wsEndpoint = DEFAULT_EMBEDDING_ENDPOINT;
+  const wsEndpoint = EMBEDDING_ENDPOINT;
   const workspaceId = process.env.DASHSCOPE_WORKSPACE_ID;
   const fetchHeaders: Record<string, string> = {
     Authorization: `Bearer ${apiKey}`,

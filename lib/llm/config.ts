@@ -1,5 +1,6 @@
 import { ChatAnthropic } from "@langchain/anthropic"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
+import { requireEnv } from "@/lib/env/required"
 
 /**
  * Central LLM routing config (chat only).
@@ -20,11 +21,6 @@ export interface LlmRuntimeConfig {
   readonly gcpRegion: string | undefined
   readonly claudeModel: string | undefined
 }
-
-const DEFAULT_OLLAMA_BASE = "http://127.0.0.1:11434"
-const DEFAULT_OLLAMA_TRIAGE_MODEL = "llama3.2"
-const DEFAULT_OLLAMA_CHAT_MODEL = "llama3.2"
-const DEFAULT_GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
 
 function normalizeProvider(raw: string | undefined): LlmChatProvider | undefined {
   const v = raw?.trim().toLowerCase()
@@ -50,27 +46,48 @@ export function getLlmRuntimeConfig(
     chatProvider = "vertex-anthropic"
   } else if (explicit === "ollama") {
     chatProvider = "ollama"
-  } else if (env.GCP_PROJECT_ID?.trim() && (env.LLM_CHAT_PROVIDER === "anthropic" || !env.LLM_CHAT_PROVIDER)) {
-    // If GCP project ID is configured and LLM_CHAT_PROVIDER is set to anthropic or not set, prefer vertex-anthropic
+  } else if (env.GCP_PROJECT_ID?.trim()) {
     chatProvider = "vertex-anthropic"
-  } else if (env.OLLAMA_BASE_URL?.trim() || env.OLLAMA_CHAT_MODEL?.trim() || env.OLLAMA_TRIAGE_MODEL?.trim()) {
+  } else if (env.OLLAMA_BASE_URL?.trim() && env.OLLAMA_CHAT_MODEL?.trim() && env.OLLAMA_TRIAGE_MODEL?.trim()) {
     chatProvider = "ollama"
   } else if (env.ANTHROPIC_API_KEY?.trim()) {
     chatProvider = "anthropic"
   } else {
-    chatProvider = "ollama"
+    throw new Error(
+      "Unable to resolve LLM_CHAT_PROVIDER from environment. Set LLM_CHAT_PROVIDER to ollama, anthropic, or vertex-anthropic and provide required variables."
+    )
+  }
+
+  const ollamaBaseUrl = requireEnv("OLLAMA_BASE_URL", env)
+  const ollamaTriageModel = requireEnv("OLLAMA_TRIAGE_MODEL", env)
+  const ollamaChatModel = requireEnv("OLLAMA_CHAT_MODEL", env)
+  const groqChatModel = requireEnv("GROQ_CHAT_MODEL", env)
+
+  const anthropicApiKey = env.ANTHROPIC_API_KEY?.trim() || undefined
+  const gcpProjectId = env.GCP_PROJECT_ID?.trim() || undefined
+  const gcpRegion = env.GCP_REGION?.trim() || undefined
+  const claudeModel = env.CLAUDE_MODEL?.trim() || undefined
+
+  if (chatProvider === "anthropic" && !anthropicApiKey) {
+    throw new Error("Missing ANTHROPIC_API_KEY for LLM_CHAT_PROVIDER=anthropic")
+  }
+
+  if (chatProvider === "vertex-anthropic") {
+    if (!gcpProjectId) throw new Error("Missing GCP_PROJECT_ID for LLM_CHAT_PROVIDER=vertex-anthropic")
+    if (!gcpRegion) throw new Error("Missing GCP_REGION for LLM_CHAT_PROVIDER=vertex-anthropic")
+    if (!claudeModel) throw new Error("Missing CLAUDE_MODEL for LLM_CHAT_PROVIDER=vertex-anthropic")
   }
 
   return {
     chatProvider,
-    ollamaBaseUrl: env.OLLAMA_BASE_URL?.trim() || DEFAULT_OLLAMA_BASE,
-    ollamaTriageModel: env.OLLAMA_TRIAGE_MODEL?.trim() || DEFAULT_OLLAMA_TRIAGE_MODEL,
-    ollamaChatModel: env.OLLAMA_CHAT_MODEL?.trim() || DEFAULT_OLLAMA_CHAT_MODEL,
-    groqChatModel: env.GROQ_CHAT_MODEL?.trim() || DEFAULT_GROQ_CHAT_MODEL,
-    anthropicApiKey: env.ANTHROPIC_API_KEY?.trim() || undefined,
-    gcpProjectId: env.GCP_PROJECT_ID?.trim() || undefined,
-    gcpRegion: env.GCP_REGION?.trim() || undefined,
-    claudeModel: env.CLAUDE_MODEL?.trim() || undefined,
+    ollamaBaseUrl,
+    ollamaTriageModel,
+    ollamaChatModel,
+    groqChatModel,
+    anthropicApiKey,
+    gcpProjectId,
+    gcpRegion,
+    claudeModel,
   }
 }
 
@@ -84,9 +101,8 @@ export function createAnthropicModel(
   streaming: boolean = false
 ): ChatAnthropic {
   if (cfg.chatProvider === "vertex-anthropic") {
-    const projectId = cfg.gcpProjectId || "arslantoor"
-    const region = cfg.gcpRegion || "us-east5"
-    // Use the model configured in env, or fall back to the defaultModelName
+    const projectId = cfg.gcpProjectId!
+    const region = cfg.gcpRegion!
     const modelName = cfg.claudeModel || defaultModelName
 
     const customClient = new AnthropicVertex({
@@ -106,7 +122,7 @@ export function createAnthropicModel(
   return new ChatAnthropic({
     modelName: defaultModelName,
     temperature,
-    apiKey: cfg.anthropicApiKey || "dummy-key-for-build-resilience",
+    apiKey: cfg.anthropicApiKey,
     streaming,
   })
 }

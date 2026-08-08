@@ -11,8 +11,9 @@ import { CyclicPipelineError } from "@/lib/pipeline/topology"
 import { getTemporalClient } from "@/lib/temporal/clients/workflow.client"
 import { analyzeWorkflowDefinition } from "@/lib/workflows/analyzer"
 import { checkWorkflowActivation, checkWorkflowRun } from "@/lib/workflows/lifecycle"
+import { requireEnv } from "@/lib/env/required"
 
-const DEFAULT_TASK_QUEUE = "advan-agents"
+const TEMPORAL_TASK_QUEUE = requireEnv("TEMPORAL_TASK_QUEUE")
 
 /**
  * Advan AI Orchestration Router.
@@ -187,7 +188,7 @@ export const orchestrationRouter = router({
         const client = await getTemporalClient()
         const temporalWorkflowId = `pipeline-${ctx.user.orgId}-${Date.now()}`
         const handle = await client.workflow.start("pipelineExecutionWorkflow", {
-          taskQueue: process.env.TEMPORAL_TASK_QUEUE?.trim() || DEFAULT_TASK_QUEUE,
+          taskQueue: TEMPORAL_TASK_QUEUE,
           workflowId: temporalWorkflowId,
           args: [{ orgId: ctx.user.orgId, workflowId: input.workflowId, plan, trigger: { message: input.input } }],
         })

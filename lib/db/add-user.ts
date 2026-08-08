@@ -1,9 +1,11 @@
 import { db } from "./index"
 import { users, organizations } from "./schema"
 import { eq } from "drizzle-orm"
+import { requireEnv } from "../env/required"
 
 async function main() {
-  const email = process.env.USER_EMAIL || "muhammad.arslan.software@gmail.com";
+  const email = requireEnv("USER_EMAIL");
+  const userName = requireEnv("USER_NAME");
   console.log("Checking for organization...");
   
   const org = await db.query.organizations.findFirst({
@@ -29,7 +31,7 @@ async function main() {
     const [inserted] = await db.insert(users).values({
       orgId: org.id,
       email: email.toLowerCase(),
-      name: process.env.USER_NAME || "Muhammad Arslan",
+      name: userName,
       role: "admin",
       chatAvailable: true,
       emailVerified: true,

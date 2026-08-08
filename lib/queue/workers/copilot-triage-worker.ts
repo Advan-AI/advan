@@ -28,10 +28,15 @@ import {
 import { assessConversationEscalation } from "@/lib/tickets/conversation-escalation"
 import { resolveChatIntent } from "@/lib/tickets/chat-intent"
 import { type CopilotTriageJob } from "../queues"
+import { requireEnv, requireNumberEnv } from "@/lib/env/required"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CONFIDENCE_THRESHOLD = Number(process.env.TRIAGE_AUTO_SEND_THRESHOLD ?? 85)
+const CONFIDENCE_THRESHOLD = requireNumberEnv("TRIAGE_AUTO_SEND_THRESHOLD", process.env, {
+  min: 0,
+  max: 100,
+})
+const TEMPORAL_TASK_QUEUE = requireEnv("TEMPORAL_TASK_QUEUE")
 
 // ─── No-op HITL port ─────────────────────────────────────────────────────────
 
@@ -287,7 +292,7 @@ export async function processTriageJob(
       const client = await getTemporalClient()
       const temporalWorkflowId = `pipeline-${orgId}-${Date.now()}`
       const handle = await client.workflow.start("pipelineExecutionWorkflow", {
-        taskQueue: process.env.TEMPORAL_TASK_QUEUE?.trim() || "advan-agents",
+        taskQueue: TEMPORAL_TASK_QUEUE,
         workflowId: temporalWorkflowId,
         args: [
           {

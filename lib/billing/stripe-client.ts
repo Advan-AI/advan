@@ -1,7 +1,8 @@
 import Stripe from "stripe"
+import { requireEnv } from "@/lib/env/required"
 
 // Initialize Stripe singleton client
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder"
+const stripeSecretKey = requireEnv("STRIPE_SECRET_KEY")
 
 export const stripe = new Stripe(stripeSecretKey, {
   // Use a stable Stripe API version

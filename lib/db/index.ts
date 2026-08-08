@@ -3,6 +3,7 @@ import { setDefaultResultOrder } from "node:dns"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 import * as schema from "./schema"
+import { requireEnv } from "@/lib/env/required"
 
 /**
  * Advan AI Data Layer (Layer 5)
@@ -20,7 +21,8 @@ try {
   // Node < 17
 }
 
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/advan_ai"
+const connectionString = requireEnv("DATABASE_URL")
+const dbAppName = requireEnv("DB_APP_NAME")
 
 function resolveMaxConnections(): number {
   if (process.env.DB_MAX_CONNECTIONS) {
@@ -56,7 +58,7 @@ function createClient(): PgClient {
     max_lifetime: 60 * 15,
     ssl: resolveSsl(connectionString!),
     connection: {
-      application_name: process.env.DB_APP_NAME ?? "advan",
+      application_name: dbAppName,
     },
   })
 }

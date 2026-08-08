@@ -79,12 +79,25 @@ Customer-support oriented **Next.js** app with **tRPC**, **Drizzle ORM**, **Next
 | `npm run temporal:bundle` | Bundle workflow code for worker |
 | `npm run lint` | ESLint |
 | `npm test` | Playwright E2E (`tests/e2e/`) |
+| `npm run secrets:scan` | Manual GitGuardian secret scan (`ggshield secret scan repo .`) |
 
 **Workers (manual if not using `dev:all`):**
 
 - Embeddings: `npx tsx lib/queue/workers/embedding-worker.ts` (needs `REDIS_URL`, DB, Ollama)
 - Socket HITL: `npx tsx lib/realtime/socket-server.ts` (needs `SOCKET_PORT`, DB, Temporal client env)
 - MCP (optional): `npx tsx lib/mcp/http-server.ts` or stdio via `lib/mcp/server.ts`
+
+## Secret scan gate (GitGuardian)
+
+This repository enforces a **pre-push** secret scan via Husky + GitGuardian.
+Pushes are blocked unless the scan passes.
+
+Required setup:
+
+1. Ensure `ggshield` is installed (project venv binary is supported by the hook).
+2. Set `GITGUARDIAN_API_KEY` in `.env` or `.env.local`.
+
+The hook file is: `.husky/pre-push`.
 
 ## Project layout
 

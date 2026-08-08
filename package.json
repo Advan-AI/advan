@@ -13,6 +13,7 @@
     "test": "playwright test",
     "test:unit": "vitest run",
     "test:ui": "playwright test --ui",
+    "secrets:scan": "ggshield secret scan repo .",
     "prepare": "husky install || true"
   },
   "dependencies": {

@@ -4,10 +4,12 @@ import { createRequire } from "node:module"
 import { Worker } from "@temporalio/worker"
 import { agentActivities } from "../activities/agent-activities"
 import { pipelineActivities } from "../activities/pipeline-activities"
+import { sandboxActivities } from "../activities/sandbox-activities"
 import { parseTemporalConfig } from "../config/environment.validator"
 import { TemporalWorkerConnectionManager } from "../services/worker.connection"
+import { requireEnv } from "@/lib/env/required"
 
-const DEFAULT_TASK_QUEUE = "advan-agents"
+const TEMPORAL_TASK_QUEUE = requireEnv("TEMPORAL_TASK_QUEUE")
 const SHUTDOWN_GRACE_MS = 30_000
 function resolveWorkflowBundlePath(): string {
   const fromEnv = process.env.TEMPORAL_WORKFLOW_BUNDLE_PATH?.trim()
@@ -52,8 +54,8 @@ export async function runTemporalWorkerDaemon(): Promise<void> {
     ...workflowLoader,
     connection,
     namespace: envConfig.namespace,
-    activities: { ...agentActivities, ...pipelineActivities },
-    taskQueue: process.env.TEMPORAL_TASK_QUEUE?.trim() || DEFAULT_TASK_QUEUE,
+    activities: { ...agentActivities, ...pipelineActivities, ...sandboxActivities },
+    taskQueue: process.env.TEMPORAL_TASK_QUEUE?.trim() ?? TEMPORAL_TASK_QUEUE,
     shutdownGraceTime: SHUTDOWN_GRACE_MS,
   })
 
@@ -72,7 +74,7 @@ export async function runTemporalWorkerDaemon(): Promise<void> {
   try {
     // eslint-disable-next-line no-console
     console.log(
-      `[TemporalWorker] Polling task queue "${process.env.TEMPORAL_TASK_QUEUE?.trim() || DEFAULT_TASK_QUEUE}" ` +
+      `[TemporalWorker] Polling task queue "${TEMPORAL_TASK_QUEUE}" ` +
         `(${isProduction ? `bundle: ${bundlePath}` : "dev workflowsPath"})`
     )
     await worker.run()

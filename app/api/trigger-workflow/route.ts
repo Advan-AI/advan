@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { getTemporalClient } from "@/lib/temporal/clients/workflow.client"
+import { requireEnv } from "@/lib/env/required"
 
-const DEFAULT_TASK_QUEUE = "advan-agents"
+const TEMPORAL_TASK_QUEUE = requireEnv("TEMPORAL_TASK_QUEUE")
 
 /**
  * Sample App Router endpoint: starts `ticketResolutionWorkflow` on the worker task queue.
@@ -15,6 +16,8 @@ export async function POST(req: Request): Promise<NextResponse> {
       customerInput?: string
       workflowId?: string
       taskQueue?: string
+      /** FC Sandbox hibernation policy override, in minutes (default 10). */
+      hitlTimeoutMinutes?: number
     }
 
     const orgId = body.orgId?.trim()
@@ -37,12 +40,12 @@ export async function POST(req: Request): Promise<NextResponse> {
     const taskQueue =
       body.taskQueue?.trim() && body.taskQueue.trim().length > 0
         ? body.taskQueue.trim()
-        : DEFAULT_TASK_QUEUE
+        : TEMPORAL_TASK_QUEUE
 
     const handle = await client.workflow.start("ticketResolutionWorkflow", {
       taskQueue,
       workflowId,
-      args: [{ orgId, ticketId, customerInput }],
+      args: [{ orgId, ticketId, customerInput, hitlTimeoutMinutes: body.hitlTimeoutMinutes }],
     })
 
     return NextResponse.json({

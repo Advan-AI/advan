@@ -13,7 +13,6 @@ export interface PolicyDecision {
 }
 
 export class PolicyClient {
-  private static baseUrl = process.env.OPA_SERVICE_URL ?? "http://localhost:8181"
   private static timeoutMs = 2000
   private static liveOpaUnavailable = false
   private static warnedLiveOpaUnavailable = false
@@ -24,7 +23,8 @@ export class PolicyClient {
    * @param input - The request context passed to the Rego rule
    */
   static async evaluate<T>(path: string, input: T): Promise<PolicyDecision> {
-    const useLiveOpa = Boolean(process.env.OPA_SERVICE_URL) && !this.liveOpaUnavailable
+    const baseUrl = process.env.OPA_SERVICE_URL?.trim()
+    const useLiveOpa = Boolean(baseUrl) && !this.liveOpaUnavailable
 
     // Try live OPA when configured and previously reachable.
     if (useLiveOpa) {
@@ -32,7 +32,7 @@ export class PolicyClient {
         const controller = new AbortController()
         const tid = setTimeout(() => controller.abort(), this.timeoutMs)
 
-        const response = await fetch(`${this.baseUrl}/v1/data/${path.replace(/\//g, "/")}`, {
+        const response = await fetch(`${baseUrl}/v1/data/${path.replace(/\//g, "/")}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ input }),

@@ -32,12 +32,16 @@ export function initTracing() {
 
   const exporter = new OTLPTraceExporter({ url: endpoint, headers })
 
+  const serviceName = process.env.OTEL_SERVICE_NAME?.trim()
+  if (!serviceName) {
+    throw new Error("Missing OTEL_SERVICE_NAME in production tracing configuration")
+  }
+
+  process.env.OTEL_SERVICE_NAME = serviceName
+
   const sdk = new NodeSDK({
     spanProcessor: new SimpleSpanProcessor(exporter),
   })
-
-  // Set service name via environment variable (standard OTEL approach)
-  process.env.OTEL_SERVICE_NAME = process.env.OTEL_SERVICE_NAME ?? "advan-ai"
 
   sdk.start()
   console.log("[OTel] Tracing initialised →", endpoint)

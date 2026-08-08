@@ -1,5 +1,6 @@
 import { queryEmbeddings } from "@/lib/vector/store"
 import { embedWithOllama } from "@/lib/vector/ollama-embeddings"
+import { requireNumberEnv } from "@/lib/env/required"
 
 /**
  * Advan AI Governance Layer: Hallucination Detector
@@ -23,7 +24,7 @@ export interface HallucinationResult {
   recommendation: "pass" | "review" | "block"
 }
 
-const THRESHOLD = parseFloat(process.env.HALLUCINATION_THRESHOLD ?? "0.72")
+const THRESHOLD = requireNumberEnv("HALLUCINATION_THRESHOLD", process.env, { min: 0, max: 1 })
 
 export class HallucinationDetector {
   /**

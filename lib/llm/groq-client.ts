@@ -1,4 +1,5 @@
 import OpenAI from "openai"
+import { requireEnv } from "@/lib/env/required"
 
 const GROQ_OPENAI_BASE_URL = "https://api.groq.com/openai/v1"
 
@@ -17,5 +18,5 @@ export function getGroqOpenAIClient(): OpenAI | null {
 }
 
 export function getGroqChatModel(): string {
-  return process.env.GROQ_CHAT_MODEL?.trim() || "llama-3.3-70b-versatile"
+  return requireEnv("GROQ_CHAT_MODEL")
 }

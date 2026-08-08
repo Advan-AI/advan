@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
         const emailConfig = requireEmailConfig()
         const resend = getResendClient()
         await resend.emails.send({
-          from: emailConfig.from || process.env.EMAIL_FROM || "billing@mail.test.local",
+          from: emailConfig.from,
           to: `billing@${org.slug}.advan.ai`,
           subject: "Subscription Payment Failed - Advan AI",
           html: `<p>Your payment failed. Please update your payment method in the Advan AI Billing dashboard.</p>`,
