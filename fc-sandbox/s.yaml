@@ -1,0 +1,73 @@
+# ============================================================================
+# ADVAN AI - FC SANDBOX (E2B-COMPATIBLE) - CUSTOM CONTAINER RUNTIME MANIFEST
+# ============================================================================
+# Separate service from fc/s.yaml (that one is the Alibaba RAG ingestion
+# functions on the managed nodejs20 runtime). This manifest deploys the
+# image built by fc-sandbox/Dockerfile as an FC Custom Container function —
+# the FC Sandbox HTTP execution surface referenced by
+# lib/sandbox/fc-sandbox-client.ts (FC_SANDBOX_API_BASE) when SANDBOX_MODE
+# is "real". See docs/FC_SANDBOX.md.
+#
+# No credentials are hardcoded here. `access` resolves against the
+# Serverless Devs credential profile you configure separately
+# (`s config add`); every other secret-shaped value below is
+# ${env(...)}-substituted at deploy time — see fc-sandbox/deploy-fc.ps1,
+# which sets ACR_IMAGE_TAG before invoking `s deploy`.
+# ============================================================================
+
+edition: 3.0.0
+name: advan-sandbox-e2b
+access: default
+
+vars:
+  region: ap-southeast-1
+
+resources:
+  sandbox_fn:
+    component: fc3
+    props:
+      region: ${vars.region}
+      functionName: advan-sandbox-e2b
+      description: "FC Sandbox (E2B-compatible) execution runtime — custom container, port 9000"
+      runtime: custom-container
+
+      # Image placeholder — resolved from the environment, never hardcoded.
+      # Shape: <registry>/<namespace>/advan-sandbox-e2b:latest
+      # (see fc-sandbox/deploy-fc.ps1, which builds this from
+      # ACR_REGISTRY/ACR_NAMESPACE and exports it as ACR_IMAGE_TAG).
+      customContainerConfig:
+        image: ${env(ACR_IMAGE_TAG)}
+        port: 9000
+
+      # Resource configuration — modest defaults for a demo/hackathon
+      # deployment; raise for real sandboxed-execution workloads.
+      cpu: 1
+      memorySize: 1024
+      diskSize: 512
+      instanceConcurrency: 5
+      instanceType: e1
+      timeout: 60
+
+      # Least-privilege execution role, matching fc/s.yaml's convention.
+      role: "acs:ram::account-id:role/AliyunFCDefaultRole"
+
+      environmentVariables:
+        NODE_ENV: production
+        PORT: "9000"
+        DATABASE_URL: ${env(DATABASE_URL)}
+        NEXTAUTH_SECRET: ${env(NEXTAUTH_SECRET)}
+        NEXTAUTH_URL: ${env(NEXTAUTH_URL)}
+        AUTH_SECRET: ${env(AUTH_SECRET)}
+        AUTH_URL: ${env(AUTH_URL)}
+        ANTHROPIC_API_KEY: ${env(ANTHROPIC_API_KEY)}
+        FC_SANDBOX_API_KEY: ${env(FC_SANDBOX_API_KEY)}
+
+      triggers:
+        - triggerName: http_trigger
+          triggerType: http
+          triggerConfig:
+            authType: anonymous
+            methods:
+              - GET
+              - POST
+              - OPTIONS

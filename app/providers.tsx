@@ -45,7 +45,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const needsSession =
     pathname?.startsWith("/dashboard") ||
     pathname?.startsWith("/signin") ||
-    pathname?.startsWith("/onboarding")
+    pathname?.startsWith("/onboarding") ||
+    // /billing/success calls useSession() (see app/billing/success/page.tsx)
+    pathname?.startsWith("/billing")
   const [queryClient] = useState(
     () =>
       new QueryClient({

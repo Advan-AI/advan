@@ -17,6 +17,15 @@ const nextConfig = {
   },
   output: "standalone",
   serverExternalPackages: ["ali-oss", "urllib", "proxy-agent", "tablestore"],
+  // Pin the workspace root explicitly. Without this, Next infers it from
+  // the nearest lockfile *above* this directory (e.g. a stray
+  // C:\Users\<name>\package-lock.json on a dev machine), which nests the
+  // `output: "standalone"` build at `.next/standalone/v0-advan/server.js`
+  // instead of `.next/standalone/server.js` — breaking any Dockerfile that
+  // expects the latter (see fc-sandbox/Dockerfile and the root Dockerfile).
+  turbopack: {
+    root: __dirname,
+  },
 
   /**
    * Optional API rewrites when frontend (Vercel) and backend (Cloud Run) are hosted separately.
