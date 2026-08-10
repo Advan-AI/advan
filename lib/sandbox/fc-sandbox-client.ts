@@ -7,13 +7,20 @@ import path from "path"
  * FC Sandbox client — Agent Sandbox / E2B-compatible runtime integration.
  *
  * Two backends, selected purely by env config:
- *  - REAL:      FC_SANDBOX_API_BASE + FC_SANDBOX_API_KEY set -> calls the
- *               Alibaba Cloud Function Compute Sandbox REST API
- *               (create / hibernate / wake / execute / resume). The request
- *               shape (create -> execute -> pause -> resume, session-scoped)
- *               mirrors E2B's sandbox primitives, which FC Sandbox documents
- *               as an E2B-compatible execution path — this client targets
- *               that same shape so swapping in the real SDK is a drop-in.
+ *  - REAL:      E2B_API_URL + E2B_API_KEY set -> calls Alibaba Cloud FC
+ *               Sandbox's actual E2B-compatible control-plane REST API
+ *               (create / pause / resume, session-scoped, auth via
+ *               `X-API-Key`). Endpoint shape and env var names match
+ *               fc-sandbox/build_template.py + fc-sandbox/start-gateway.py
+ *               (the Alibaba-provided reference scripts) — see
+ *               docs/FC_SANDBOX.md "Real E2B template & sandbox lifecycle".
+ *               NOTE: real E2B command execution (`sandbox.commands.run()`)
+ *               goes through the sandbox's own per-port "envd" hostname
+ *               (`https://{port}-{sandboxId}.{domain}`), not a simple
+ *               control-plane call — `executeInSandbox`'s real branch below
+ *               is a control-plane-only stub, not full envd parity. Fixing
+ *               that would mean adding an envd HTTP client, which is out of
+ *               scope for this pass (see docs "Remaining limitations").
  *  - SIMULATED: no credentials -> an in-process sandbox that still does real
  *               work (executes the agent payload in an isolated Node `vm`
  *               context, with realistic latency, and a real filesystem
@@ -42,8 +49,10 @@ export interface SandboxExecuteResult {
   computeMs: number
 }
 
-const API_BASE = process.env.FC_SANDBOX_API_BASE?.trim()
-const API_KEY = process.env.FC_SANDBOX_API_KEY?.trim()
+const API_BASE = process.env.E2B_API_URL?.trim()
+const API_KEY = process.env.E2B_API_KEY?.trim()
+const DOMAIN = process.env.E2B_DOMAIN?.trim()
+const TEMPLATE_ID = process.env.E2B_TEMPLATE_ID?.trim()
 export const SANDBOX_MODE: "real" | "simulated" = API_BASE && API_KEY ? "real" : "simulated"
 
 /**
@@ -110,7 +119,9 @@ async function realCall<T>(path: string, body: Record<string, unknown>): Promise
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${API_KEY}`,
+      // E2B's auth convention, not Bearer — matches the `e2b` SDK / Alibaba's
+      // E2B-compatible endpoint (see fc-sandbox/build_template.py).
+      "X-API-Key": API_KEY ?? "",
     },
     body: JSON.stringify(body),
   })
@@ -135,9 +146,24 @@ export async function createSandbox(input: {
   const traceId = crypto.randomUUID()
 
   if (SANDBOX_MODE === "real") {
+    if (!TEMPLATE_ID) {
+      throw new Error(
+        "E2B_TEMPLATE_ID is not set. Register a template first: " +
+          "python fc-sandbox/build_template.py (requires E2B_TEMPLATE_IMAGE pushed to a registry)."
+      )
+    }
+    // templateID (not a raw image ref) — the template must already be
+    // registered via fc-sandbox/build_template.py. domain scopes the call to
+    // the correct FC Sandbox region deployment.
     const created = await realCall<{ sandboxId: string; sessionId: string }>("/sandboxes", {
-      template: "advan-agent-runtime",
+      templateID: TEMPLATE_ID,
+      domain: DOMAIN,
       metadata: { workflowId: input.workflowId, ticketId: input.ticketId, traceId },
+      // E2B lifecycle config — pause-on-timeout + auto_resume is the real
+      // hibernate/wake mechanism (see fc-sandbox/start-gateway.py); this
+      // client also drives pause/resume explicitly at the HITL gate rather
+      // than only relying on idle-timeout.
+      lifecycle: { on_timeout: "pause", auto_resume: true },
       permissions: SANDBOX_PERMISSIONS,
       mount: { path: "/mnt/session", source: `ticket-${input.ticketId}` },
     })
@@ -188,10 +214,10 @@ export async function executeInSandbox(
   return { output, computeMs: Date.now() - start }
 }
 
-/** Freeze the sandbox — no compute billed while hibernated. */
+/** Freeze the sandbox — no compute billed while hibernated ("pause" in the real E2B API). */
 export async function hibernateSandbox(handle: SandboxHandle): Promise<void> {
   if (SANDBOX_MODE === "real") {
-    await realCall(`/sandboxes/${handle.sandboxId}/hibernate`, { sessionId: handle.sessionId })
+    await realCall(`/sandboxes/${handle.sandboxId}/pause`, { sessionId: handle.sessionId })
     return
   }
   await sleep(40)
@@ -200,10 +226,19 @@ export async function hibernateSandbox(handle: SandboxHandle): Promise<void> {
   // the sandbox_sessions DB row. Nothing here consumes compute until woken.
 }
 
-/** Wake a hibernated sandbox back to a running state. */
+/**
+ * Wake a hibernated sandbox back to a running state.
+ *
+ * Real E2B has one call for this — POST /sandboxes/{id}/resume — there is
+ * no separate "wake" endpoint. We still split wake/resume into two
+ * functions (matching the workflow's two observable phases and letting the
+ * demo measure wake latency in isolation) — in real mode the network call
+ * happens here, and `resumeSandbox()` below becomes a read of the outcome
+ * rather than a second network round-trip.
+ */
 export async function wakeSandbox(handle: SandboxHandle): Promise<void> {
   if (SANDBOX_MODE === "real") {
-    await realCall(`/sandboxes/${handle.sandboxId}/wake`, { sessionId: handle.sessionId })
+    await realCall(`/sandboxes/${handle.sandboxId}/resume`, { sessionId: handle.sessionId })
     return
   }
   await sleep(90) // simulated warm resume (much faster than cold create)
@@ -212,11 +247,9 @@ export async function wakeSandbox(handle: SandboxHandle): Promise<void> {
 /** Resume execution in the same session (post-wake) and produce the final result. */
 export async function resumeSandbox(handle: SandboxHandle, priorOutput: string): Promise<string> {
   if (SANDBOX_MODE === "real") {
-    const result = await realCall<{ output: string }>(`/sandboxes/${handle.sandboxId}/resume`, {
-      sessionId: handle.sessionId,
-      mount: { path: "/mnt/session" },
-    })
-    return result.output
+    // Already resumed by wakeSandbox() above (same /resume call in the real
+    // API) — this just reports it. See docs/FC_SANDBOX.md for the mapping.
+    return `resumed session ${handle.sessionId}`
   }
 
   // Re-read the mount to prove it survived hibernation on the SAME session

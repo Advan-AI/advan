@@ -76,14 +76,20 @@ appended to the row's `events` jsonb column for the timeline UI.
 `lib/sandbox/fc-sandbox-client.ts` picks its backend from env, with the same
 function signatures either way:
 
-- **Real**: set `FC_SANDBOX_API_BASE` + `FC_SANDBOX_API_KEY` — calls the FC
-  Sandbox REST API (`POST /sandboxes`, `/hibernate`, `/wake`, `/resume`,
-  `/execute`), request-shaped after E2B's create/execute/pause/resume
-  primitives (FC Sandbox's documented E2B-compatible surface). Every call
-  includes a `permissions` object (`SANDBOX_PERMISSIONS`: no network by
-  default, mount-only filesystem, bounded exec timeout) and a `mount`
-  reference — least privilege and dynamic mount are requested explicitly,
-  not implied.
+- **Real**: set `E2B_API_URL` + `E2B_API_KEY` (+ `E2B_DOMAIN`,
+  `E2B_TEMPLATE_ID`) — calls Alibaba FC Sandbox's actual E2B-compatible
+  control-plane API: `POST /sandboxes` (with `templateID`, not a raw image —
+  the template must be registered first, see below), `/pause`, `/resume`,
+  authenticated via `X-API-Key` (not Bearer). These are the real endpoint
+  names and auth convention, corrected against Alibaba's own reference
+  scripts (`fc-sandbox/build_template.py`, `fc-sandbox/start-gateway.py`) —
+  earlier revisions of this client used invented names
+  (`FC_SANDBOX_API_BASE`, `/hibernate`, `/wake` as a separate call, Bearer
+  auth) that do not match the real API. `executeInSandbox`'s real branch is
+  still a control-plane-only stub — real command execution goes through the
+  sandbox's own per-port "envd" hostname (`sandbox.commands.run()` in the
+  Python SDK), which this client does not implement (see "Remaining
+  limitations").
 - **Simulated** (default, no credentials needed): runs the agent payload in
   an isolated Node `vm` context (no `require`/`fs`/network reachable from
   inside it — the same least-privilege posture, enforced locally) with
@@ -96,8 +102,40 @@ function signatures either way:
 **Isolation, stated precisely:** the simulated backend's `vm` context is
 *not* VM-level isolation — it is a JS context inside the same OS process.
 True VM-level isolation (separate microVM/kernel boundary) is a property of
-the real FC Sandbox backend, attributed to the platform when
-`FC_SANDBOX_API_BASE` is configured, not claimed for the local fallback.
+the real FC Sandbox backend, attributed to the platform when `E2B_API_URL`
+is configured, not claimed for the local fallback.
+
+## Real E2B template & sandbox lifecycle (Alibaba reference scripts)
+
+`fc-sandbox/build_template.py` and `fc-sandbox/start-gateway.py` are
+Alibaba/OpenClaw's own reference implementation for the actual FC Sandbox
+E2B mechanism, added verbatim (not reimplemented in TypeScript — the
+template-build protocol, layer handling, and envd command proxy are
+non-trivial to replicate faithfully, and the point of "reuse existing
+architecture" is to use what's provided rather than reinvent it). This is
+**separate from `fc-sandbox/s.yaml`**, which deploys this Next.js app itself
+as an FC Custom Container function — a different, complementary concern.
+
+- `python fc-sandbox/build_template.py` — registers a pushed image
+  (`E2B_TEMPLATE_IMAGE`, ACR or GHCR) as a named E2B template via
+  `Template.build()`. Prints `E2B_TEMPLATE_ID=...` on success.
+- `python fc-sandbox/start-gateway.py` — `Sandbox.create(templateID, ...,
+  lifecycle={"on_timeout": "pause", "auto_resume": True})`. **This
+  `lifecycle` parameter is the real hibernate/wake mechanism** — the
+  platform pauses the sandbox on idle timeout and transparently resumes it
+  on the next request, no separate wake API call required from the caller
+  in that path (our TS client's HITL-gated `hibernateSandbox()`/
+  `wakeSandbox()` calls are explicit, application-driven pause/resume for
+  the demo's observable timeline — both are valid uses of the same
+  primitive).
+- Env vars: `fc-sandbox/.env.example` (Python scripts, their own `.env` in
+  this directory) vs. the `.env.example` at repo root (`E2B_API_URL`/
+  `E2B_API_KEY`/`E2B_DOMAIN`/`E2B_TEMPLATE_ID` only — what the Next.js app's
+  `fc-sandbox-client.ts` reads at runtime). Same var names, two separate
+  files/processes.
+- `E2B_TEMPLATE_IMAGE` accepts either registry — ACR or GHCR both work via
+  `E2B_TEMPLATE_SOURCE_USERNAME`/`_PASSWORD` for private-registry auth.
+  GHCR is not a hard requirement if the ACR push succeeds.
 
 ## Session persistence & fault tolerance
 
@@ -178,6 +216,17 @@ npx tsx lib/temporal/worker.ts
 npm run dev
 ```
 
+That's the demo (simulated sandbox mode, no cloud credentials needed). To
+exercise the **real** E2B template + sandbox instead:
+
+```bash
+cd fc-sandbox
+pip install -r requirements.txt
+cp .env.example .env   # fill in E2B_API_KEY, E2B_TEMPLATE_IMAGE, MODEL_*, OPENCLAW_TOKEN
+python build_template.py          # prints E2B_TEMPLATE_ID — put it back in .env
+python start-gateway.py           # creates a sandbox, prints its live Gateway URL
+```
+
 Open `http://localhost:3000/demo/fc-sandbox`, click **Start demo ticket**,
 watch it reach **Hibernate (waiting for approval)**, click **Approve**,
 watch **Wake → Resume → Finish**.
@@ -222,7 +271,7 @@ in simulated mode by default.
 | 11 | Reusable components, configurable hibernation policy | ✅ | `TicketResolutionInput.hitlTimeoutMinutes` (workflow input, resolved once at start — never read live from `process.env` inside the workflow, so replay stays deterministic); passed through from `/api/trigger-workflow` |
 | 12 | Extreme elasticity (benchmark/report) | ❌ **Missing** | Requires a real FC Sandbox account and concurrent-load infrastructure this environment doesn't have. Fabricating a number would violate "avoid unsupported claims" more than leaving it undone. See limitations below |
 | 13 | VM-level isolation, justified | ⚠️ **Partial** | Real backend: VM-level isolation is the platform's documented property, correctly attributed, not independently verified here (no live credentials). Simulated fallback: explicitly labeled as NOT VM-isolated (Node `vm` context, same OS process) — see "Real vs. simulated" above |
-| 14 | E2B-compatible execution path | ⚠️ **Partial** | Request shape (`create`/`execute`/`hibernate`/`wake`/`resume`, session-scoped) mirrors E2B's primitives, matching FC Sandbox's documented E2B-compatible surface — not verified against a live E2B or FC Sandbox endpoint |
+| 14 | E2B-compatible execution path | ⚠️ **Partial, upgraded this pass** | `fc-sandbox/build_template.py` + `start-gateway.py` are Alibaba's own reference scripts using the real `e2b` SDK against `E2B_API_URL` — not a guess. `lib/sandbox/fc-sandbox-client.ts`'s real-mode endpoints/auth were corrected to match (`/pause`, `/resume`, `X-API-Key`, `templateID`). Still not run against live credentials here, and `executeInSandbox` real-mode is control-plane-only (no envd command proxy) — see limitations |
 | 15 | Stateful sessions (repeat, capability list item 4) | ✅ | Same as #7 |
 | 16 | Measured hibernation/wake | ✅ | Same as #10 — `hibernatedAt`, `wokenAt`, `wakeLatencyMs`, `waitMs` all real timestamps/durations, not estimates dressed up as measurements |
 | 17 | SLS + Trace + Metrics + Alerts, one real debugging example | ✅ | See "SLS mapping" and "Debugging example" immediately below |
@@ -276,6 +325,18 @@ failure via the same correlation key — that's the point of carrying
 ## Remaining limitations (require external services or platform support)
 
 Stated plainly rather than glossed over:
+
+- **`executeInSandbox`'s real-mode branch is control-plane-only.** Real E2B
+  command execution (`sandbox.commands.run()`) goes through the sandbox's
+  own per-port envd hostname (`https://{port}-{sandboxId}.{domain}`) with
+  its own access token, not the control-plane `/sandboxes/*` API this
+  client calls. `fc-sandbox/start-gateway.py` does this correctly (it's
+  Alibaba's own script); `fc-sandbox-client.ts` does not yet — needs an
+  envd HTTP client to close, out of scope for this pass.
+- **Template build / sandbox instantiation were not run.** No
+  `E2B_API_KEY`, no confirmed pushed image, no Python environment
+  configured in this session — `build_template.py`/`start-gateway.py` are
+  present and reviewed, not executed here.
 
 - **Extreme elasticity** — not benchmarked. Needs a real FC Sandbox account,
   concurrent-run load generation, and a place to run it from; none of that
