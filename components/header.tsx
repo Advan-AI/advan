@@ -120,10 +120,10 @@ export function Header() {
 
           <div className="hidden lg:flex items-center gap-3">
             <Link
-              href="/signin"
+              href="/dashboard"
               className="text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
             >
-              Sign in
+              Dashboard
             </Link>
             <Button
               asChild
@@ -179,11 +179,11 @@ export function Header() {
                 )}
                 <div className="pt-2 px-4 flex flex-col gap-2">
                   <Link
-                    href="/signin"
+                    href="/dashboard"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block w-full text-center rounded-full h-10 leading-10 text-sm font-medium border border-black/10 hover:bg-black/[0.04] transition"
                   >
-                    Sign in
+                    Dashboard
                   </Link>
                   <Button
                     asChild
