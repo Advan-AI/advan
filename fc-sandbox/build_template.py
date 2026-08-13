@@ -1,5 +1,3 @@
-"""Build an E2B openclaw template from the published Docker image."""
-
 from __future__ import annotations
 
 import argparse
@@ -10,7 +8,7 @@ import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
-from e2b import Template
+from e2b import Template, default_build_logger
 from e2b.exceptions import AuthenticationException
 
 
@@ -54,6 +52,7 @@ def build_openclaw_template() -> str:
         "api_key": api_key,
         "api_url": required_env("E2B_API_URL"),
         "domain": required_env("E2B_DOMAIN"),
+        "on_build_logs": default_build_logger(),
     }
     if headers:
         build_kwargs["headers"] = headers
