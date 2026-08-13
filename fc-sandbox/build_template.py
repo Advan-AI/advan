@@ -35,7 +35,7 @@ def build_openclaw_template() -> str:
     """Build a Builder-mode E2B template from E2B_TEMPLATE_IMAGE."""
     image = required_env("E2B_TEMPLATE_IMAGE")
     api_key = required_env("E2B_API_KEY")
-    headers = {}
+    headers = {"X-E2B-Template-Build-Mode": "direct"}
     username = os.environ.get("E2B_TEMPLATE_SOURCE_USERNAME", "").strip()
     password = os.environ.get("E2B_TEMPLATE_SOURCE_PASSWORD", "").strip()
     if username or password:

@@ -7,18 +7,23 @@ from pathlib import Path
 from dotenv import load_dotenv
 from e2b import Sandbox
 
+from build_template import required_env
+
 load_dotenv(Path(__file__).resolve().parent / ".env", override=True)
 
-api_key = os.environ["E2B_API_KEY"]
-api_url = os.environ["E2B_API_URL"]
-domain = os.environ["E2B_DOMAIN"]
-openclaw_template = os.environ["E2B_TEMPLATE_ID"]
-model_api_key = os.environ["MODEL_API_KEY"]
-model_base_url = os.environ["MODEL_BASE_URL"]
-model_name = os.environ["MODEL_NAME"]
-openclaw_token = os.environ["OPENCLAW_TOKEN"]
-sbx_timeout = int(os.environ.get("E2B_TIMEOUT"))
-sbx_on_timeout = os.environ.get("E2B_ON_TIMEOUT")
+# required_env() (shared with build_template.py) fails fast with the exact
+# missing variable name instead of a raw KeyError/TypeError if fc-sandbox/.env
+# is incomplete — makes "which value is missing" obvious immediately.
+api_key = required_env("E2B_API_KEY")
+api_url = required_env("E2B_API_URL")
+domain = required_env("E2B_DOMAIN")
+openclaw_template = required_env("E2B_TEMPLATE_ID")
+model_api_key = required_env("MODEL_API_KEY")
+model_base_url = required_env("MODEL_BASE_URL")
+model_name = required_env("MODEL_NAME")
+openclaw_token = required_env("OPENCLAW_TOKEN")
+sbx_timeout = int(required_env("E2B_TIMEOUT"))
+sbx_on_timeout = required_env("E2B_ON_TIMEOUT")
 
 PORT = 18789
 TOKEN = openclaw_token
