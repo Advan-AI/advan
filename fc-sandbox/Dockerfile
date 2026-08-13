@@ -97,7 +97,11 @@ COPY --from=builder --chown=user:user /app/public ./public
 COPY --from=builder --chown=user:user /app/.next/standalone ./
 COPY --from=builder --chown=user:user /app/.next/static ./.next/static
 
-USER user
+# No USER directive here — Alibaba's own /.fce2b/entrypoint (injected during
+# envd/template registration) needs to run its privileged init as the base
+# image's default user first; setting USER user before it made sandbox
+# creation fail with "operation not permitted" starting '/.fce2b/entrypoint'.
+# Files above are still chowned to user:user for the app process itself.
 
 # FC Custom Container Runtime requires the container to listen on 9000.
 EXPOSE 9000
