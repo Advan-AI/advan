@@ -76,33 +76,28 @@ ENV STRIPE_PRICE_ENTERPRISE_METERED="price_stub"
 
 RUN npm run build
 
-# ── Stage 3: Runner (minimal, non-root) ─────────────────────────────────
-FROM node:20-slim AS runner
-WORKDIR /app
+# ── Stage 3: Runner (Alibaba FC Sandbox / E2B-compatible base) ──────────
+# Built on Alibaba's own openclaw runtime image rather than node:20-slim —
+# a plain Debian base registers fine as a Docker image but timed out during
+# FC Sandbox's envd injection step; Alibaba's base is the one confirmed
+# (by direct test) to complete template registration. Only the runner base
+# changed — deps/builder stages above still do the actual Next.js build.
+FROM fc-e2b-registry.ap-southeast-1.cr.aliyuncs.com/runtime/openclaw:v0.0.37 AS runner
+
+USER root
+WORKDIR /home/user
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# bash + coreutils only — no redis-server, no full lib/scripts tree. This
-# image runs the standalone Next.js server alone (FC Sandbox's HTTP entry
-# surface), not the full multi-service supervisor from the root Dockerfile.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash coreutils \
-    && rm -rf /var/lib/apt/lists/*
-
-# Non-root user — required by the rubric and good practice for any
-# multi-tenant sandbox execution surface.
-RUN groupadd --system --gid 1001 nodejs \
-    && useradd --system --uid 1001 --gid nodejs nextjs
-
 # Standalone Next.js output only (next.config.mjs: output: "standalone") —
 # this is what keeps the final image small: no source tree, no full
 # node_modules, just the traced production bundle.
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=user:user /app/public ./public
+COPY --from=builder --chown=user:user /app/.next/standalone ./
+COPY --from=builder --chown=user:user /app/.next/static ./.next/static
 
-USER nextjs
+USER user
 
 # FC Custom Container Runtime requires the container to listen on 9000.
 EXPOSE 9000
