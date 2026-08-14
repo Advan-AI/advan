@@ -1,5 +1,5 @@
 import { getSandboxSessionByWorkflowId } from "@/lib/sandbox/sandbox-store"
-import { SANDBOX_MODE } from "@/lib/sandbox/fc-sandbox-client"
+import { getSandboxMode } from "@/lib/sandbox/fc-sandbox-client"
 
 /**
  * Shared by /api/demo/fc-sandbox/status (initial fetch) and /stream (SSE
@@ -26,7 +26,7 @@ export async function getDemoStatusSnapshot(agentRunId: string) {
     workflowId: agentRunId,
     agentRunId, // one AgentRun = one sandbox_sessions row, keyed by this id
     workflowStatus,
-    sandboxMode: SANDBOX_MODE,
+    sandboxMode: getSandboxMode(),
     result,
     sandbox: session
       ? {

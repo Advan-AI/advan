@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { resumeTicketAgentRun } from "@/lib/agent-run/resume-ticket"
+import { toPublicApiError } from "@/lib/api/sanitize-trpc-error"
 
 /**
  * Public HITL approve endpoint for the /demo/fc-sandbox page.
@@ -22,7 +23,10 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     return NextResponse.json({ signaled: true, workflowId, ...result })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("[fc-sandbox/approve]", err)
+    return NextResponse.json(
+      { error: toPublicApiError(err, "Could not approve this run. Try again.") },
+      { status: 500 }
+    )
   }
 }

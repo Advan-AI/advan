@@ -34,6 +34,17 @@ const DEMO_ORG_ID = "demo-org-fc-sandbox"
 const DEMO_INPUT = "My last invoice total looks higher than expected — can someone check the charge?"
 const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELED", "TERMINATED", "TIMED_OUT"])
 
+function publicUiError(raw: unknown, fallback: string): string {
+  const message = raw instanceof Error ? raw.message : typeof raw === "string" ? raw : ""
+  if (
+    !message ||
+    /Failed query|params:|insert\s+into|select\s+|update\s+|delete\s+from|column "|sandbox_sessions/i.test(message)
+  ) {
+    return fallback
+  }
+  return message
+}
+
 function formatMs(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
@@ -93,11 +104,11 @@ export default function FcSandboxDemoPage() {
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Failed to start workflow")
+      if (!res.ok) throw new Error(publicUiError(data.error, "Could not start the demo run. Try again."))
       setWorkflowId(data.workflowId)
       openStream(data.workflowId)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start workflow")
+      setError(publicUiError(err, "Could not start the demo run. Try again."))
     } finally {
       setStarting(false)
     }
@@ -114,9 +125,9 @@ export default function FcSandboxDemoPage() {
         body: JSON.stringify({ workflowId, approved: true }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Failed to approve")
+      if (!res.ok) throw new Error(publicUiError(data.error, "Could not approve this run. Try again."))
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to approve")
+      setError(publicUiError(err, "Could not approve this run. Try again."))
     } finally {
       setApproving(false)
     }

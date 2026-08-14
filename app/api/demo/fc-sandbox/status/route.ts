@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getDemoStatusSnapshot } from "@/lib/sandbox/get-demo-status"
+import { toPublicApiError } from "@/lib/api/sanitize-trpc-error"
 
 /**
  * Public, read-only status endpoint for the /demo/fc-sandbox page — used for
@@ -17,7 +18,10 @@ export async function GET(req: Request): Promise<NextResponse> {
     const snapshot = await getDemoStatusSnapshot(workflowId)
     return NextResponse.json(snapshot)
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("[fc-sandbox/status]", err)
+    return NextResponse.json(
+      { error: toPublicApiError(err, "Could not load demo status.") },
+      { status: 500 }
+    )
   }
 }

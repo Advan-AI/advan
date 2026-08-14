@@ -1,6 +1,7 @@
 import crypto from "crypto"
 import { NextResponse } from "next/server"
 import { executeTicketAgentRun } from "@/lib/agent-run/execute-ticket"
+import { toPublicApiError } from "@/lib/api/sanitize-trpc-error"
 
 /** Structured AgentRun trace line — same [prefix] {json} convention as
  *  lib/sandbox/fc-sandbox-client.ts's logSandboxEvent/Alert. */
@@ -89,9 +90,12 @@ export async function POST(req: Request): Promise<NextResponse> {
       ...result, // includes agentRunId, status, hitlRequired, and output fields
     })
   } catch (err: unknown) {
-    const message = formatUnknownError(err)
-    logAgentRun({ type: "failed", traceId, durationMs: Date.now() - start, error: message })
+    const internal = formatUnknownError(err)
+    logAgentRun({ type: "failed", traceId, durationMs: Date.now() - start, error: internal })
     console.error("[trigger-workflow] start failed", err)
-    return NextResponse.json({ traceId, error: message }, { status: 500 })
+    return NextResponse.json(
+      { traceId, error: toPublicApiError(err, "Could not start the demo run. Try again.") },
+      { status: 500 }
+    )
   }
 }

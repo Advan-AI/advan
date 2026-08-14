@@ -148,6 +148,27 @@
       "when": 1785016200000,
       "tag": "0020_team_custom_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785016200001,
+      "tag": "0021_fc_sandbox_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785016200002,
+      "tag": "0022_fc_sandbox_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785016200003,
+      "tag": "0023_agent_run_state",
+      "breakpoints": true
     }
   ]
 }

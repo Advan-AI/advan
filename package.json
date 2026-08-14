@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:all": "bash scripts/dev-all.sh",
+    "db:migrate": "npx tsx scripts/db-migrate.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

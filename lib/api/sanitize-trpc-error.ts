@@ -6,7 +6,7 @@ const DB_UNAVAILABLE_MESSAGE =
   "Database temporarily unavailable. Check your network connection and try again."
 
 const LEAKY_ERROR_PATTERN =
-  /Failed query|select\s+|insert\s+into|update\s+|delete\s+from|ECONNREFUSED|password authentication|relation .* does not exist|syntax error at|drizzle|postgres|stack trace|at\s+\S+\s+\(/i
+  /Failed query|params:\s|column "|on conflict|select\s+|insert\s+into|update\s+|delete\s+from|ECONNREFUSED|password authentication|relation .* does not exist|syntax error at|drizzle|postgres|stack trace|at\s+\S+\s+\(/i
 
 const DB_CONNECTIVITY_PATTERN =
   /EAI_AGAIN|ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|CONNECT_TIMEOUT|getaddrinfo|Connection terminated|connection.*timed out|sorry, too many clients|Could not connect|fetch failed/i
@@ -94,4 +94,14 @@ function humanizeSerializedZodMessage(message: string): string | null {
   return null
 }
 
-export { SAFE_INTERNAL_MESSAGE, DB_UNAVAILABLE_MESSAGE }
+export { SAFE_INTERNAL_MESSAGE, DB_UNAVAILABLE_MESSAGE, LEAKY_ERROR_PATTERN }
+
+/** REST / demo APIs: never return SQL, params, or stacks to the browser. */
+export function toPublicApiError(err: unknown, fallback = SAFE_INTERNAL_MESSAGE): string {
+  if (isDbConnectivityFailure(err instanceof Error ? err : { message: String(err ?? "") })) {
+    return DB_UNAVAILABLE_MESSAGE
+  }
+  const raw = err instanceof Error ? err.message : typeof err === "string" ? err : ""
+  if (!raw || LEAKY_ERROR_PATTERN.test(raw) || raw.length > 180) return fallback
+  return raw
+}

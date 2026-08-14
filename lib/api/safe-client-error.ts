@@ -13,7 +13,7 @@ export function getSafeClientErrorMessage(err: unknown, fallback: string): strin
   if (!message) return fallback
 
   if (
-    /Failed query|select\s+|insert\s+into|update\s+|delete\s+from|ECONNREFUSED|relation .* does not exist|syntax error at/i.test(
+    /Failed query|select\s+|insert\s+into|update\s+|delete\s+from|params:|ECONNREFUSED|relation .* does not exist|syntax error at/i.test(
       message
     )
   ) {

@@ -5,6 +5,7 @@ import {
   SAFE_INTERNAL_MESSAGE,
   DB_UNAVAILABLE_MESSAGE,
   sanitizeTrpcErrorShape,
+  toPublicApiError,
   type TrpcErrorShape,
 } from "./sanitize-trpc-error"
 import { getSafeClientErrorMessage } from "./safe-client-error"
@@ -130,5 +131,15 @@ describe("getSafeClientErrorMessage", () => {
         "Signup failed."
       )
     ).toBe("Name must be at least 2 characters.")
+  })
+})
+
+describe("toPublicApiError", () => {
+  it("strips drizzle Failed query payloads", () => {
+    expect(
+      toPublicApiError(
+        new Error('Failed query: insert into "sandbox_sessions" ("id") values (default) params: secret')
+      )
+    ).toBe(SAFE_INTERNAL_MESSAGE)
   })
 })
