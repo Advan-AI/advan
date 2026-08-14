@@ -1,5 +1,8 @@
 "use client"
 
+// Import polyfill FIRST to ensure crypto.randomUUID is available before any other imports
+import "@/lib/polyfills/crypto"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import * as SocketIO from "socket.io-client"
 import { AgentAvatar, AgentPresenceStack, VisitorAvatar, presenceTitle, type PresenceAgent } from "./presence"
@@ -91,11 +94,11 @@ function nextId() {
   return `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-export default function ChatWidgetFrame() {
+export default function ChatWidgetFrame({ initialKey }: { initialKey?: string } = {}) {
   const [view, setView] = useState<View>("loading")
   const [errorText, setErrorText] = useState<string | null>(null)
 
-  const [widgetKey, setWidgetKey] = useState<string | null>(null)
+  const [widgetKey, setWidgetKey] = useState<string | null>(initialKey ?? null)
   const [origin, setOrigin] = useState<string | null>(null)
   const [visitorIdFromParent, setVisitorIdFromParent] = useState<string | null>(null)
   const [lastViewedMap, setLastViewedMap] = useState<Record<string, string>>({})
@@ -294,7 +297,7 @@ export default function ChatWidgetFrame() {
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
-    const key = p.get("key")?.trim() ?? null
+    const key = p.get("key")?.trim() || initialKey || null
     const incomingOrigin = p.get("origin")?.trim() ?? window.location.origin
     const incomingVisitorId = p.get("visitorId")?.trim() ?? null
     const incomingLastViewed = parseLastViewedMap(p.get("lastViewedMap"))

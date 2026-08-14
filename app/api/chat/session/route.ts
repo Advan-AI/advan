@@ -245,7 +245,10 @@ export async function POST(req: NextRequest) {
   
   console.log(`[ChatSession] Verification - Key: ${widgetKey}, Origin: ${origin}, isLocalOrigin: ${isLocal}, Allowed: ${JSON.stringify(allowedOrigins)}`)
 
-  if (!isLocal && !allowedOrigins.includes(origin)) {
+  const rawAppOrigin = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? ""
+  const appOrigin = rawAppOrigin.replace(/\/$/, "")
+
+  if (!isLocal && !allowedOrigins.includes(origin) && (!appOrigin || origin !== appOrigin)) {
     return NextResponse.json({ error: "Origin not allowed" }, { status: 403 })
   }
 

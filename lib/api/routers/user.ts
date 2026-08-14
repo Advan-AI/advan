@@ -12,11 +12,15 @@ export const userRouter = router({
    * Fetch current user profile details
    */
   getProfile: protectedProcedure.query(async ({ ctx }) => {
+    // TEMPORARY DEBUG: Log the user ID and org ID from session
+    console.log("[DEBUG user.getProfile] Session user ID:", ctx.user.id, "Org ID:", ctx.user.orgId)
+    
     const user = await db.query.users.findFirst({
       where: eq(users.id, ctx.user.id),
       columns: { id: true, name: true, email: true, role: true, chatAvailable: true, image: true, createdAt: true },
     })
     if (!user) {
+      console.error("[DEBUG user.getProfile] User not found in DB for ID:", ctx.user.id)
       throw new TRPCError({ code: "NOT_FOUND", message: "User not found" })
     }
     if (user.image && user.image.startsWith("avatars/")) {
