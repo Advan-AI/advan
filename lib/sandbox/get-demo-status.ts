@@ -1,28 +1,31 @@
-import { getTemporalClient } from "@/lib/temporal/clients/workflow.client"
 import { getSandboxSessionByWorkflowId } from "@/lib/sandbox/sandbox-store"
 import { SANDBOX_MODE } from "@/lib/sandbox/fc-sandbox-client"
 
-/** Shared by /api/demo/fc-sandbox/status (initial fetch) and /stream (SSE push). */
-export async function getDemoStatusSnapshot(workflowId: string) {
-  const client = await getTemporalClient()
-  const handle = client.workflow.getHandle(workflowId)
-  const description = await handle.describe()
+/**
+ * Shared by /api/demo/fc-sandbox/status (initial fetch) and /stream (SSE
+ * push). Derives status purely from `sandbox_sessions` (Postgres) — no
+ * Temporal client involved. See lib/agent-run/*.ts for the orchestration
+ * that writes this state.
+ */
+export async function getDemoStatusSnapshot(agentRunId: string) {
+  const session = await getSandboxSessionByWorkflowId(agentRunId)
 
-  const session = await getSandboxSessionByWorkflowId(workflowId)
+  const terminal = session?.state === "completed" || session?.state === "escalated"
+  const workflowStatus = !session ? "UNKNOWN" : terminal ? "COMPLETED" : "RUNNING"
 
-  let result: unknown = null
-  if (description.status.name === "COMPLETED") {
-    try {
-      result = await handle.result()
-    } catch {
-      // workflow completed via a non-success close status; ignore
-    }
-  }
+  const result =
+    session && terminal
+      ? {
+          output: session.finalOutput ?? session.draftOutput ?? "",
+          confidence: session.draftConfidence ?? 0,
+          approved: session.state === "completed",
+        }
+      : null
 
   return {
-    workflowId,
-    agentRunId: workflowId, // one Temporal workflow execution = one AgentRun
-    workflowStatus: description.status.name,
+    workflowId: agentRunId,
+    agentRunId, // one AgentRun = one sandbox_sessions row, keyed by this id
+    workflowStatus,
     sandboxMode: SANDBOX_MODE,
     result,
     sandbox: session

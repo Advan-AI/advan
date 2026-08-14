@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getEffectiveSession } from "@/lib/auth/effective-session"
-import { signalHITLDecision } from "@/lib/temporal/clients/workflow.client"
-import { getSandboxSessionByWorkflowId } from "@/lib/sandbox/sandbox-store"
+import { resumeTicketAgentRun } from "@/lib/agent-run/resume-ticket"
 import { db } from "@/lib/db"
 import { tickets } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
@@ -40,22 +39,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
   }
 
-  const sandboxSession = await getSandboxSessionByWorkflowId(workflowId)
-  if (!sandboxSession) {
-    return NextResponse.json({ error: "Sandbox session not found" }, { status: 404 })
-  }
-  if (sandboxSession.state !== "hibernated") {
-    return NextResponse.json(
-      { error: `Sandbox not awaiting approval (state: ${sandboxSession.state})` },
-      { status: 409 }
-    )
-  }
-
   try {
-    await signalHITLDecision(workflowId, { approved, editedOutput })
-    return NextResponse.json({ signaled: true, workflowId, approved })
+    const result = await resumeTicketAgentRun(workflowId, { approved, editedOutput })
+    return NextResponse.json({ signaled: true, workflowId, ...result })
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Signal failed"
-    return NextResponse.json({ error: message }, { status: 500 })
+    const message = err instanceof Error ? err.message : "Resume failed"
+    const status = message.includes("not found") ? 404 : message.includes("not awaiting approval") ? 409 : 500
+    return NextResponse.json({ error: message }, { status })
   }
 }

@@ -1,33 +1,26 @@
 import crypto from "crypto"
 import { NextResponse } from "next/server"
-import { getTemporalClient } from "@/lib/temporal/clients/workflow.client"
-
-const DEFAULT_TASK_QUEUE = "advan-agents"
+import { executeTicketAgentRun } from "@/lib/agent-run/execute-ticket"
 
 /** Structured AgentRun trace line — same [prefix] {json} convention as
- *  lib/sandbox/fc-sandbox-client.ts's logSandboxEvent/Alert, scoped one
- *  level up (this covers queuing the run itself, before any FC Sandbox
- *  session exists). Never logs request bodies or credentials. */
+ *  lib/sandbox/fc-sandbox-client.ts's logSandboxEvent/Alert. */
 function logAgentRun(event: {
   type: "queued" | "executing" | "completed" | "failed"
   traceId: string
-  workflowId?: string
-  taskQueue?: string
+  agentRunId?: string
   durationMs?: number
   error?: string
 }) {
-  // agentRunId = workflowId: one Temporal workflow execution is one AgentRun.
-  // Same value, both names present so log/response consumers can filter by
-  // either without a separate identifier scheme.
-  const record = { ts: new Date().toISOString(), agentRunId: event.workflowId, ...event }
+  const record = { ts: new Date().toISOString(), ...event }
   const line = `[AgentRun] ${JSON.stringify(record)}`
   if (event.type === "failed") console.error(line)
   else console.log(line)
 }
 
 /**
- * Sample App Router endpoint: starts `ticketResolutionWorkflow` on the worker task queue.
- * Wire authentication/authorization before exposing in production.
+ * Starts a ticket AgentRun (lib/agent-run/execute-ticket.ts) — Postgres-
+ * backed orchestration, no Temporal server required. Wire authentication/
+ * authorization before exposing in production.
  */
 export async function POST(req: Request): Promise<NextResponse> {
   const traceId = crypto.randomUUID()
@@ -40,7 +33,6 @@ export async function POST(req: Request): Promise<NextResponse> {
       ticketId?: string
       customerInput?: string
       workflowId?: string
-      taskQueue?: string
       /** FC Sandbox hibernation policy override, in minutes (default 10). */
       hitlTimeoutMinutes?: number
     }
@@ -56,36 +48,27 @@ export async function POST(req: Request): Promise<NextResponse> {
       )
     }
 
-    const workflowId =
+    const agentRunId =
       body.workflowId?.trim() && body.workflowId.trim().length > 0
         ? body.workflowId.trim()
         : `ticket-${ticketId}-${Date.now()}`
 
-    const taskQueue =
-      body.taskQueue?.trim() && body.taskQueue.trim().length > 0
-        ? body.taskQueue.trim()
-        : DEFAULT_TASK_QUEUE
+    logAgentRun({ type: "executing", traceId, agentRunId })
 
-    logAgentRun({ type: "executing", traceId, workflowId, taskQueue })
-
-    // This is the AgentRun → Temporal handoff. If TEMPORAL_ADDRESS is unset
-    // or unreachable, this call is where it fails (connection deadline),
-    // before any workflow — and therefore before FC Sandbox — ever starts.
-    const client = await getTemporalClient()
-    const handle = await client.workflow.start("ticketResolutionWorkflow", {
-      taskQueue,
-      workflowId,
-      args: [{ orgId, ticketId, customerInput, hitlTimeoutMinutes: body.hitlTimeoutMinutes }],
+    const result = await executeTicketAgentRun({
+      orgId,
+      ticketId,
+      customerInput,
+      agentRunId,
+      hitlTimeoutMinutes: body.hitlTimeoutMinutes,
     })
 
-    logAgentRun({ type: "completed", traceId, workflowId, taskQueue, durationMs: Date.now() - start })
+    logAgentRun({ type: "completed", traceId, agentRunId, durationMs: Date.now() - start })
 
     return NextResponse.json({
       traceId,
-      agentRunId: handle.workflowId,
-      workflowId: handle.workflowId,
-      runId: handle.firstExecutionRunId,
-      taskQueue,
+      workflowId: agentRunId, // kept for existing frontend compatibility
+      ...result, // includes agentRunId, status, hitlRequired, and output fields
     })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error"
