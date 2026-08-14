@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Eye, EyeOff, Copy, RefreshCw, Trash2, Globe, Plus, X, AlertTriangle, Check } from "lucide-react"
+import { Eye, EyeOff, Copy, RefreshCw, Trash2, Globe, Plus, X, AlertTriangle, Check, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "@/lib/api/trpc-client"
 import { DashCard } from "@/components/dashboard/page-header"
@@ -73,6 +73,7 @@ export function ChatWidgetSettings() {
   const [newOrigin, setNewOrigin] = useState("")
   const [copiedKey, setCopiedKey] = useState(false)
   const [copiedSnippet, setCopiedSnippet] = useState(false)
+  const [copiedDirectUrl, setCopiedDirectUrl] = useState(false)
   const [editingQuestion, setEditingQuestion] = useState<{
     id?: string
     text: string
@@ -229,6 +230,7 @@ export function ChatWidgetSettings() {
   }
 
   const embedSnippet = `<script src="https://example.com/widget.js"></script>\n<script>\n  window.AdvanChat = { key: "${config.widgetKey}" };\n</script>`
+  const directChatUrl = typeof window !== "undefined" ? `${window.location.origin}/chat/${config.widgetKey}` : `/chat/${config.widgetKey}`
 
   return (
     <DashCard title="Chat Widget" icon={<Globe className="w-[18px] h-[18px]" />} padded>
@@ -571,6 +573,57 @@ export function ChatWidgetSettings() {
           </div>
           <p className="text-[11.5px] text-[var(--dash-ink-faint)] leading-normal">
             Paste this snippet into the HTML body or <code>&lt;head&gt;</code> script header of any allowed origin site.
+          </p>
+        </div>
+
+        {/* Direct Hosted Chat Page URL */}
+        <div className="space-y-2.5 pt-4 border-t dash-border-soft">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <label className="text-[13px] font-bold text-[var(--dash-ink)]">Direct Hosted Chat URL</label>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--dash-accent-wash)] text-[var(--dash-accent-deep)]">
+                Hosted Link
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(directChatUrl)
+                  setCopiedDirectUrl(true)
+                  setTimeout(() => setCopiedDirectUrl(false), 2000)
+                  toast.success("Direct chat URL copied!")
+                }}
+                className="min-h-9 inline-flex text-[12px] font-bold text-[var(--dash-accent-deep)] hover:underline items-center gap-1 px-1"
+              >
+                {copiedDirectUrl ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-[var(--dash-sage)]" /> URL copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" /> Copy link
+                  </>
+                )}
+              </button>
+              <a
+                href={directChatUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-h-9 inline-flex text-[12px] font-bold text-[var(--dash-ink-soft)] hover:text-[var(--dash-ink)] items-center gap-1 px-2.5 py-1 rounded-lg border dash-border bg-white hover:bg-[var(--dash-bg)] transition"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-[var(--dash-accent)]" /> Open chat page
+              </a>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 border dash-border-soft rounded-lg px-3 py-2 bg-white shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] min-w-0">
+            <Globe className="w-4 h-4 shrink-0 text-[var(--dash-accent)]" />
+            <span className="text-[12px] sm:text-[12.5px] font-mono text-[var(--dash-ink-soft)] select-all truncate">
+              {directChatUrl}
+            </span>
+          </div>
+          <p className="text-[11.5px] text-[var(--dash-ink-faint)] leading-normal">
+            Share this direct link with customers via email, SMS, or support tickets to let them interact with your AI agent on a dedicated full-page interface without embedding any code.
           </p>
         </div>
 

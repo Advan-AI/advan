@@ -44,17 +44,35 @@ export const widgetConfigRouter = router({
 
     const newKey = generateWidgetKey()
 
-    const [inserted] = await db
-      .insert(widgetConfigs)
-      .values({
-        orgId: ctx.user.orgId,
-        widgetKey: newKey,
-        allowedOrigins: [],
-        preChatFormEnabled: true,
-      })
-      .returning()
+    try {
+      const [inserted] = await db
+        .insert(widgetConfigs)
+        .values({
+          orgId: ctx.user.orgId,
+          widgetKey: newKey,
+          allowedOrigins: [],
+          preChatFormEnabled: true,
+          preChatQuestions: [],
+        })
+        .returning()
 
-    return inserted
+      if (!inserted) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create widget config.",
+        })
+      }
+
+      return inserted
+    } catch (err) {
+      if (err instanceof TRPCError) throw err
+      console.error("[WidgetConfig] Creation error:", err)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to provision widget configuration.",
+        cause: err,
+      })
+    }
   }),
 
   /**

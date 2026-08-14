@@ -56,17 +56,20 @@ export default async function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
           (function() {
-            if (typeof window !== 'undefined') {
-              if (!window.crypto) {
-                try {
-                  window.crypto = {};
-                } catch (e) {}
+            try {
+              var g = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this;
+              if (!g.crypto) {
+                try { g.crypto = {}; } catch (e) {}
               }
-              if (window.crypto && !window.crypto.randomUUID) {
-                window.crypto.randomUUID = function() {
+              if (g.crypto && typeof g.crypto.randomUUID !== 'function') {
+                var polyfill = function() {
                   try {
                     var buf = new Uint8Array(16);
-                    window.crypto.getRandomValues(buf);
+                    if (g.crypto.getRandomValues) {
+                      g.crypto.getRandomValues(buf);
+                    } else {
+                      for (var i = 0; i < 16; i++) buf[i] = (Math.random() * 256) | 0;
+                    }
                     buf[6] = (buf[6] & 0x0f) | 0x40;
                     buf[8] = (buf[8] & 0x3f) | 0x80;
                     var hex = [];
@@ -89,8 +92,19 @@ export default async function RootLayout({
                     });
                   }
                 };
+                try {
+                  g.crypto.randomUUID = polyfill;
+                } catch (e) {
+                  try {
+                    Object.defineProperty(g.crypto, 'randomUUID', {
+                      value: polyfill,
+                      configurable: true,
+                      writable: true
+                    });
+                  } catch (e2) {}
+                }
               }
-            }
+            } catch (err) {}
           })();
         `}} />
       </head>
