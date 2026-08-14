@@ -104,6 +104,19 @@ exports.httpAgentHandler = async (req, resp, context) => {
       body = JSON.parse(body);
     }
 
+    if (body?.mode === "chat" && Array.isArray(body.messages)) {
+      const { getChatCompletion } = require("./lib/alibaba/model-studio-client");
+      const chatRes = await getChatCompletion(body.messages, {
+        systemPrompt: body.systemPrompt,
+        temperature: body.temperature ?? 0,
+        maxTokens: body.maxTokens,
+      });
+      resp.setStatusCode(200);
+      resp.setHeader("Content-Type", "application/json");
+      resp.send(JSON.stringify({ text: chatRes.text, answer: chatRes.text, usage: chatRes.usage }));
+      return;
+    }
+
     const { orgId, customerMessage, conversationId, conversationHistory } = body;
 
     if (!orgId || !customerMessage || !conversationId) {

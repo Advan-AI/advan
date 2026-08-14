@@ -7,7 +7,7 @@ import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
  * Text embeddings use Ollama `/api/embeddings` — see `lib/vector/embedding-config.ts` and `.env` OLLAMA_*.
  */
 
-export type LlmChatProvider = "ollama" | "anthropic" | "vertex-anthropic"
+export type LlmChatProvider = "alibaba-fc" | "ollama" | "anthropic" | "vertex-anthropic"
 
 export interface LlmRuntimeConfig {
   readonly chatProvider: LlmChatProvider
@@ -28,6 +28,9 @@ const DEFAULT_GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
 
 function normalizeProvider(raw: string | undefined): LlmChatProvider | undefined {
   const v = raw?.trim().toLowerCase()
+  if (v === "alibaba-fc" || v === "alibaba" || v === "dashscope" || v === "qwen") {
+    return "alibaba-fc"
+  }
   if (v === "anthropic" || v === "ollama" || v === "vertex-anthropic") {
     return v
   }
@@ -44,7 +47,11 @@ export function getLlmRuntimeConfig(
 ): LlmRuntimeConfig {
   const explicit = normalizeProvider(env.LLM_CHAT_PROVIDER)
   let chatProvider: LlmChatProvider
-  if (explicit === "anthropic") {
+  if (env.ALIBABA_FC_URL?.trim().startsWith("http") || env.NEXT_PUBLIC_ALIBABA_FC_URL?.trim().startsWith("http")) {
+    chatProvider = "alibaba-fc"
+  } else if (explicit === "alibaba-fc") {
+    chatProvider = "alibaba-fc"
+  } else if (explicit === "anthropic") {
     chatProvider = "anthropic"
   } else if (explicit === "vertex-anthropic") {
     chatProvider = "vertex-anthropic"

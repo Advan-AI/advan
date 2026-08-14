@@ -16,7 +16,17 @@ const nextConfig = {
     buildActivity: false,
   },
   output: "standalone",
-  serverExternalPackages: ["ali-oss", "urllib", "proxy-agent", "tablestore"],
+  serverExternalPackages: [
+    "ali-oss",
+    "urllib",
+    "proxy-agent",
+    "tablestore",
+    "@temporalio/client",
+    "@temporalio/worker",
+    "@temporalio/workflow",
+    "@grpc/grpc-js",
+    "@grpc/proto-loader",
+  ],
   // Pin the workspace root explicitly. Without this, Next infers it from
   // the nearest lockfile *above* this directory (e.g. a stray
   // C:\Users\<name>\package-lock.json on a dev machine), which nests the

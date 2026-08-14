@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Loader2, PlayCircle, ShieldCheck, Terminal } from "lucide-react"
+import { Loader2, PlayCircle, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SandboxTimeline, type SandboxSessionView } from "@/components/demo/sandbox-timeline"
+import { JsonLogViewer } from "@/components/demo/json-log-viewer"
 
 /**
  * Public demo: /demo/fc-sandbox
@@ -151,10 +152,11 @@ export default function FcSandboxDemoPage() {
           FC Sandbox — Hibernate &amp; Resume Demo
         </h1>
         <p className="mt-2 text-sm text-foreground/60 leading-relaxed max-w-xl">
-          Starts a real Temporal <code className="font-mono text-xs">ticketResolutionWorkflow</code>{" "}
-          run. When it reaches the human-approval gate, an FC Sandbox session is created, the agent
-          executes inside it, then it hibernates while waiting for you to click Approve below. Updates
-          below are pushed live over SSE — nothing here is polled.
+          This is a Temporal + FC Sandbox lifecycle demo, not live chat. It does{" "}
+          <strong>not</strong> create a ticket or message in the Advan dashboard. When the run hits
+          the human-approval gate, a sandbox session is created, the agent executes inside it, then
+          it hibernates until you click Approve below. Chat tickets still come from the widget /
+          email intake as usual.
         </p>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -267,17 +269,7 @@ export default function FcSandboxDemoPage() {
           </div>
         )}
 
-        {sandbox && sandbox.events.length > 0 && (
-          <div className="mt-6 rounded-2xl border border-black/[0.08] bg-[#171a17] p-5">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-white/50 mb-3">
-              <Terminal className="w-3.5 h-3.5" />
-              Structured logs / checkpoints
-            </div>
-            <pre className="text-[11px] font-mono text-[#a6e3a1] leading-relaxed overflow-x-auto whitespace-pre-wrap break-all">
-              {sandbox.events.map((e) => JSON.stringify(e)).join("\n")}
-            </pre>
-          </div>
-        )}
+        {sandbox && sandbox.events.length > 0 && <JsonLogViewer events={sandbox.events} />}
       </div>
     </div>
   )
