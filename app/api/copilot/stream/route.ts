@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { z } from "zod"
-import { auth } from "@/auth"
+import { getEffectiveSession } from "@/lib/auth/effective-session"
 import { buildSuggestionService } from "@/lib/copilot/composition"
 import type { SuggestionEvent } from "@/lib/copilot/types"
 
@@ -26,7 +26,7 @@ const BodySchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
+  const session = await getEffectiveSession()
   if (!session?.user?.orgId) return new Response("Unauthorized", { status: 401 })
 
   let parsed: z.infer<typeof BodySchema>

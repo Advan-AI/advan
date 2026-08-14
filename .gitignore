@@ -10,6 +10,7 @@ next.user-config.*
 # Environment variables (never commit real secrets)
 .env
 .env*.local
+.env.fc
 
 # Common ignores
 node_modules
@@ -21,3 +22,8 @@ package-lock.json
 .package-lock.json
 yarn.lock
 pnpm-lock.yaml
+# Added by ggshield
+.cache_ggshield
+
+# Worker / local runtime logs (never commit — they leak tokens)
+scripts/logs/

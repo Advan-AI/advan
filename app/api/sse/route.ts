@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { auth } from "@/auth"
+import { getEffectiveSession } from "@/lib/auth/effective-session"
 import { WorkflowExecutor } from "@/lib/orchestration/executor"
 import { PIIMasker } from "@/lib/governance/pii-masker"
 
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic"
  * The browser connects with EventSource; see app/dashboard/copilot for usage.
  */
 export async function GET(req: NextRequest) {
-  const session = await auth()
+  const session = await getEffectiveSession()
   if (!session?.user?.orgId) {
     return new Response("Unauthorized", { status: 401 })
   }

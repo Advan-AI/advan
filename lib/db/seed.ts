@@ -12,6 +12,8 @@ import {
   conversations,
   messages,
 } from "./schema"
+import { requireEnv } from "../env/required"
+import { DEMO_TENANT } from "../auth/demo-tenant"
 
 /**
  * Per-tenant seed script.
@@ -51,6 +53,13 @@ async function seed() {
   // - Metered overage price (recurring metered: e.g. price_starter_metered_placeholder) - e.g. $0.05 per conversation or message over the included limit.
   // Both are attached as separate subscription items on the exact same customer subscription.
   console.log("🌱 Seeding subscription plans...")
+  const stripeStarterFlat = requireEnv("STRIPE_PRICE_STARTER_FLAT")
+  const stripeStarterMetered = requireEnv("STRIPE_PRICE_STARTER_METERED")
+  const stripeProFlat = requireEnv("STRIPE_PRICE_PRO_FLAT")
+  const stripeProMetered = requireEnv("STRIPE_PRICE_PRO_METERED")
+  const stripeEnterpriseFlat = requireEnv("STRIPE_PRICE_ENTERPRISE_FLAT")
+  const stripeEnterpriseMetered = requireEnv("STRIPE_PRICE_ENTERPRISE_METERED")
+
   const seededPlans = await db
     .insert(plans)
     .values([
@@ -84,8 +93,8 @@ async function seed() {
         // Kept non-zero only so downstream sums/reports don't divide-by-zero or
         // treat Enterprise as free; it is not a real monthly figure.
         monthlyPriceCents: 49900,
-        stripePriceId: process.env.STRIPE_PRICE_ENTERPRISE_FLAT ?? "price_enterprise_flat_placeholder",
-        stripeMeteredPriceId: process.env.STRIPE_PRICE_ENTERPRISE_METERED ?? "price_enterprise_metered_placeholder",
+        stripePriceId: stripeEnterpriseFlat,
+        stripeMeteredPriceId: stripeEnterpriseMetered,
         active: true,
       },
     ])
@@ -98,9 +107,9 @@ async function seed() {
   const [org] = await db
     .insert(organizations)
     .values({
-      name: "Acme Corp",
-      slug: "acme",
-      inboundEmailAlias: "support+acme",
+      name: DEMO_TENANT.orgName,
+      slug: DEMO_TENANT.orgSlug,
+      inboundEmailAlias: DEMO_TENANT.inboundEmailAlias,
       planId: proPlan.id,
       subscriptionStatus: "active",
       currentPeriodStart: new Date(),
@@ -110,32 +119,36 @@ async function seed() {
 
   console.log(`  org: ${org.name} (${org.id})`)
 
-  // 2. Create admin user (password: "password123")
-  const passwordHash = await hash("password123", 12)
+  // 2. Create admin user (password from DEMO_TENANT)
+  const passwordHash = await hash(DEMO_TENANT.adminPassword, 12)
 
   const [admin] = await db
     .insert(users)
     .values({
       orgId: org.id,
-      email: "admin@acme.co",
-      name: "Sarah Johnson",
+      email: DEMO_TENANT.adminEmail,
+      name: DEMO_TENANT.adminName,
       passwordHash,
       role: "admin",
+      emailVerified: true,
+      chatAvailable: true,
     })
     .returning()
 
   console.log(`  admin: ${admin.email}`)
 
   // 3. Create a support agent
-  const agentHash = await hash("password123", 12)
+  const agentHash = await hash(DEMO_TENANT.adminPassword, 12)
   const [agent] = await db
     .insert(users)
     .values({
       orgId: org.id,
-      email: "agent@acme.co",
-      name: "James Carter",
+      email: DEMO_TENANT.agentEmail,
+      name: DEMO_TENANT.agentName,
       passwordHash: agentHash,
       role: "member",
+      emailVerified: true,
+      chatAvailable: true,
     })
     .returning()
 
@@ -326,8 +339,8 @@ async function seed() {
 
   console.log("\n✅ Seed complete!")
   console.log("\n  Login credentials:")
-  console.log("  Email:    admin@acme.co")
-  console.log("  Password: password123")
+  console.log(`  Email:    ${DEMO_TENANT.adminEmail}`)
+  console.log(`  Password: ${DEMO_TENANT.adminPassword}`)
 
   process.exit(0)
 }

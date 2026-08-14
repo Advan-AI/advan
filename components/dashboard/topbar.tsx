@@ -313,7 +313,7 @@ export function DashboardTopbar({ user, onOpenSidebar }: TopbarProps) {
                   {user?.name || "Sarah Johnson"}
                 </div>
                 <div className="text-[11px] text-[var(--dash-ink-faint)] truncate">
-                  {user?.email || "sarah@acme.co"}
+                  {user?.email || "admin@acme.co"}
                 </div>
               </div>
               <Link

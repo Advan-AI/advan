@@ -1,6 +1,6 @@
 # v0-advan Project Knowledge
 
-Last updated: 2026-07-25 (Supabase pool / DNS resilience)
+Last updated: 2026-08-08 (FC sandbox judge-proof tooling + phase tracker)
 
 Use this file as the first stop for future Codex work in this repo. Keep it concise and update it after meaningful features, fixes, architecture changes, migrations, or command changes.
 
@@ -45,6 +45,13 @@ Core product themes:
 - Lint: `npm run lint`
 - E2E: `npm test`
 - Unit tests: `npm run test:unit`
+- FC sandbox elasticity proof: `npm run load-test:sandbox`
+- FC sandbox isolation proof: `npm run verify:sandbox-isolation`
+- FC sandbox E2B compatibility proof: `npm run verify:e2b-compat`
+- FC sandbox E2B auth troubleshooter: `npm run troubleshoot:e2b-auth`
+- FC sandbox hibernation latency proof: `npm run benchmark:hibernation-modes`
+- FC sandbox cost estimator: `npm run estimate:hibernation-savings`
+- FC sandbox observability wiring proof: `npm run verify:observability`
 - Temporal worker: `npm run temporal:worker`
 - Bundle Temporal workflows: `npm run temporal:bundle`
 - DB migrate: `npx drizzle-kit migrate`
@@ -132,7 +139,7 @@ Use this map before broad exploration:
 - Integrations responsive (`app/dashboard/integrations/*`): stacked settings cards stay single-column; marketplace grid 1→2→3→4 cols through `4xl`. Team invite/remove are bottom sheets with safe-area; widget key/origins/forms stack on phones with touch targets; long emails/keys use `break-all`; content max-width steps up on ultrawide.
 - Billing responsive (`app/dashboard/billing/page.tsx`): subscription + metering stack below `lg` then 1+2 workbench; plan cards 1→2→3 cols; invoices are touch cards below `lg` and a sticky-feel table at `lg+`; plan-change confirm is a bottom sheet with safe-area; Stripe portal / payment CTAs are full-width on phones.
 - tRPC API shape: `lib/api/root.ts`, `lib/api/trpc.ts`, `app/api/trpc/[trpc]/route.ts`.
-- Auth/session issues: root `auth.ts`, `auth.config.ts`, `lib/auth-server.ts`, `proxy.ts`, `types/next-auth.d.ts`. `lib/auth.ts` is an older localStorage demo helper; do not confuse it with real NextAuth.
+- Auth/session issues: root `auth.ts`, `auth.config.ts`, `lib/auth-server.ts`, `lib/auth/effective-session.ts` (demo auto-login as `admin@acme.co` when no NextAuth cookie), `types/next-auth.d.ts`. `lib/auth.ts` is an older localStorage demo helper; do not confuse it with real NextAuth. Demo tenant constants: `lib/auth/demo-tenant.ts`. Disable with `DEMO_AUTO_LOGIN=false`.
 - Database/model changes: `lib/db/schema.ts`, matching `lib/db/migrations/*`, and `lib/db/seed.ts`.
 - Tickets: `app/dashboard/tickets/page.tsx` and `lib/api/routers/tickets.ts`.
 - Conversations/email workbench: `app/dashboard/conversations/page.tsx`, `lib/api/routers/conversations.ts`, `lib/email/*`, Resend webhook routes.
@@ -148,6 +155,8 @@ Use this map before broad exploration:
 - Visual pipeline builder: `app/dashboard/orchestration/page.tsx`, `components/pipeline/*`, `lib/pipeline/*`.
 - Durable pipeline execution: `lib/api/routers/orchestration.ts`, `lib/pipeline/compiler.ts`, `lib/temporal/workflows/pipeline-execution.ts`, `lib/temporal/activities/pipeline-activities.ts`, `lib/pipeline/executors/index.ts`.
 - Realtime pipeline/HITL updates: `lib/realtime/socket-server.ts`, `lib/realtime/event-bus.ts`, `lib/pipeline/use-pipeline-realtime.ts`, `app/api/hitl/route.ts`. Socket server supports two connection modes: agent (orgId only → joins `org:{orgId}`) and chat visitor (conversationId + orgId → DB-verified, joins `conversation:{conversationId}`). Chat visitor events: `chat:agent_reply` (AI auto-replied) and `chat:triage_pending` (escalated; show "agent will respond" state). Event bus has two new channels: `CHAT_AGENT_REPLY_CHANNEL` and `CHAT_TRIAGE_PENDING_CHANNEL`.
+- FC Sandbox judge evidence pack: generated artifacts live under `reports/fc/*` (elasticity, isolation, e2b-compat, hibernation latency, cost, observability, phase tracker, debug story). Demo hardening now includes explicit reject path and a 1-minute timeout starter in `app/demo/fc-sandbox/page.tsx`.
+- Live comm-path sandbox gate (feature-flagged): set `FC_SANDBOX_LIVE_HITL_ENABLED=true` to run FC sandbox execute->hibernate during triage HITL enqueue (`lib/queue/workers/copilot-triage-worker.ts`) and wake->resume on approve/reject (`lib/api/routers/governance.ts`). Sandbox handle and wake latency are persisted on `hitl_queue.classification_metadata.sandbox*`.
 - Chat widget namespace: `lib/realtime/chat-widget-namespace.ts` — `/chat-widget` Socket.IO namespace mounted on the existing server (no second process). Auth middleware verifies the 1-hour JWT from `POST /api/chat/session`, re-checks origin allowlist, and rejects unknown visitor identities (`visitorId`) not scoped to `orgId+widgetKey`. Sockets join `widget-org:{orgId}` on connect, then must explicitly emit `join:conversation` to enter `widget:{conversationId}` (ownership-verified via shared helper `lib/chat/conversation-ownership.ts`). `leave:conversation` removes room membership. Server events: `session:ready`, `joined:conversation`, `left:conversation`, `agent:message`, `triage:pending`, `typing:start`/`typing:stop`, `presence:agent-online`.
 - Chat session: `app/api/chat/session/route.ts` — public unauthenticated POST endpoint for the embedded widget. Accepts `{ widgetKey, origin, visitorId? }`. Looks up `widget_configs` by widgetKey, enforces exact-match origin allowlist, validates/reuses an existing `visitors.id` scoped to `orgId+widgetKey` (updates `lastSeenAt`) or creates a new visitors row. Signs a 1-hour HS256 JWT (`{ orgId, widgetKey, visitorId }`, issuer `advan:chat-session`) and returns `{ token, visitorId }`. Dual rate-limited: 20/min per IP + 60/min per widgetKey.
 - Chat intake: `app/api/chat/intake/route.ts` — public unauthenticated POST endpoint for widget messages. Requires session token; derives `{ orgId, widgetKey, visitorId }` from JWT and rejects unknown visitor identities before intake. Calls `resolveOrCreateIntake` with `channel: "chat"` and returns `{ conversationId, messageId, ticketId, isNewTicket, status: "received" }`.
@@ -510,6 +519,27 @@ Notable modified/untracked areas at that time:
   - `reconciliationHandler`: Daily cron timer trigger for missed documents.
   - `httpAgentHandler`: Customer-facing HTTP RAG endpoint.
 - **E2E Test Suite**: `scripts/smoke-test-model-studio.ts`, `scripts/setup-tablestore.ts`, `scripts/test-alibaba-rag.ts`.
+
+## Alibaba Cloud FC Sandbox (OpenClaw) Deployment
+
+- **Deployment Pattern**: Deploys OpenClaw inside an E2B-compatible sandbox on Alibaba Cloud Function Compute 3.0 / PAI-Sandbox.
+- **Container Image**: Built using `Dockerfile.openclaw` (Node 24 base with `ca-certificates`, `curl`, `git`, `python3`, `python3-pip`, `ripgrep`, `iproute2`, and `openclaw@latest` npm package). Port exposed: `18789`.
+- **Registries Supported**: ACR (Alibaba Cloud Container Registry) or GHCR (`ghcr.io`).
+- **Environment Configuration (`.env.fc`)**:
+  - `E2B_DOMAIN`: `sandbox01.cn-shanghai.pai-eas.aliyuncs.com` (or regional `*.e2b.fc.aliyuncs.com`).
+  - `E2B_API_KEY`: PAI-Sandbox API key obtained from console "SDK Integration".
+  - `E2B_TIMEOUT`: Default `86400` (24h). `E2B_ON_TIMEOUT`: `pause` or `destroy`.
+  - `E2B_TEMPLATE_IMAGE`: `ghcr.io/<username>/<image>:<tag>`.
+  - `E2B_TEMPLATE_ID`: ID printed after running template build.
+  - `MODEL_API_KEY`, `MODEL_BASE_URL`, `MODEL_COMPATIBILITY` (`anthropic`/`openai`), `MODEL_NAME` (`qwen3.7-plus`).
+  - `OPENCLAW_TOKEN`: Secure authentication token for OpenClaw.
+- **Deployment Scripts (Node.js & Python)**:
+  - `fc/build_template.js` / `fc/build_template.py`: Creates sandbox instance from `E2B_TEMPLATE_IMAGE`, pauses it, and outputs `E2B_TEMPLATE_ID`.
+  - `fc/start_gateway.js` / `fc/start_gateway.py`: Instantiates sandbox from `E2B_TEMPLATE_ID`, runs `openclaw onboard`, sets primary model, configures allowed UI origins (`https://18789-sbx-<id>.<domain>`), and launches `openclaw gateway` on port `18789`.
+- **Browser Access & Security**:
+  - Secure sandboxes require `X-Access-Token` header.
+  - Open Control UI URL: `https://18789-sbx-<sandbox-id>.<domain>/?token=<OPENCLAW_TOKEN>`.
+  - Pass header via browser extension (e.g. ModHeader): `X-Access-Token: <access-token>` scoped to `.*<domain>`.
 
 ## Maintenance Rule
 

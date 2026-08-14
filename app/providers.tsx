@@ -4,6 +4,7 @@ import { useState } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { httpBatchLink, loggerLink } from "@trpc/client"
 import { SessionProvider } from "next-auth/react"
+import type { Session } from "next-auth"
 import { usePathname } from "next/navigation"
 import { api } from "@/lib/api/trpc-client"
 
@@ -40,14 +41,18 @@ function getTrpcUrl() {
  * - QueryClientProvider (TanStack Query — Phase 3)
  * - TRPCProvider (tRPC React — Phase 3)
  */
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  session,
+}: {
+  children: React.ReactNode
+  session?: Session | null
+}) {
   const pathname = usePathname()
   const needsSession =
     pathname?.startsWith("/dashboard") ||
     pathname?.startsWith("/signin") ||
-    pathname?.startsWith("/onboarding") ||
-    // /billing/success calls useSession() (see app/billing/success/page.tsx)
-    pathname?.startsWith("/billing")
+    pathname?.startsWith("/onboarding")
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -87,5 +92,5 @@ export function Providers({ children }: { children: React.ReactNode }) {
     </api.Provider>
   )
 
-  return needsSession ? <SessionProvider>{content}</SessionProvider> : content
+  return needsSession ? <SessionProvider session={session ?? undefined}>{content}</SessionProvider> : content
 }

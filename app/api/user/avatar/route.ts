@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { getEffectiveSession } from "@/lib/auth/effective-session"
 import { db } from "@/lib/db"
 import { users } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
@@ -7,7 +7,7 @@ import { uploadAvatar, getAvatarUrl } from "@/lib/storage/s3-client"
 
 export async function POST(request: Request) {
   try {
-    const session = await auth()
+    const session = await getEffectiveSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

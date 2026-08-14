@@ -51,7 +51,7 @@ export function signInWithEmail(email: string): AdvanSession {
     signedInAt: new Date().toISOString(),
     user: {
       name: niceName,
-      email: trimmed || "sarah@acme.co",
+      email: trimmed || "admin@acme.co",
       role: "Admin",
       avatarSeed: niceName,
     },

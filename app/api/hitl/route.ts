@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { getEffectiveSession } from "@/lib/auth/effective-session"
 import { db } from "@/lib/db"
 import { hitlQueue } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
@@ -20,7 +20,7 @@ import { signalHITLDecision } from "@/lib/temporal/client"
  */
 
 export async function GET(req: NextRequest) {
-  const session = await auth()
+  const session = await getEffectiveSession()
   if (!session?.user?.orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = req.nextUrl
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
+  const session = await getEffectiveSession()
   if (!session?.user?.orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   let body: { id: string; action: "approve" | "reject"; editedOutput?: string }
