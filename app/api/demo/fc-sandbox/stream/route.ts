@@ -1,5 +1,6 @@
 import { getDemoStatusSnapshot } from "@/lib/sandbox/get-demo-status"
 import { subscribeSandboxUpdates } from "@/lib/sandbox/sandbox-events-bus"
+import { toPublicApiError } from "@/lib/api/sanitize-trpc-error"
 
 // Temporal's client uses gRPC — needs the Node runtime, not Edge.
 export const runtime = "nodejs"
@@ -48,7 +49,9 @@ export async function GET(req: Request): Promise<Response> {
           }
         } catch (err) {
           controller.enqueue(
-            encoder.encode(`event: error\ndata: ${JSON.stringify({ message: (err as Error).message })}\n\n`)
+            encoder.encode(
+              `event: error\ndata: ${JSON.stringify({ message: toPublicApiError(err, "Could not load demo status.") })}\n\n`
+            )
           )
         }
       }

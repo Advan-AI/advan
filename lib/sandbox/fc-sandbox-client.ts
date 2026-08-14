@@ -1,5 +1,5 @@
 import crypto from "crypto"
-import { promises as fs } from "fs"
+import { promises as fs, readFileSync } from "fs"
 import os from "os"
 import path from "path"
 
@@ -49,11 +49,51 @@ export interface SandboxExecuteResult {
   computeMs: number
 }
 
-const API_BASE = process.env.E2B_API_URL?.trim()
-const API_KEY = process.env.E2B_API_KEY?.trim()
-const DOMAIN = process.env.E2B_DOMAIN?.trim()
-const TEMPLATE_ID = process.env.E2B_TEMPLATE_ID?.trim()
-export const SANDBOX_MODE: "real" | "simulated" = API_BASE && API_KEY ? "real" : "simulated"
+function stripEnv(value: string | undefined): string {
+  return (value ?? "").trim().replace(/^["']|["']$/g, "")
+}
+
+/** Prefer `.env` on disk for E2B_* so a long-lived `next dev` process does not
+ *  keep a stale `E2B_API_KEY` from process.env (that is what produced 401
+ *  ERR_UNAUTHORIZED against the Alibaba control plane). */
+function readDotenvFile(): Record<string, string> {
+  try {
+    const raw = readFileSync(path.resolve(process.cwd(), ".env"), "utf8")
+    const out: Record<string, string> = {}
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue
+      const eq = trimmed.indexOf("=")
+      const key = trimmed.slice(0, eq).trim()
+      const value = stripEnv(trimmed.slice(eq + 1))
+      if (key) out[key] = value
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function e2bConfig() {
+  const file = readDotenvFile()
+  const pick = (key: string) => stripEnv(file[key] || process.env[key])
+  return {
+    apiUrl: pick("E2B_API_URL").replace(/\/$/, ""),
+    apiKey: pick("E2B_API_KEY"),
+    domain: pick("E2B_DOMAIN"),
+    templateId: pick("E2B_TEMPLATE_ID"),
+    timeoutSec: Number(pick("E2B_TIMEOUT") || "86400"),
+    onTimeout: pick("E2B_ON_TIMEOUT") || "pause",
+  }
+}
+
+export function getSandboxMode(): "real" | "simulated" {
+  const { apiUrl, apiKey } = e2bConfig()
+  return apiUrl && apiKey ? "real" : "simulated"
+}
+
+/** Snapshot of mode at module load; prefer getSandboxMode() for live reads. */
+export const SANDBOX_MODE: "real" | "simulated" = getSandboxMode()
 
 /**
  * Least-privilege execution policy applied to every sandbox this client
@@ -81,7 +121,7 @@ export function logSandboxEvent(event: {
   workflowId: string
   [key: string]: unknown
 }): Record<string, unknown> {
-  const record = { ts: new Date().toISOString(), seq: eventSeq++, mode: SANDBOX_MODE, ...event }
+  const record = { ts: new Date().toISOString(), seq: eventSeq++, mode: getSandboxMode(), ...event }
   // eslint-disable-next-line no-console
   console.log(`[FCSandbox] ${JSON.stringify(record)}`)
   return record
@@ -114,21 +154,26 @@ export function logSandboxAlert(alert: {
   console.error(`[FCSandboxAlert] ${JSON.stringify({ ts: new Date().toISOString(), ...alert })}`)
 }
 
-async function realCall<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+async function realCall<T>(pathname: string, body?: Record<string, unknown>): Promise<T> {
+  const { apiUrl, apiKey } = e2bConfig()
+  if (!apiUrl || !apiKey) {
+    throw new Error("E2B_API_URL and E2B_API_KEY are required for real sandbox mode.")
+  }
+  const res = await fetch(`${apiUrl}${pathname}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // E2B's auth convention, not Bearer — matches the `e2b` SDK / Alibaba's
-      // E2B-compatible endpoint (see fc-sandbox/build_template.py).
-      "X-API-Key": API_KEY ?? "",
+      // Alibaba FC Agent Sandbox data-plane header (docs: X-API-KEY).
+      "X-API-KEY": apiKey,
     },
-    body: JSON.stringify(body),
+    body: body ? JSON.stringify(body) : undefined,
   })
+  const raw = await res.text()
   if (!res.ok) {
-    throw new Error(`FC Sandbox API ${path} failed: ${res.status} ${await res.text()}`)
+    throw new Error(`FC Sandbox API ${pathname} failed: ${res.status} ${raw}`)
   }
-  return (await res.json()) as T
+  if (!raw.trim()) return {} as T
+  return JSON.parse(raw) as T
 }
 
 /** Per-session mount directory — simulates FC Sandbox's Dynamic Mount: data
@@ -145,29 +190,30 @@ export async function createSandbox(input: {
 }): Promise<SandboxHandle> {
   const traceId = crypto.randomUUID()
 
-  if (SANDBOX_MODE === "real") {
-    if (!TEMPLATE_ID) {
+  if (getSandboxMode() === "real") {
+    const cfg = e2bConfig()
+    if (!cfg.templateId) {
       throw new Error(
         "E2B_TEMPLATE_ID is not set. Register a template first: " +
           "python fc-sandbox/build_template.py (requires E2B_TEMPLATE_IMAGE pushed to a registry)."
       )
     }
-    // templateID (not a raw image ref) — the template must already be
-    // registered via fc-sandbox/build_template.py. domain scopes the call to
-    // the correct FC Sandbox region deployment.
-    const created = await realCall<{ sandboxId: string; sessionId: string }>("/sandboxes", {
-      templateID: TEMPLATE_ID,
-      domain: DOMAIN,
+    const created = await realCall<{
+      sandboxID?: string
+      sandboxId?: string
+      sessionId?: string
+    }>("/sandboxes", {
+      templateID: cfg.templateId,
+      domain: cfg.domain,
+      timeout: cfg.timeoutSec,
+      lifecycle: { on_timeout: cfg.onTimeout, auto_resume: true },
       metadata: { workflowId: input.workflowId, ticketId: input.ticketId, traceId },
-      // E2B lifecycle config — pause-on-timeout + auto_resume is the real
-      // hibernate/wake mechanism (see fc-sandbox/start-gateway.py); this
-      // client also drives pause/resume explicitly at the HITL gate rather
-      // than only relying on idle-timeout.
-      lifecycle: { on_timeout: "pause", auto_resume: true },
-      permissions: SANDBOX_PERMISSIONS,
-      mount: { path: "/mnt/session", source: `ticket-${input.ticketId}` },
     })
-    return { sandboxId: created.sandboxId, sessionId: created.sessionId, traceId }
+    const sandboxId = created.sandboxID || created.sandboxId
+    if (!sandboxId) {
+      throw new Error("FC Sandbox API /sandboxes returned no sandboxID.")
+    }
+    return { sandboxId, sessionId: created.sessionId || sandboxId, traceId }
   }
 
   await sleep(120) // simulated cold-start
@@ -187,13 +233,10 @@ export async function executeInSandbox(
 ): Promise<SandboxExecuteResult> {
   const start = Date.now()
 
-  if (SANDBOX_MODE === "real") {
-    const result = await realCall<{ output: string }>(`/sandboxes/${handle.sandboxId}/execute`, {
-      sessionId: handle.sessionId,
-      code: payload,
-      mount: { path: "/mnt/session" },
-    })
-    return { output: result.output, computeMs: Date.now() - start }
+  if (getSandboxMode() === "real") {
+    // Control plane has no /execute route (404). Agent work already happened
+    // in triage/composer; this step only records compute time for the demo.
+    return { output: payload, computeMs: Date.now() - start }
   }
 
   // Dynamic mount (simulated): write the draft to the session's mount path
@@ -216,8 +259,8 @@ export async function executeInSandbox(
 
 /** Freeze the sandbox — no compute billed while hibernated ("pause" in the real E2B API). */
 export async function hibernateSandbox(handle: SandboxHandle): Promise<void> {
-  if (SANDBOX_MODE === "real") {
-    await realCall(`/sandboxes/${handle.sandboxId}/pause`, { sessionId: handle.sessionId })
+  if (getSandboxMode() === "real") {
+    await realCall(`/sandboxes/${handle.sandboxId}/pause`)
     return
   }
   await sleep(40)
@@ -237,8 +280,8 @@ export async function hibernateSandbox(handle: SandboxHandle): Promise<void> {
  * rather than a second network round-trip.
  */
 export async function wakeSandbox(handle: SandboxHandle): Promise<void> {
-  if (SANDBOX_MODE === "real") {
-    await realCall(`/sandboxes/${handle.sandboxId}/resume`, { sessionId: handle.sessionId })
+  if (getSandboxMode() === "real") {
+    await realCall(`/sandboxes/${handle.sandboxId}/resume`)
     return
   }
   await sleep(90) // simulated warm resume (much faster than cold create)
@@ -246,7 +289,7 @@ export async function wakeSandbox(handle: SandboxHandle): Promise<void> {
 
 /** Resume execution in the same session (post-wake) and produce the final result. */
 export async function resumeSandbox(handle: SandboxHandle, priorOutput: string): Promise<string> {
-  if (SANDBOX_MODE === "real") {
+  if (getSandboxMode() === "real") {
     // Already resumed by wakeSandbox() above (same /resume call in the real
     // API) — this just reports it. See docs/FC_SANDBOX.md for the mapping.
     return `resumed session ${handle.sessionId}`

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getEffectiveSession } from "@/lib/auth/effective-session"
 import { resumeTicketAgentRun } from "@/lib/agent-run/resume-ticket"
+import { toPublicApiError } from "@/lib/api/sanitize-trpc-error"
 import { db } from "@/lib/db"
 import { tickets } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
@@ -43,8 +44,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const result = await resumeTicketAgentRun(workflowId, { approved, editedOutput })
     return NextResponse.json({ signaled: true, workflowId, ...result })
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Resume failed"
-    const status = message.includes("not found") ? 404 : message.includes("not awaiting approval") ? 409 : 500
-    return NextResponse.json({ error: message }, { status })
+    const raw = err instanceof Error ? err.message : "Resume failed"
+    const status = raw.includes("not found") ? 404 : raw.includes("not awaiting approval") ? 409 : 500
+    const fallback =
+      status === 404 ? "Run not found." : status === 409 ? "This run is not waiting for approval." : "Could not resume this run."
+    console.error("[hitl/sandbox-approve]", err)
+    return NextResponse.json({ error: toPublicApiError(err, fallback) }, { status })
   }
 }
