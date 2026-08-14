@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Loader2, PlayCircle, ShieldCheck, Terminal } from "lucide-react"
+import { Loader2, PlayCircle, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SandboxTimeline, type SandboxSessionView } from "@/components/demo/sandbox-timeline"
+import { JsonLogViewer } from "@/components/demo/json-log-viewer"
 
 /**
  * Public demo: /demo/fc-sandbox
@@ -268,17 +269,7 @@ export default function FcSandboxDemoPage() {
           </div>
         )}
 
-        {sandbox && sandbox.events.length > 0 && (
-          <div className="mt-6 rounded-2xl border border-black/[0.08] bg-[#171a17] p-5">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-white/50 mb-3">
-              <Terminal className="w-3.5 h-3.5" />
-              Structured logs / checkpoints
-            </div>
-            <pre className="text-[11px] font-mono text-[#a6e3a1] leading-relaxed overflow-x-auto whitespace-pre-wrap break-all">
-              {sandbox.events.map((e) => JSON.stringify(e)).join("\n")}
-            </pre>
-          </div>
-        )}
+        {sandbox && sandbox.events.length > 0 && <JsonLogViewer events={sandbox.events} />}
       </div>
     </div>
   )
