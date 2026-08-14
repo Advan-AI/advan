@@ -16,7 +16,10 @@ function logAgentRun(event: {
   durationMs?: number
   error?: string
 }) {
-  const record = { ts: new Date().toISOString(), ...event }
+  // agentRunId = workflowId: one Temporal workflow execution is one AgentRun.
+  // Same value, both names present so log/response consumers can filter by
+  // either without a separate identifier scheme.
+  const record = { ts: new Date().toISOString(), agentRunId: event.workflowId, ...event }
   const line = `[AgentRun] ${JSON.stringify(record)}`
   if (event.type === "failed") console.error(line)
   else console.log(line)
@@ -79,6 +82,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     return NextResponse.json({
       traceId,
+      agentRunId: handle.workflowId,
       workflowId: handle.workflowId,
       runId: handle.firstExecutionRunId,
       taskQueue,

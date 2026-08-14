@@ -21,6 +21,7 @@ export async function getDemoStatusSnapshot(workflowId: string) {
 
   return {
     workflowId,
+    agentRunId: workflowId, // one Temporal workflow execution = one AgentRun
     workflowStatus: description.status.name,
     sandboxMode: SANDBOX_MODE,
     result,
