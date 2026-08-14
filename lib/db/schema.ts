@@ -634,6 +634,14 @@ export const sandboxSessions = pgTable(
      *  Doubles as the checkpoint log — each entry is a durable state transition
      *  a replay/resume can be reconstructed from. */
     events: jsonb("events").$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    // ── AgentRun state, persisted in Postgres instead of Temporal workflow
+    // memory (lib/agent-run/*.ts) — this table IS the durable state machine
+    // now; execute/resume can run in separate, isolated serverless
+    // invocations and still agree on where things left off.
+    draftOutput: text("draft_output"),
+    draftConfidence: integer("draft_confidence"),
+    draftCitations: jsonb("draft_citations").$type<Array<{ source: string; url?: string; confidence: number }>>(),
+    finalOutput: text("final_output"),
   },
   (table) => [
     // One sandbox session per workflow run — enforces idempotent creation:
