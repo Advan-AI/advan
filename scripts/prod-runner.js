@@ -16,6 +16,8 @@
 const { spawn } = require("child_process");
 const path = require("path");
 
+require("./load-dotenv");
+
 const ROOT_DIR = path.resolve(__dirname, "..");
 
 if (!process.env.REDIS_URL) {

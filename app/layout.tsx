@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { Providers } from './providers'
+import { getEffectiveSession } from '@/lib/auth/effective-session'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -44,11 +45,12 @@ export const viewport: Viewport = {
   initialScale: 1,
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const session = await getEffectiveSession()
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
@@ -96,7 +98,7 @@ export default function RootLayout({
         className="font-sans antialiased min-h-screen bg-background text-foreground"
         suppressHydrationWarning
       >
-        <Providers>{children}</Providers>
+        <Providers session={session}>{children}</Providers>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

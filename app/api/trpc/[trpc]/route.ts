@@ -1,6 +1,6 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch"
 import { appRouter } from "@/lib/api/root"
-import { auth } from "@/lib/auth-server"
+import { getEffectiveSession } from "@/lib/auth/effective-session"
 import { Ratelimit } from "@upstash/ratelimit"
 import { Redis } from "@upstash/redis"
 
@@ -29,7 +29,7 @@ function getRatelimit() {
 }
 
 async function handler(req: Request) {
-  const session = await auth()
+  const session = await getEffectiveSession()
 
   // Rate limiting
   const rl = getRatelimit()
