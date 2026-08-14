@@ -151,10 +151,11 @@ export default function FcSandboxDemoPage() {
           FC Sandbox — Hibernate &amp; Resume Demo
         </h1>
         <p className="mt-2 text-sm text-foreground/60 leading-relaxed max-w-xl">
-          Starts a real Temporal <code className="font-mono text-xs">ticketResolutionWorkflow</code>{" "}
-          run. When it reaches the human-approval gate, an FC Sandbox session is created, the agent
-          executes inside it, then it hibernates while waiting for you to click Approve below. Updates
-          below are pushed live over SSE — nothing here is polled.
+          This is a Temporal + FC Sandbox lifecycle demo, not live chat. It does{" "}
+          <strong>not</strong> create a ticket or message in the Advan dashboard. When the run hits
+          the human-approval gate, a sandbox session is created, the agent executes inside it, then
+          it hibernates until you click Approve below. Chat tickets still come from the widget /
+          email intake as usual.
         </p>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">

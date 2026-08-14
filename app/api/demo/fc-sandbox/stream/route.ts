@@ -27,6 +27,13 @@ export async function GET(req: Request): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
       let closed = false
+      let statusPoll: ReturnType<typeof setInterval> | null = null
+      const stopPoll = () => {
+        if (statusPoll) {
+          clearInterval(statusPoll)
+          statusPoll = null
+        }
+      }
 
       const push = async () => {
         if (closed) return
@@ -36,6 +43,7 @@ export async function GET(req: Request): Promise<Response> {
           if (TERMINAL_STATUSES.has(snapshot.workflowStatus)) {
             closed = true
             unsubscribe?.()
+            stopPoll()
             controller.close()
           }
         } catch (err) {
@@ -45,13 +53,18 @@ export async function GET(req: Request): Promise<Response> {
         }
       }
 
-      // Initial snapshot immediately, then push-on-write only — no interval.
+      // Initial snapshot immediately. Also re-describe Temporal on an interval
+      // because sandbox-store writes never fire if the workflow fails in triage
+      // before a sandbox is created — otherwise the UI stays on "in progress".
       await push()
+      if (closed) return
       unsubscribe = subscribeSandboxUpdates(workflowId, () => void push())
+      statusPoll = setInterval(() => void push(), 1000)
 
       req.signal.addEventListener("abort", () => {
         closed = true
         unsubscribe?.()
+        stopPoll()
         try {
           controller.close()
         } catch {

@@ -22,10 +22,28 @@ function logAgentRun(event: {
   else console.log(line)
 }
 
+function formatUnknownError(err: unknown): string {
+  if (err instanceof Error) {
+    const cause = err.cause instanceof Error ? err.cause.message : undefined
+    const message = [err.message, cause].filter((part) => part && !part.includes("undefined undefined")).join(" — ")
+    if (message) return message
+  }
+  if (err && typeof err === "object") {
+    const e = err as { name?: unknown; code?: unknown; details?: unknown; message?: unknown }
+    const parts = [e.name, e.code, e.details, e.message]
+      .map((part) => (typeof part === "string" ? part.trim() : ""))
+      .filter((part) => part.length > 0 && part !== "undefined")
+    if (parts.length > 0) return parts.join(" — ")
+  }
+  return "Failed to start Temporal workflow. Is the Temporal server running on TEMPORAL_ADDRESS?"
+}
+
 /**
  * Sample App Router endpoint: starts `ticketResolutionWorkflow` on the worker task queue.
  * Wire authentication/authorization before exposing in production.
  */
+export const runtime = "nodejs"
+
 export async function POST(req: Request): Promise<NextResponse> {
   const traceId = crypto.randomUUID()
   const start = Date.now()
@@ -84,8 +102,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       taskQueue,
     })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error"
+    const message = formatUnknownError(err)
     logAgentRun({ type: "failed", traceId, durationMs: Date.now() - start, error: message })
+    console.error("[trigger-workflow] start failed", err)
     return NextResponse.json({ traceId, error: message }, { status: 500 })
   }
 }

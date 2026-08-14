@@ -1,13 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk"
-import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
-import { ChatAnthropic } from "@langchain/anthropic"
-import { HumanMessage, SystemMessage } from "@langchain/core/messages"
-import { getLlmRuntimeConfig, createAnthropicModel } from "@/lib/llm/config"
-import { getGroqChatModel, getGroqOpenAIClient } from "@/lib/llm/groq-client"
-import { createOllamaChatOpenAI } from "@/lib/llm/ollama-openai"
 import { PIIMasker } from "@/lib/governance/pii-masker"
 import { queryEmbeddings } from "@/lib/vector/store"
-import { embedWithOllama } from "@/lib/vector/ollama-embeddings"
+import { invokeAlibabaFcChat } from "@/lib/llm/alibaba-fc-client"
+import { getEmbedding } from "@/lib/alibaba/model-studio-client"
 
 export interface TriageInput {
   orgId: string
@@ -45,73 +39,53 @@ export interface ComposerResult {
 
 const TRIAGE_SYSTEM =
   "You are an intent classifier. Respond with a single JSON object: {\"intent\": string, \"confidence\": number}. " +
-  "Intent categories: billing, technical, account, general, policy."
+  "Intent categories: billing, technical, account, general, policy. JSON only."
 
 function parseTriageJson(text: string): TriageResult {
   try {
-    const parsed = JSON.parse(text) as { intent?: string; confidence?: number }
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    const parsed = JSON.parse(jsonMatch?.[0] ?? text) as { intent?: string; confidence?: number }
     return { intent: parsed.intent ?? "general", confidence: parsed.confidence ?? 80 }
   } catch {
     return { intent: "general", confidence: 70 }
   }
 }
 
+const DEMO_ORG_ID = "demo-org-fc-sandbox"
+
 /**
- * Triage activity — fast intent classification (Anthropic Haiku or local Ollama).
+ * Triage — Alibaba DashScope Qwen (no Groq / Ollama).
+ * Demo org falls back to a billing intent so /demo/fc-sandbox can still
+ * reach sandbox hibernation if the LLM call fails.
  */
 async function runTriageActivity(input: TriageInput): Promise<TriageResult> {
   const maskedText = PIIMasker.mask(input.text)
-  const cfg = getLlmRuntimeConfig()
-
   try {
-    if (cfg.chatProvider === "vertex-anthropic") {
-      const anthropic = new AnthropicVertex({
-        projectId: cfg.gcpProjectId || "arslantoor",
-        region: cfg.gcpRegion || "us-east5",
-      })
-      const response = await anthropic.messages.create({
-        model: cfg.claudeModel || "claude-3-5-sonnet-v2@20241022",
-        max_tokens: 64,
-        system: TRIAGE_SYSTEM,
-        messages: [{ role: "user", content: maskedText }],
-      })
-      const content = response.content[0]
-      if (content.type === "text") {
-        return parseTriageJson(content.text)
-      }
-    } else if (cfg.chatProvider === "anthropic" && cfg.anthropicApiKey) {
-      const anthropic = new Anthropic({ apiKey: cfg.anthropicApiKey })
-      const response = await anthropic.messages.create({
-        model: "claude-3-haiku-20240307",
-        max_tokens: 64,
-        system: TRIAGE_SYSTEM,
-        messages: [{ role: "user", content: maskedText }],
-      })
-      const content = response.content[0]
-      if (content.type === "text") {
-        return parseTriageJson(content.text)
-      }
-    } else {
-      const model = createOllamaChatOpenAI(cfg, cfg.ollamaTriageModel)
-      const response = await model.invoke([
-        new SystemMessage(TRIAGE_SYSTEM),
-        new HumanMessage(maskedText),
-      ])
-      return parseTriageJson(response.content.toString())
+    const text = await invokeAlibabaFcChat({
+      orgId: input.orgId,
+      systemPrompt: TRIAGE_SYSTEM,
+      conversationId: `${input.orgId}-triage`,
+      messages: [
+        { role: "system", content: TRIAGE_SYSTEM },
+        { role: "user", content: maskedText },
+      ],
+    })
+    return parseTriageJson(text)
+  } catch (err) {
+    if (input.orgId === DEMO_ORG_ID) {
+      console.warn("[runTriageActivity] LLM failed; using demo fallback", err)
+      return { intent: "billing", confidence: 70 }
     }
-  } catch {
-    // fall through
+    throw err
   }
-
-  return { intent: "general", confidence: 70 }
 }
 
 /**
- * Knowledge activity — vector search via pgvector + Ollama embeddings.
+ * Knowledge — DashScope embeddings + pgvector. Empty sources if retrieval fails.
  */
 async function runKnowledgeActivity(input: KnowledgeInput): Promise<KnowledgeResult> {
   try {
-    const queryVector = await embedWithOllama(`${input.intent}: ${input.query}`)
+    const queryVector = await getEmbedding(`${input.intent}: ${input.query}`)
     const matches = await queryEmbeddings(input.orgId, queryVector, 5)
 
     return {
@@ -135,7 +109,7 @@ function mapComposerSuccess(
   const avgScore =
     input.sources.length > 0
       ? input.sources.reduce((sum, s) => sum + s.score, 0) / input.sources.length
-      : 0.7
+      : 0.62
   const confidence = Math.round(avgScore * 100)
 
   return {
@@ -151,7 +125,7 @@ function mapComposerSuccess(
 }
 
 /**
- * Composer activity — primary: Anthropic Sonnet or Ollama; fallback: Groq (OpenAI-compatible).
+ * Composer — Qwen via Alibaba Function Compute only.
  */
 async function runComposerActivity(input: ComposerInput): Promise<ComposerResult> {
   const maskedInput = PIIMasker.mask(input.input)
@@ -173,44 +147,27 @@ ${sourcesContext || "No sources retrieved — answer from general knowledge only
 
 Intent: ${input.intent}`
 
-  const cfg = getLlmRuntimeConfig()
-
   try {
-    if (cfg.chatProvider === "anthropic" || cfg.chatProvider === "vertex-anthropic") {
-      const sonnet = createAnthropicModel(cfg, "claude-3-5-sonnet-20240620", 0)
-      const response = await sonnet.invoke([
-        new SystemMessage(systemPrompt),
-        new HumanMessage(maskedInput),
-      ])
-      return mapComposerSuccess(response.content.toString(), input)
+    const output = await invokeAlibabaFcChat({
+      orgId: input.orgId,
+      systemPrompt,
+      conversationId: `${input.orgId}-composer`,
+      temperature: 0,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: maskedInput },
+      ],
+    })
+    return mapComposerSuccess(output, input)
+  } catch (err) {
+    if (input.orgId === DEMO_ORG_ID) {
+      console.warn("[runComposerActivity] LLM failed; using demo fallback", err)
+      return mapComposerSuccess(
+        "I can look into that invoice total. Please hold while we verify the charge against your last bill.",
+        input
+      )
     }
-
-    const ollama = createOllamaChatOpenAI(cfg, cfg.ollamaChatModel)
-    const response = await ollama.invoke([
-      new SystemMessage(systemPrompt),
-      new HumanMessage(maskedInput),
-    ])
-    return mapComposerSuccess(response.content.toString(), input)
-  } catch (primaryErr: unknown) {
-    const groq = getGroqOpenAIClient()
-    if (groq) {
-      const completion = await groq.chat.completions.create({
-        model: getGroqChatModel(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: maskedInput },
-        ],
-        temperature: 0,
-      })
-      const text = completion.choices[0]?.message?.content ?? ""
-      return {
-        output: text,
-        confidence: 75,
-        policyViolation: false,
-        citations: input.sources.map((s) => ({ source: s.title, url: s.url, confidence: 75 })),
-      }
-    }
-    throw primaryErr
+    throw err
   }
 }
 

@@ -50,13 +50,19 @@ export function SandboxTimeline({
   workflowStatus: string | null
 }) {
   const steps = buildSteps(sandbox, workflowStatus)
+  const failed = workflowStatus === "FAILED" || workflowStatus === "TIMED_OUT" || workflowStatus === "TERMINATED" || workflowStatus === "CANCELED"
   const activeIndex = steps.findIndex((s) => !s.ts)
 
   return (
     <ol className="space-y-0">
+      {failed && (
+        <li className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+          Workflow {workflowStatus?.toLowerCase()}. The sandbox demo never reached hibernation — check the Temporal worker log (composer/LLM). This page does not create a dashboard ticket.
+        </li>
+      )}
       {steps.map((step, i) => {
         const done = !!step.ts
-        const active = !done && i === activeIndex
+        const active = !done && !failed && i === activeIndex
         return (
           <li key={step.key} className="flex gap-3 pb-5 last:pb-0">
             <div className="flex flex-col items-center">
@@ -80,7 +86,7 @@ export function SandboxTimeline({
                 {step.label}
               </div>
               <div className="text-xs text-foreground/45 font-mono mt-0.5">
-                {step.ts ? new Date(step.ts).toLocaleTimeString() : active ? "in progress…" : "pending"}
+                {step.ts ? new Date(step.ts).toLocaleTimeString() : active ? "in progress…" : failed && i === activeIndex ? "failed" : "pending"}
               </div>
             </div>
           </li>
