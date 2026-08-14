@@ -1,13 +1,36 @@
+import crypto from "crypto"
 import { NextResponse } from "next/server"
 import { getTemporalClient } from "@/lib/temporal/clients/workflow.client"
 
 const DEFAULT_TASK_QUEUE = "advan-agents"
+
+/** Structured AgentRun trace line — same [prefix] {json} convention as
+ *  lib/sandbox/fc-sandbox-client.ts's logSandboxEvent/Alert, scoped one
+ *  level up (this covers queuing the run itself, before any FC Sandbox
+ *  session exists). Never logs request bodies or credentials. */
+function logAgentRun(event: {
+  type: "queued" | "executing" | "completed" | "failed"
+  traceId: string
+  workflowId?: string
+  taskQueue?: string
+  durationMs?: number
+  error?: string
+}) {
+  const record = { ts: new Date().toISOString(), ...event }
+  const line = `[AgentRun] ${JSON.stringify(record)}`
+  if (event.type === "failed") console.error(line)
+  else console.log(line)
+}
 
 /**
  * Sample App Router endpoint: starts `ticketResolutionWorkflow` on the worker task queue.
  * Wire authentication/authorization before exposing in production.
  */
 export async function POST(req: Request): Promise<NextResponse> {
+  const traceId = crypto.randomUUID()
+  const start = Date.now()
+  logAgentRun({ type: "queued", traceId })
+
   try {
     const body = (await req.json()) as {
       orgId?: string
@@ -30,7 +53,6 @@ export async function POST(req: Request): Promise<NextResponse> {
       )
     }
 
-    const client = await getTemporalClient()
     const workflowId =
       body.workflowId?.trim() && body.workflowId.trim().length > 0
         ? body.workflowId.trim()
@@ -41,19 +63,29 @@ export async function POST(req: Request): Promise<NextResponse> {
         ? body.taskQueue.trim()
         : DEFAULT_TASK_QUEUE
 
+    logAgentRun({ type: "executing", traceId, workflowId, taskQueue })
+
+    // This is the AgentRun → Temporal handoff. If TEMPORAL_ADDRESS is unset
+    // or unreachable, this call is where it fails (connection deadline),
+    // before any workflow — and therefore before FC Sandbox — ever starts.
+    const client = await getTemporalClient()
     const handle = await client.workflow.start("ticketResolutionWorkflow", {
       taskQueue,
       workflowId,
       args: [{ orgId, ticketId, customerInput, hitlTimeoutMinutes: body.hitlTimeoutMinutes }],
     })
 
+    logAgentRun({ type: "completed", traceId, workflowId, taskQueue, durationMs: Date.now() - start })
+
     return NextResponse.json({
+      traceId,
       workflowId: handle.workflowId,
       runId: handle.firstExecutionRunId,
       taskQueue,
     })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error"
-    return NextResponse.json({ error: message }, { status: 500 })
+    logAgentRun({ type: "failed", traceId, durationMs: Date.now() - start, error: message })
+    return NextResponse.json({ traceId, error: message }, { status: 500 })
   }
 }
