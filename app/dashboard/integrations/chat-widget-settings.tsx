@@ -74,6 +74,7 @@ export function ChatWidgetSettings() {
   const [copiedKey, setCopiedKey] = useState(false)
   const [copiedSnippet, setCopiedSnippet] = useState(false)
   const [copiedDirectUrl, setCopiedDirectUrl] = useState(false)
+  const [previewGeneration, setPreviewGeneration] = useState(0)
   const [editingQuestion, setEditingQuestion] = useState<{
     id?: string
     text: string
@@ -231,10 +232,12 @@ export function ChatWidgetSettings() {
 
   const embedSnippet = `<script src="https://example.com/widget.js"></script>\n<script>\n  window.AdvanChat = { key: "${config.widgetKey}" };\n</script>`
   const directChatUrl = typeof window !== "undefined" ? `${window.location.origin}/chat/${config.widgetKey}` : `/chat/${config.widgetKey}`
+  const widgetPreviewUrl = `/chat-widget-frame?key=${encodeURIComponent(config.widgetKey)}&preview=${previewGeneration}`
 
   return (
     <DashCard title="Chat Widget" icon={<Globe className="w-[18px] h-[18px]" />} padded>
-      <div className="space-y-5 sm:space-y-6 max-w-2xl 3xl:max-w-3xl 4xl:max-w-4xl">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,520px)] xl:items-start">
+        <div className="space-y-5 sm:space-y-6 min-w-0">
         {/* Widget Key */}
         <div className="space-y-2">
           <label className="text-[13px] font-bold text-[var(--dash-ink)]">Widget Key</label>
@@ -637,6 +640,49 @@ export function ChatWidgetSettings() {
           >
             <Trash2 className="w-4 h-4" /> Disable widget
           </button>
+        </div>
+        </div>
+
+        {/* Support-team widget preview */}
+        <div className="min-w-0 xl:sticky xl:top-4">
+          <div className="overflow-hidden rounded-xl border dash-border-soft bg-white shadow-[0_8px_30px_-18px_rgba(0,0,0,0.25)]">
+            <div className="flex items-center justify-between gap-3 border-b dash-border-soft px-3.5 py-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-bold text-[var(--dash-ink)]">Widget Preview</span>
+                  <span className="rounded-full bg-[var(--dash-sage-wash)] px-2 py-0.5 text-[10px] font-bold text-[var(--dash-sage)]">
+                    Test Mode
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[11px] leading-normal text-[var(--dash-ink-faint)]">
+                  Start a customer chat without leaving Integrations.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewGeneration((generation) => generation + 1)}
+                className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border dash-border bg-white px-2.5 text-[12px] font-bold text-[var(--dash-ink-soft)] transition hover:bg-[var(--dash-bg)] hover:text-[var(--dash-ink)] active:scale-[0.98]"
+                title="Reset the preview as a new customer"
+                aria-label="Start preview as a new customer"
+              >
+                <RefreshCw className="h-3.5 w-3.5 text-[var(--dash-accent)]" />
+                New customer
+              </button>
+            </div>
+
+            <div className="relative h-[620px] max-h-[72vh] min-h-[480px] bg-[#0b0f0d]">
+              <iframe
+                key={previewGeneration}
+                src={widgetPreviewUrl}
+                title="Customer chat widget preview"
+                className="h-full w-full border-0"
+                allow="clipboard-write"
+              />
+            </div>
+          </div>
+          <p className="mt-2 px-1 text-[11px] leading-normal text-[var(--dash-ink-faint)]">
+            “New customer” fully remounts the hosted chat so the backend creates a fresh visitor session.
+          </p>
         </div>
       </div>
     </DashCard>

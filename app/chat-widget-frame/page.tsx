@@ -43,18 +43,20 @@ type SessionState = {
 }
 
 const getSocketUrl = () => {
-  const envUrl = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SOCKET_URL : null
+  const envUrl = process.env.NEXT_PUBLIC_SOCKET_URL
   if (envUrl && !envUrl.includes("localhost:3002") && !envUrl.includes("127.0.0.1:3002")) {
     return envUrl
   }
-  if (typeof window === "undefined") return "http://localhost:3002"
-  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "0.0.0.0"
+
+  const isLocal =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "0.0.0.0"
+
   return isLocal
     ? `${window.location.protocol}//${window.location.hostname}:3002`
-    : `${window.location.protocol}//${window.location.hostname}`
+    : window.location.origin
 }
-
-const SOCKET_URL = getSocketUrl()
 
 function postToParent(msg: Record<string, unknown>) {
   try {
@@ -256,7 +258,10 @@ export default function ChatWidgetFrame({ initialKey }: { initialKey?: string } 
     socketRef.current?.disconnect()
     socketRef.current = null
 
-    const socket = SocketIO.connect(`${SOCKET_URL}/chat-widget`, {
+    // Resolve the socket URL only after hydration.
+    const socketUrl = getSocketUrl()
+
+    const socket = SocketIO.connect(`${socketUrl}/chat-widget`, {
       auth: { token },
       transports: ["websocket", "polling"],
       reconnection: true,

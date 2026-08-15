@@ -55,10 +55,18 @@ function getPublisher(): Redis | null {
 async function publish(channel: string, payload: unknown): Promise<void> {
   const pub = getPublisher()
   if (!pub) return
+
+  if (pub.status !== "ready") {
+    return
+  }
+
   try {
     await pub.publish(channel, JSON.stringify(payload))
   } catch (err) {
-    console.warn(`[EventBus] publish to ${channel} failed:`, (err as Error).message)
+    console.warn(
+      `[EventBus] publish to ${channel} failed:`,
+      (err as Error).message
+    )
   }
 }
 
@@ -205,11 +213,17 @@ export async function isAnyAgentOnline(orgId: string): Promise<boolean> {
 /**
  * Returns how many agent sockets are currently online for the org.
  * Used by the chat widget for multi-agent avatar stack (+N) UI.
- * Falls back to 0 on Redis error.
+ * Falls back to 0 when Redis is unavailable or still reconnecting.
  */
 export async function countAgentsOnline(orgId: string): Promise<number> {
   const pub = getPublisher()
   if (!pub) return 0
+
+  // Presence is advisory and must never block chat bootstrap. With
+  // maxRetriesPerRequest=null, ioredis can queue SCARD indefinitely while
+  // reconnecting. Return "offline" until the connection is actually ready.
+  if (pub.status !== "ready") return 0
+
   try {
     return await pub.scard(presenceKey(orgId))
   } catch {
@@ -224,7 +238,7 @@ export async function countAgentsOnline(orgId: string): Promise<number> {
  * Two-layer check:
  *   1. Redis presence  — fast; returns false immediately when no sockets connected.
  *   2. DB chatAvailable — confirms that at least one connected agent is opted-in
- *      to receiving live chats.  Without this a logged-in-but-busy agent would
+ *      to receiving live chats. Without this a logged-in-but-busy agent would
  *      still route visitors to live chat.
  *
  * Used by GET /api/chat/availability and POST /api/chat/intake.

@@ -9,6 +9,7 @@ const CONVERSATION_ID = "2d527dc9-828b-442d-9f8c-405287878169"
 const MESSAGE_ID = "a37d9a59-828b-442d-9f8c-405287878169"
 const RESEND_ID = "re_abc123"
 const CUSTOMER_EMAIL = "customer@startup.io"
+const RESEND_MESSAGE_ID = "msg_abc123"
 
 function seedEnv() {
   process.env.RESEND_WEBHOOK_SECRET = SECRET
@@ -30,6 +31,7 @@ function bounceFixture(): EmailBouncedEvent {
     created_at: "2026-07-02T12:00:00.000Z",
     data: {
       email_id: RESEND_ID,
+      message_id: RESEND_MESSAGE_ID,
       created_at: "2026-07-02T12:00:00.000Z",
       from: "Support <support@mail.example.com>",
       to: [CUSTOMER_EMAIL],
